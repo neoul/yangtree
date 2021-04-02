@@ -13,7 +13,7 @@ type DataNode interface {
 	SetParent(parent *DataBranch, key ...string)
 
 	Set(value ...string) error
-	Remove() error
+	Remove(value ...string) error
 
 	Insert(key string, data DataNode) error
 	Delete(key string) error
@@ -39,18 +39,20 @@ func (branch *DataBranch) SetParent(parent *DataBranch, key ...string) {
 }
 func (branch *DataBranch) String() string {
 	if branch == nil {
-		return ""
+		return "branch.nil"
 	}
-	return "branch " + branch.schema.Name
+	return "branch." + branch.schema.Name
 }
 
 func (branch *DataBranch) Set(value ...string) error {
 	return nil
 }
 
-func (branch *DataBranch) Remove() error {
-	delete(branch.parent.Children, branch.key)
-	branch.parent = nil
+func (branch *DataBranch) Remove(value ...string) error {
+	if branch.parent != nil {
+		delete(branch.parent.Children, branch.key)
+		branch.parent = nil
+	}
 	return nil
 }
 
@@ -70,7 +72,6 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 	switch {
 	case branch.schema.IsList():
 		// [FIXME] check key validation
-
 		fallthrough
 	default:
 		branch.Children[key] = data
@@ -103,9 +104,9 @@ func (leaf *DataLeaf) SetParent(parent *DataBranch, key ...string) { leaf.parent
 func (leaf *DataLeaf) GetParent() *DataBranch                      { return leaf.parent }
 func (leaf *DataLeaf) String() string {
 	if leaf == nil {
-		return ""
+		return "leaf.nil"
 	}
-	return "leaf " + leaf.schema.Name
+	return "leaf." + leaf.schema.Name
 }
 
 func (leaf *DataLeaf) Set(value ...string) error {
@@ -117,7 +118,7 @@ func (leaf *DataLeaf) Set(value ...string) error {
 	return nil
 }
 
-func (leaf *DataLeaf) Remove() error {
+func (leaf *DataLeaf) Remove(value ...string) error {
 	delete(leaf.parent.Children, leaf.schema.Name)
 	leaf.parent = nil
 	return nil
@@ -135,47 +136,100 @@ func (leaf *DataLeaf) Find(key string) DataNode {
 	return nil
 }
 
+// DataLeafList (leaf-list data node)
+// It can be set by the key
 type DataLeafList struct {
 	schema *yang.Entry
 	parent *DataBranch
 	Value  []string
 }
 
-func (leaflist *DataLeafList) IsYangData()                                 {}
-func (leaflist *DataLeafList) Schema() *yang.Entry                         { return leaflist.schema }
-func (leaflist *DataLeafList) SetParent(parent *DataBranch, key ...string) { leaflist.parent = parent }
-func (leaflist *DataLeafList) GetParent() *DataBranch                      { return leaflist.parent }
+func (leaflist *DataLeafList) IsYangData() {}
+func (leaflist *DataLeafList) Schema() *yang.Entry {
+	if leaflist == nil {
+		return nil
+	}
+	return leaflist.schema
+}
+func (leaflist *DataLeafList) SetParent(parent *DataBranch, key ...string) {
+	if leaflist == nil {
+		return
+	}
+	leaflist.parent = parent
+}
+func (leaflist *DataLeafList) GetParent() *DataBranch {
+	if leaflist == nil {
+		return nil
+	}
+	return leaflist.parent
+}
 func (leaflist *DataLeafList) String() string {
 	if leaflist == nil {
-		return ""
+		return "leaf-list.nil"
 	}
-	return "leaf-list " + leaflist.schema.Name
+	return "leaf-list." + leaflist.schema.Name
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
+	if leaflist == nil {
+		return fmt.Errorf("yangtree: %v set failed", leaflist)
+	}
 	for i := range value {
-		// check the validation of the value[i]
-		// set value
-		leaflist.Value = append(leaflist.Value, value[i])
+		insert := true
+		for j := range leaflist.Value {
+			if leaflist.Value[j] == value[i] {
+				insert = false
+				break
+			}
+		}
+		if insert {
+			leaflist.Value = append(leaflist.Value, value[i])
+		}
 	}
 	return nil
 }
 
-func (leaflist *DataLeafList) Remove() error {
-	delete(leaflist.parent.Children, leaflist.schema.Name)
-	leaflist.parent = nil
+func (leaflist *DataLeafList) Remove(value ...string) error {
+	if leaflist == nil {
+		return fmt.Errorf("yangtree: %v remove failed", leaflist)
+	}
+	for i := range value {
+		for j := range leaflist.Value {
+			if leaflist.Value[j] == value[i] {
+				leaflist.Value = append(leaflist.Value[:j], leaflist.Value[j+1:]...)
+				break
+			}
+		}
+	}
+	if len(value) == 0 {
+		if leaflist.parent != nil {
+			delete(leaflist.parent.Children, leaflist.schema.Name)
+			leaflist.parent = nil
+		}
+	}
 	return nil
 }
 
 func (leaflist *DataLeafList) Insert(key string, data DataNode) error {
-	return fmt.Errorf("yangtree: %v is not a branch node", leaflist)
+	if other, ok := data.(*DataLeafList); ok && other != nil {
+		if err := leaflist.Set(other.Value...); err != nil {
+			return err
+		}
+	}
+	return leaflist.Set(key)
 }
 
 func (leaflist *DataLeafList) Delete(key string) error {
-	return fmt.Errorf("yangtree: %v is not a branch node", leaflist)
+	return leaflist.Set(key)
 }
 
+// Find finds the key from its value.
 func (leaflist *DataLeafList) Find(key string) DataNode {
+	for i := range leaflist.Value {
+		if leaflist.Value[i] == key {
+			return leaflist
+		}
+	}
 	return nil
 }
 
@@ -247,11 +301,14 @@ func Delete(root DataNode, path string, value ...string) error {
 	}
 
 	for i := range key {
+		if _, ok := root.(*DataLeafList); ok {
+			value = append(value, key[i:]...)
+		}
 		found := root.Find(key[i])
 		if found == nil {
 			return fmt.Errorf("yangtree: data node %v not found", key[:i])
 		}
 		root = found
 	}
-	return root.Remove()
+	return root.Remove(value...)
 }
