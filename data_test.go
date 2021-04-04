@@ -126,6 +126,14 @@ func TestDataNode(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "test-item",
+			args: args{
+				path:  "/sample/container-val/enum-val",
+				value: []string{"enum2"},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+".Insert", func(t *testing.T) {
@@ -135,6 +143,9 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	leaf := RootData.Find("/sample/multiple-key-list[str=first][integer=1]/ok")
+	j, _ := leaf.MarshalJSON()
+	fmt.Println(string(j))
 
 	for i := len(tests) - 1; i >= 0; i-- {
 		tt := tests[i]
@@ -144,5 +155,4 @@ func TestDataNode(t *testing.T) {
 			}
 		})
 	}
-	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }

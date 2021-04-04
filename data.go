@@ -18,7 +18,10 @@ type DataNode interface {
 	Insert(key string, data DataNode) error
 	Delete(key string) error
 
-	Find(key string) DataNode
+	Get(key string) DataNode // Get an child having the key.
+	Find(path string) DataNode
+
+	MarshalJSON() ([]byte, error)
 }
 
 type DataBranch struct {
@@ -88,8 +91,27 @@ func (branch *DataBranch) Delete(key string) error {
 	return nil
 }
 
-func (branch *DataBranch) Find(key string) DataNode {
+func (branch *DataBranch) Get(key string) DataNode {
 	return branch.Children[key]
+}
+
+func (branch *DataBranch) Find(path string) DataNode {
+	if branch == nil {
+		return nil
+	}
+	key, err := SplitPath(branch.Schema(), path)
+	if err != nil {
+		return nil
+	}
+	var node DataNode
+	node = branch
+	for i := range key {
+		node = node.Get(key[i])
+		if node == nil {
+			return nil
+		}
+	}
+	return node
 }
 
 type DataLeaf struct {
@@ -111,8 +133,6 @@ func (leaf *DataLeaf) String() string {
 
 func (leaf *DataLeaf) Set(value ...string) error {
 	for i := range value {
-		// check the validation of the value[i]
-		// set value
 		leaf.Value = value[i]
 	}
 	return nil
@@ -132,7 +152,11 @@ func (leaf *DataLeaf) Delete(key string) error {
 	return fmt.Errorf("yangtree: %v is not a branch node", leaf)
 }
 
-func (leaf *DataLeaf) Find(key string) DataNode {
+func (leaf *DataLeaf) Get(key string) DataNode {
+	return nil
+}
+
+func (leaf *DataLeaf) Find(path string) DataNode {
 	return nil
 }
 
@@ -223,10 +247,20 @@ func (leaflist *DataLeafList) Delete(key string) error {
 	return leaflist.Set(key)
 }
 
-// Find finds the key from its value.
-func (leaflist *DataLeafList) Find(key string) DataNode {
+// Get finds the key from its value.
+func (leaflist *DataLeafList) Get(key string) DataNode {
 	for i := range leaflist.Value {
 		if leaflist.Value[i] == key {
+			return leaflist
+		}
+	}
+	return nil
+}
+
+// Get finds the key from its value.
+func (leaflist *DataLeafList) Find(path string) DataNode {
+	for i := range leaflist.Value {
+		if leaflist.Value[i] == path {
 			return leaflist
 		}
 	}
@@ -275,7 +309,7 @@ func Insert(root DataNode, path string, value ...string) error {
 		return err
 	}
 	for i := range key {
-		found := root.Find(key[i])
+		found := root.Get(key[i])
 		if found == nil {
 			cschema, err := FindSchema(root.Schema(), key[i])
 			if err != nil {
@@ -304,7 +338,7 @@ func Delete(root DataNode, path string, value ...string) error {
 		if _, ok := root.(*DataLeafList); ok {
 			value = append(value, key[i:]...)
 		}
-		found := root.Find(key[i])
+		found := root.Get(key[i])
 		if found == nil {
 			return fmt.Errorf("yangtree: data node %v not found", key[:i])
 		}
