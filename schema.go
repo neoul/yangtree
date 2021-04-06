@@ -268,7 +268,7 @@ func getIdentityrefAnnotation(entry *yang.Entry) map[string]string {
 	return nil
 }
 
-func updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
+func _updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
 	if typ == nil {
 		return
 	}
@@ -305,7 +305,7 @@ func updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
 		entry.Annotation["identityref"] = identityref
 	case yang.Yunion:
 		for i := range typ.Type {
-			updateTypeAnnotation(entry, typ.Type[i])
+			_updateTypeAnnotation(entry, typ.Type[i])
 		}
 	}
 	if typ.Root != nil {
@@ -313,12 +313,36 @@ func updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
 	}
 }
 
-// updateAnnotation updates the schema info before enconding.
-func updateAnnotation(entry *yang.Entry) {
+func updateModuleAnnotation(entry *yang.Entry, curModule *yang.Module, modules *yang.Modules) error {
+	if entry.Annotation == nil {
+		entry.Annotation = map[string]interface{}{}
+	}
+	module, err := modules.FindModuleByPrefix(entry.Prefix.Name)
+	if err != nil {
+		return err
+	}
+	// namespace-qualified name of RFC 7951
+	nsname := fmt.Sprintf("%s:%s", module.Name, entry.Name)
+	entry.Annotation["fullname"] = nsname
+	if curModule != module {
+		entry.Annotation["ns-qualified-name"] = nsname
+	}
 	for _, child := range entry.Dir {
-		updateAnnotation(child)
-		child.Annotation = map[string]interface{}{}
-		updateTypeAnnotation(child, child.Type)
+		if err := updateModuleAnnotation(child, module, modules); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// updateTypeAnnotation updates the schema info before enconding.
+func updateTypeAnnotation(entry *yang.Entry) {
+	if entry.Annotation == nil {
+		entry.Annotation = map[string]interface{}{}
+	}
+	_updateTypeAnnotation(entry, entry.Type)
+	for _, child := range entry.Dir {
+		updateTypeAnnotation(child)
 	}
 }
 
@@ -380,7 +404,8 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 				}
 			}
 			if !skip {
-				updateAnnotation(entry)
+				updateModuleAnnotation(entry, nil, ms)
+				updateTypeAnnotation(entry)
 				root.Dir[entry.Name] = entry
 				entry.Parent = root
 			}

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int, error) {
+func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc7951 bool) (int, error) {
 	schema := node[i].Schema()
 	keyname := strings.Split(schema.Key, " ")
 	keynamelen := len(keyname)
@@ -66,7 +66,7 @@ func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 	for i := 0; i < length; {
 		if node[i].Schema().IsList() {
 			var err error
-			i, err = marshalList(buffer, node, i, length)
+			i, err = marshalList(buffer, node, i, length, false)
 			if err != nil {
 				return nil, err
 			}
@@ -76,8 +76,11 @@ func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		// buffer.WriteString("\"" + node[i].Key() + "\":" + string(jsonValue))
-		buffer.WriteString("\"" + node[i].Key() + "\":" + string(jsonValue))
+		if qname := GetAnnotation(node[i].Schema(), "ns-qualified-name"); qname != nil {
+			buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
+		} else {
+			buffer.WriteString("\"" + node[i].Key() + "\":" + string(jsonValue))
+		}
 		if i < length-1 {
 			buffer.WriteString(",")
 		}
@@ -101,48 +104,50 @@ func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 	return json.Marshal(leaflist.Value)
 }
 
-type JSON_IETF_Marshaler interface {
-	MarshalJSON_IETF() ([]byte, error)
-}
+// type JSON_IETF_Marshaler interface {
+// 	MarshalJSON_IETF() ([]byte, error)
+// }
 
-func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
-	if branch == nil {
-		return nil, nil
-	}
-	length := len(branch.Children)
-	if length == 0 {
-		return nil, nil
-	}
-	buffer := bytes.NewBufferString("{")
-	node := make([]DataNode, 0, length)
-	for _, c := range branch.Children {
-		node = append(node, c)
-	}
-	sort.Slice(node, func(i, j int) bool {
-		return node[i].Key() < node[j].Key()
-	})
-	for i := 0; i < length; {
-		if node[i].Schema().IsList() {
-			var err error
-			i, err = marshalList(buffer, node, i, length)
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
-		jsonValue, err := json.Marshal(node[i])
-		if err != nil {
-			return nil, err
-		}
-		buffer.WriteString("\"" + node[i].Schema().Prefix.Name + ":" + node[i].Key() + "\":" + string(jsonValue))
-		if i < length-1 {
-			buffer.WriteString(",")
-		}
-		i++
-	}
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
+// func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
+// 	if branch == nil {
+// 		return nil, nil
+// 	}
+// 	length := len(branch.Children)
+// 	if length == 0 {
+// 		return nil, nil
+// 	}
+// 	buffer := bytes.NewBufferString("{")
+// 	node := make([]DataNode, 0, length)
+// 	for _, c := range branch.Children {
+// 		node = append(node, c)
+// 	}
+// 	sort.Slice(node, func(i, j int) bool {
+// 		return node[i].Key() < node[j].Key()
+// 	})
+// 	for i := 0; i < length; {
+// 		if node[i].Schema().IsList() {
+// 			var err error
+// 			i, err = marshalList(buffer, node, i, length, true)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			continue
+// 		}
+// 		jsonValue, err := json.Marshal(node[i])
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		mod := node[i].Schema().Modules()
+// 		m, _ := mod.FindModuleByPrefix(node[i].Schema().Prefix.Name)
+// 		buffer.WriteString("\"" + m.Name + ":" + node[i].Key() + "\":" + string(jsonValue))
+// 		if i < length-1 {
+// 			buffer.WriteString(",")
+// 		}
+// 		i++
+// 	}
+// 	buffer.WriteString("}")
+// 	return buffer.Bytes(), nil
+// }
 
 // func (this Stuff) UnmarshalJSON(b []byte) error {
 // 	var stuff map[string]string
