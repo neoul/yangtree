@@ -10,35 +10,40 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
-// func marshalListKeyGroup(buffer *bytes.Buffer, ) (int, error) {
-// }
-
 func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int, error) {
 	schema := node[i].Schema()
-	buffer.WriteString("\"" + schema.Name + "\":{")
-	j := i
-	for j < length {
-		if schema != node[j].Schema() {
-			j--
+	keyname := strings.Split(schema.Key, " ")
+	keynamelen := len(keyname)
+	buffer.WriteString("\"" + schema.Name + "\":")
+	keymetric := map[string]interface{}{}
+	for ; i < length; i++ {
+		if schema != node[i].Schema() {
 			break
 		}
-		j++
-	}
-	for ; i <= j; i++ {
-		jsonValue, err := json.Marshal(node[i])
-		if err != nil {
-			return i, err
-		}
-		keyval, err := ExtractKeys(strings.Split(schema.Key, " "), node[i].Key())
+		keyval, err := ExtractKeys(keyname, node[i].Key())
 		if err != nil {
 			return 0, err
 		}
-		buffer.WriteString(fmt.Sprintf("\"%s\":%s", strings.Join(keyval, " "), string(jsonValue)))
-		if i < j {
-			buffer.WriteString(",")
+		m := keymetric
+		for x := range keyval {
+			if x < keynamelen-1 {
+				if n := m[keyval[x]]; n == nil {
+					n := map[string]interface{}{}
+					m[keyval[x]] = n
+					m = n
+				} else {
+					m = n.(map[string]interface{})
+				}
+			} else {
+				m[keyval[x]] = node[i]
+			}
 		}
 	}
-	buffer.WriteString("}")
+	jsonValue, err := json.Marshal(keymetric)
+	if err != nil {
+		return i, err
+	}
+	buffer.WriteString(string(jsonValue))
 	if i < length {
 		buffer.WriteString(",")
 	}
