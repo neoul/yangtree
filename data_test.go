@@ -15,7 +15,10 @@ func TestDataNode(t *testing.T) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	RootData := New(RootSchema)
+	RootData, err := New(RootSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	type args struct {
 		path  string

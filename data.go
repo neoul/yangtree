@@ -66,7 +66,10 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 		return err
 	}
 	if data == nil {
-		data = New(cschema)
+		data, err = New(cschema)
+		if err != nil {
+			return err
+		}
 	} else {
 		if cschema != data.Schema() {
 			return fmt.Errorf("yangtree: unexpected schema '%v' inserted", data.Schema().Name)
@@ -155,7 +158,7 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 }
 
 func (leaf *DataLeaf) Insert(key string, data DataNode) error {
-	return fmt.Errorf("yangtree: %v is not a branch node", leaf)
+	return fmt.Errorf("yangtree: %v is not a branch or leaf-list node", leaf)
 }
 
 func (leaf *DataLeaf) Delete(key string) error {
@@ -178,7 +181,7 @@ func (leaf *DataLeaf) Key() string {
 type DataLeafList struct {
 	schema *yang.Entry
 	parent *DataBranch
-	Value  []string
+	Value  []interface{}
 }
 
 func (leaflist *DataLeafList) IsYangDataNode() {}
@@ -212,15 +215,19 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 		return fmt.Errorf("yangtree: %v set failed", leaflist)
 	}
 	for i := range value {
+		v, err := Set(leaflist.schema, leaflist.schema.Type, value[i])
+		if err != nil {
+			return err
+		}
 		insert := true
 		for j := range leaflist.Value {
-			if leaflist.Value[j] == value[i] {
+			if leaflist.Value[j] == v {
 				insert = false
 				break
 			}
 		}
 		if insert {
-			leaflist.Value = append(leaflist.Value, value[i])
+			leaflist.Value = append(leaflist.Value, v)
 		}
 	}
 	return nil
@@ -249,8 +256,17 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 
 func (leaflist *DataLeafList) Insert(key string, data DataNode) error {
 	if other, ok := data.(*DataLeafList); ok && other != nil {
-		if err := leaflist.Set(other.Value...); err != nil {
-			return err
+		for i := range other.Value {
+			insert := true
+			for j := range leaflist.Value {
+				if other.Value[i] == leaflist.Value[j] {
+					insert = false
+					break
+				}
+			}
+			if insert {
+				leaflist.Value = append(leaflist.Value, other.Value[i])
+			}
 		}
 	}
 	return leaflist.Set(key)
@@ -284,23 +300,28 @@ func (leaflist *DataLeafList) Key() string {
 	return leaflist.schema.Name
 }
 
-func New(schema *yang.Entry, value ...string) DataNode {
+func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
-		return nil
+		return nil, fmt.Errorf("yangtree: no schema")
 	}
 	var newdata DataNode
 	switch {
 	case schema.Dir == nil && schema.ListAttr != nil: // leaf-list
-		newdata = &DataLeafList{
+		leaflist := &DataLeafList{
 			schema: schema,
-			Value:  value,
 		}
+		err := leaflist.Set(value...)
+		if err != nil {
+			return nil, err
+		}
+		newdata = leaflist
 	case schema.Dir == nil: // leaf
 		leaf := &DataLeaf{
 			schema: schema,
 		}
-		for i := range value {
-			leaf.Value = value[i]
+		err := leaf.Set(value...)
+		if err != nil {
+			return nil, err
 		}
 		newdata = leaf
 	case schema.ListAttr != nil: // list
@@ -314,7 +335,7 @@ func New(schema *yang.Entry, value ...string) DataNode {
 			Children: map[string]DataNode{},
 		}
 	}
-	return newdata
+	return newdata, nil
 }
 
 func Insert(root DataNode, path string, value ...string) error {
@@ -332,7 +353,10 @@ func Insert(root DataNode, path string, value ...string) error {
 			if err != nil {
 				return err
 			}
-			found = New(cschema)
+			found, err = New(cschema)
+			if err != nil {
+				return err
+			}
 			if err := root.Insert(key[i], found); err != nil {
 				return err
 			}

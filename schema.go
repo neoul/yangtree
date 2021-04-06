@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -163,23 +164,22 @@ func TypeInfoString(e *yang.Entry, pathWithPrefix bool) string {
 	rstr := fmt.Sprintf("- type: %s", t.Kind)
 	switch t.Kind {
 	case yang.Ybits, yang.Yenum:
-		data := GetAnnotation(e, "enum")
-		if v, ok := data.(map[string]int64); ok {
-			enum := make([]string, 0, len(v))
-			for e := range v {
-				enum = append(enum, e)
-			}
-			rstr += fmt.Sprintf(" %v", enum)
+		e := getEnumAnnotation(e)
+		enum := make([]string, 0, len(e))
+		for e := range e {
+			enum = append(enum, e)
 		}
+		rstr += fmt.Sprintf(" %v", enum)
 	case yang.Yleafref:
 		rstr += fmt.Sprintf(" %q", t.Path)
 	case yang.Yidentityref:
 		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
 		if pathWithPrefix {
-			data := GetAnnotation(e, "prefix-enum")
-			if data != nil {
-				rstr += fmt.Sprintf(" %v", data)
+			identities := make([]string, 0, 64)
+			for i := range t.IdentityBase.Values {
+				identities = append(identities, t.IdentityBase.Values[i].PrefixedName())
 			}
+			rstr += fmt.Sprintf(" %v", identities)
 		} else {
 			identities := make([]string, 0, 64)
 			for i := range t.IdentityBase.Values {
@@ -244,15 +244,25 @@ func GetAnnotation(entry *yang.Entry, name string) interface{} {
 	return nil
 }
 
-func getEnumAnnotation(entry *yang.Entry, name string) map[string]int64 {
-	if entry == nil {
+func getEnumAnnotation(entry *yang.Entry) map[string]int64 {
+	if entry == nil || entry.Annotation == nil {
 		return nil
 	}
-	if entry.Annotation != nil {
-		if data, ok := entry.Annotation[name]; ok {
-			if m, ok := data.(map[string]int64); ok {
-				return m
-			}
+	if data, ok := entry.Annotation["enum"]; ok {
+		if m, ok := data.(map[string]int64); ok {
+			return m
+		}
+	}
+	return nil
+}
+
+func getIdentityrefAnnotation(entry *yang.Entry) map[string]string {
+	if entry == nil || entry.Annotation == nil {
+		return nil
+	}
+	if data, ok := entry.Annotation["identityref"]; ok {
+		if m, ok := data.(map[string]string); ok {
+			return m
 		}
 	}
 	return nil
@@ -265,7 +275,7 @@ func updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
 	switch typ.Kind {
 	case yang.Ybits:
 		var enum map[string]int64
-		if enum = getEnumAnnotation(entry, "enum"); enum == nil {
+		if enum = getEnumAnnotation(entry); enum == nil {
 			enum = map[string]int64{}
 		}
 		newenum := typ.Bit.NameMap()
@@ -275,7 +285,7 @@ func updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
 		entry.Annotation["enum"] = enum
 	case yang.Yenum:
 		var enum map[string]int64
-		if enum = getEnumAnnotation(entry, "enum"); enum == nil {
+		if enum = getEnumAnnotation(entry); enum == nil {
 			enum = map[string]int64{}
 		}
 		newenum := typ.Enum.NameMap()
@@ -284,19 +294,15 @@ func updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
 		}
 		entry.Annotation["enum"] = enum
 	case yang.Yidentityref:
-		var enum, penum map[string]int64
-		if enum = getEnumAnnotation(entry, "enum"); enum == nil {
-			enum = map[string]int64{}
-		}
-		if penum = getEnumAnnotation(entry, "prefix-enum"); penum == nil {
-			penum = map[string]int64{}
+		var identityref map[string]string
+		if identityref = getIdentityrefAnnotation(entry); identityref == nil {
+			identityref = map[string]string{}
 		}
 		for i := range typ.IdentityBase.Values {
-			enum[typ.IdentityBase.Values[i].NName()] = int64(0)
-			penum[typ.IdentityBase.Values[i].PrefixedName()] = int64(0)
+			identityref[typ.IdentityBase.Values[i].NName()] = typ.IdentityBase.Values[i].PrefixedName()
+			identityref[typ.IdentityBase.Values[i].PrefixedName()] = typ.IdentityBase.Values[i].NName()
 		}
-		entry.Annotation["enum"] = enum
-		entry.Annotation["prefix-enum"] = penum
+		entry.Annotation["identityref"] = identityref
 	case yang.Yunion:
 		for i := range typ.Type {
 			updateTypeAnnotation(entry, typ.Type[i])
@@ -773,13 +779,16 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 		case yang.Yuint64:
 			return uint64(n), nil
 		}
-		return number, nil
-	case yang.Ybits, yang.Yenum, yang.Yidentityref:
-		emap := GetAnnotation(entry, "enum")
-		if enum, ok := emap.(map[string]int64); ok {
-			if _, ok := enum[value]; ok {
-				return value, nil
-			}
+		return number.String(), nil
+	case yang.Ybits, yang.Yenum:
+		emap := getEnumAnnotation(entry)
+		if _, ok := emap[value]; ok {
+			return value, nil
+		}
+	case yang.Yidentityref:
+		imap := getIdentityrefAnnotation(entry)
+		if _, ok := imap[value]; ok {
+			return value, nil
 		}
 	case yang.Yleafref:
 		// [FIXME] Check the schema ? or data ?
@@ -798,7 +807,7 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 				}
 			}
 			if inrange {
-				return number, nil
+				return number.String(), nil
 			}
 			return nil, fmt.Errorf("out-of-range %v", typ.Range)
 		}
@@ -813,4 +822,37 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 		break
 	}
 	return nil, fmt.Errorf("invalid type '%v' for '%s'", value, entry.Name)
+}
+
+func encodingToJSON(entry *yang.Entry, typ *yang.YangType, value interface{}, prefix bool) ([]byte, error) {
+	switch typ.Kind {
+	// case yang.Ystring, yang.Ybinary:
+	// case yang.Ybool, yang.Yempty:
+	// case yang.Yleafref:
+	// case yang.Ynone:
+	// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
+	// case yang.Ybits, yang.Yenum:
+	case yang.Yidentityref:
+		if s, ok := value.(string); ok {
+			if prefix {
+				m := getIdentityrefAnnotation(entry)
+				return json.Marshal(m[s])
+			}
+		}
+	case yang.Ydecimal64:
+		if v, ok := value.(string); ok {
+			return []byte(v), nil
+		} else if v, ok := value.(yang.Number); ok {
+			return []byte(v.String()), nil
+		}
+	case yang.Yunion:
+		for i := range typ.Type {
+			v, err := encodingToJSON(entry, typ.Type[i], value, prefix)
+			if err == nil {
+				return v, nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected type found for value type '%s'", typ.Name)
+	}
+	return json.Marshal(value)
 }
