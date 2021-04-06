@@ -8,12 +8,12 @@ import (
 	"strings"
 )
 
-func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc7951 bool) (int, error) {
+func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int, error) {
 	schema := node[i].Schema()
 	keyname := strings.Split(schema.Key, " ")
 	keynamelen := len(keyname)
 	buffer.WriteString("\"" + schema.Name + "\":")
-	keymetric := map[string]interface{}{}
+	keymap := map[string]interface{}{}
 	for ; i < length; i++ {
 		if schema != node[i].Schema() {
 			break
@@ -22,7 +22,7 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc79
 		if err != nil {
 			return 0, err
 		}
-		m := keymetric
+		m := keymap
 		for x := range keyval {
 			if x < keynamelen-1 {
 				if n := m[keyval[x]]; n == nil {
@@ -37,7 +37,7 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc79
 			}
 		}
 	}
-	jsonValue, err := json.Marshal(keymetric)
+	jsonValue, err := json.Marshal(keymap)
 	if err != nil {
 		return i, err
 	}
@@ -46,6 +46,33 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc79
 		buffer.WriteString(",")
 	}
 	return i, nil
+}
+
+func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int) (int, error) {
+	schema := node[i].Schema()
+	buffer.WriteString("\"" + schema.Name + "\":")
+	j := i
+	for ; j < length; j++ {
+		if schema != node[j].Schema() {
+			break
+		}
+	}
+	keylist := make([]DataNode, 0, j-i)
+	for ; i < j; i++ {
+		if schema != node[i].Schema() {
+			break
+		}
+		keylist = append(keylist, node[i])
+	}
+	jsonValue, err := json.Marshal(keylist)
+	if err != nil {
+		return i, err
+	}
+	buffer.WriteString(string(jsonValue))
+	if i < length {
+		buffer.WriteString(",")
+	}
+	return j, nil
 }
 
 func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
@@ -67,7 +94,11 @@ func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
 	for i := 0; i < length; {
 		if node[i].Schema().IsList() {
 			var err error
-			i, err = marshalList(buffer, node, i, length, rfc7951)
+			if rfc7951 {
+				i, err = marshalListRFC7951(buffer, node, i, length)
+			} else {
+				i, err = marshalList(buffer, node, i, length)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -84,7 +115,7 @@ func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
 			return nil, err
 		}
 		if rfc7951 {
-			if qname := GetAnnotation(node[i].Schema(), "ns-qualified-name"); qname != nil {
+			if qname := GetAnnotation(node[i].Schema(), "qname"); qname != nil {
 				buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
 			} else {
 				buffer.WriteString("\"" + node[i].Key() + "\":" + string(jsonValue))

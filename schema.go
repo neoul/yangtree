@@ -325,7 +325,7 @@ func updateModuleAnnotation(entry *yang.Entry, curModule *yang.Module, modules *
 	nsname := fmt.Sprintf("%s:%s", module.Name, entry.Name)
 	entry.Annotation["fullname"] = nsname
 	if curModule != module {
-		entry.Annotation["ns-qualified-name"] = nsname
+		entry.Annotation["qname"] = nsname
 	}
 	for _, child := range entry.Dir {
 		if err := updateModuleAnnotation(child, module, modules); err != nil {
