@@ -564,7 +564,7 @@ func lookupSchema(entry *yang.Entry, entryname string) (centry *yang.Entry, reac
 	return
 }
 
-// SplitPath splits the path and check the validation of its schema
+// SplitPath splits the path and check the validation of the schema in the path
 func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 	if entry == nil {
 		return nil, fmt.Errorf("yangtree: nil schema")

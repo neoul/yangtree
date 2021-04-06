@@ -77,11 +77,12 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int
 
 func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
 	if branch == nil {
-		return nil, nil
+		return []byte("null"), nil
 	}
 	length := len(branch.Children)
 	if length == 0 {
-		return nil, nil
+		// FIXME - Which should be returned? nil or empty object?
+		return []byte("{}"), nil
 	}
 	buffer := bytes.NewBufferString("{")
 	node := make([]DataNode, 0, length)

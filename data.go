@@ -2,8 +2,14 @@ package yangtree
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
+)
+
+var (
+	// ManualKeyCreation - The key data nodes of list nodes are automatically created if set to false.
+	ManualKeyCreation bool = false
 )
 
 type DataNode interface {
@@ -73,18 +79,33 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 		}
 	} else {
 		if cschema != data.Schema() {
-			return fmt.Errorf("yangtree: unexpected schema '%v' inserted", data.Schema().Name)
+			return fmt.Errorf("yangtree: invalid data node '%s' inserted for '%s'",
+				data.Schema().Name, cschema.Name)
 		}
 	}
 
 	switch {
-	case branch.schema.IsList():
-		// [FIXME] check key validation
-		fallthrough
-	default:
-		branch.Children[key] = data
-		data.SetParent(branch, key)
+	case cschema.IsList():
+		if !ManualKeyCreation {
+			keyname := strings.Split(cschema.Key, " ")
+			keyval, err := ExtractKeys(keyname, key)
+			if err != nil {
+				return err
+			}
+			for i := range keyval {
+				keyschema := cschema.Dir[keyname[i]]
+				keynode, err := New(keyschema, keyval[i])
+				if err != nil {
+					return fmt.Errorf("yangtree: failed to create key '%s' to '%s'", keyname[i], keyval[i])
+				}
+				if err := data.Insert(keyname[i], keynode); err != nil {
+					return err
+				}
+			}
+		}
 	}
+	branch.Children[key] = data
+	data.SetParent(branch, key)
 	return nil
 }
 
@@ -159,11 +180,11 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 }
 
 func (leaf *DataLeaf) Insert(key string, data DataNode) error {
-	return fmt.Errorf("yangtree: %v is not a branch or leaf-list node", leaf)
+	return fmt.Errorf("yangtree: insert not supported for %v", leaf)
 }
 
 func (leaf *DataLeaf) Delete(key string) error {
-	return fmt.Errorf("yangtree: %v is not a branch node", leaf)
+	return fmt.Errorf("yangtree: delete not supported for %v", leaf)
 }
 
 func (leaf *DataLeaf) Get(key string) DataNode {
@@ -213,7 +234,7 @@ func (leaflist *DataLeafList) String() string {
 
 func (leaflist *DataLeafList) Set(value ...string) error {
 	if leaflist == nil {
-		return fmt.Errorf("yangtree: %v set failed", leaflist)
+		return fmt.Errorf("yangtree: null leaflist for set")
 	}
 	for i := range value {
 		v, err := Set(leaflist.schema, leaflist.schema.Type, value[i])
@@ -236,7 +257,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 
 func (leaflist *DataLeafList) Remove(value ...string) error {
 	if leaflist == nil {
-		return fmt.Errorf("yangtree: %v remove failed", leaflist)
+		return fmt.Errorf("yangtree: null leaflist for remove")
 	}
 	for i := range value {
 		for j := range leaflist.Value {
@@ -274,7 +295,7 @@ func (leaflist *DataLeafList) Insert(key string, data DataNode) error {
 }
 
 func (leaflist *DataLeafList) Delete(key string) error {
-	return leaflist.Set(key)
+	return leaflist.Remove(key)
 }
 
 // Get finds the key from its value.
@@ -303,7 +324,7 @@ func (leaflist *DataLeafList) Key() string {
 
 func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
-		return nil, fmt.Errorf("yangtree: no schema")
+		return nil, fmt.Errorf("yangtree: null schema for new")
 	}
 	var newdata DataNode
 	switch {
@@ -341,7 +362,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 
 func Insert(root DataNode, path string, value ...string) error {
 	if root == nil {
-		return fmt.Errorf("yangtree: nil root data node")
+		return fmt.Errorf("yangtree: null root data node")
 	}
 	key, err := SplitPath(root.Schema(), path)
 	if err != nil {
@@ -350,11 +371,11 @@ func Insert(root DataNode, path string, value ...string) error {
 	for i := range key {
 		found := root.Get(key[i])
 		if found == nil {
-			cschema, err := FindSchema(root.Schema(), key[i])
+			schema, err := FindSchema(root.Schema(), key[i])
 			if err != nil {
 				return err
 			}
-			found, err = New(cschema)
+			found, err = New(schema)
 			if err != nil {
 				return err
 			}
@@ -369,7 +390,7 @@ func Insert(root DataNode, path string, value ...string) error {
 
 func Delete(root DataNode, path string, value ...string) error {
 	if root == nil {
-		return fmt.Errorf("yangtree: nil root data node")
+		return fmt.Errorf("yangtree: null root data node")
 	}
 	key, err := SplitPath(root.Schema(), path)
 	if err != nil {

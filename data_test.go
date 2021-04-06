@@ -125,6 +125,14 @@ func TestDataNode(t *testing.T) {
 			name: "test-item",
 			args: args{
 				path:  "/sample/container-val/leaf-list-val",
+				value: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "test-item",
+			args: args{
+				path:  "/sample/container-val/leaf-list-val",
 				value: []string{"leaf-list-first", "leaf-list-second"},
 			},
 			wantErr: false,
@@ -184,4 +192,11 @@ func TestDataNode(t *testing.T) {
 			}
 		})
 	}
+
+	jsonietf, err = MarshalJSONIndent(RootData, "", " ", true)
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(string(jsonietf))
+	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }
