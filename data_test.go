@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -163,10 +162,16 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
-	leaf := RootData.Find("/")
-	// j, _ := leaf.MarshalJSON()
-	j, _ := json.MarshalIndent(leaf, "", " ")
+	node := RootData.Find("/")
+	// j, _ := node.MarshalJSON()
+	j, _ := MarshalJSONIndent(node, "", " ", false)
 	fmt.Println(string(j))
+
+	jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(string(jsonietf))
 
 	for i := len(tests) - 1; i >= 0; i-- {
 		tt := tests[i]

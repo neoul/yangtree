@@ -22,7 +22,8 @@ type DataNode interface {
 	Get(key string) DataNode // Get an child having the key.
 	Find(path string) DataNode
 
-	MarshalJSON() ([]byte, error)
+	MarshalJSON() ([]byte, error)      // Encoding to JSON
+	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF
 }
 
 type DataBranch struct {
