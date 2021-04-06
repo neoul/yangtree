@@ -7,7 +7,8 @@ import (
 )
 
 type DataNode interface {
-	IsYangData()
+	IsYangDataNode()
+	Key() string
 	Schema() *yang.Entry
 	GetParent() *DataBranch
 	SetParent(parent *DataBranch, key ...string)
@@ -31,7 +32,7 @@ type DataBranch struct {
 	Children map[string]DataNode
 }
 
-func (branch *DataBranch) IsYangData()            {}
+func (branch *DataBranch) IsYangDataNode()        {}
 func (branch *DataBranch) Schema() *yang.Entry    { return branch.schema }
 func (branch *DataBranch) GetParent() *DataBranch { return branch.parent }
 func (branch *DataBranch) SetParent(parent *DataBranch, key ...string) {
@@ -114,13 +115,17 @@ func (branch *DataBranch) Find(path string) DataNode {
 	return node
 }
 
+func (branch *DataBranch) Key() string {
+	return branch.key
+}
+
 type DataLeaf struct {
 	schema *yang.Entry
 	parent *DataBranch
-	Value  string
+	Value  interface{}
 }
 
-func (leaf *DataLeaf) IsYangData()                                 {}
+func (leaf *DataLeaf) IsYangDataNode()                             {}
 func (leaf *DataLeaf) Schema() *yang.Entry                         { return leaf.schema }
 func (leaf *DataLeaf) SetParent(parent *DataBranch, key ...string) { leaf.parent = parent }
 func (leaf *DataLeaf) GetParent() *DataBranch                      { return leaf.parent }
@@ -133,8 +138,13 @@ func (leaf *DataLeaf) String() string {
 
 func (leaf *DataLeaf) Set(value ...string) error {
 	for i := range value {
-		leaf.Value = value[i]
+		v, err := Set(leaf.schema, leaf.schema.Type, value[i])
+		if err != nil {
+			return err
+		}
+		leaf.Value = v
 	}
+	// fmt.Printf("\n##leaf.Value Type %T %v\n", leaf.Value, leaf.Value)
 	return nil
 }
 
@@ -159,6 +169,9 @@ func (leaf *DataLeaf) Get(key string) DataNode {
 func (leaf *DataLeaf) Find(path string) DataNode {
 	return nil
 }
+func (leaf *DataLeaf) Key() string {
+	return leaf.schema.Name
+}
 
 // DataLeafList (leaf-list data node)
 // It can be set by the key
@@ -168,7 +181,7 @@ type DataLeafList struct {
 	Value  []string
 }
 
-func (leaflist *DataLeafList) IsYangData() {}
+func (leaflist *DataLeafList) IsYangDataNode() {}
 func (leaflist *DataLeafList) Schema() *yang.Entry {
 	if leaflist == nil {
 		return nil
@@ -265,6 +278,10 @@ func (leaflist *DataLeafList) Find(path string) DataNode {
 		}
 	}
 	return nil
+}
+
+func (leaflist *DataLeafList) Key() string {
+	return leaflist.schema.Name
 }
 
 func New(schema *yang.Entry, value ...string) DataNode {

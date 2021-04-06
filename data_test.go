@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -49,7 +50,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]",
+				path:  "/sample/single-key-list[list-key=first]/",
 				value: []string{"true"},
 			},
 			wantErr: false,
@@ -65,14 +66,6 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/single-key-list[list-ke=first]/",
-				value: []string{"true"},
-			},
-			wantErr: true,
-		},
-		{
-			name: "test-item",
-			args: args{
 				path:  "/sample/single-key-list[list-key=first]/country-code",
 				value: []string{"KR"},
 			},
@@ -81,8 +74,32 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/dial-code",
+				path:  "/sample/single-key-list[list-key=first]/uint32-range",
 				value: []string{"100"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "range-check",
+			args: args{
+				path:  "/sample/single-key-list[list-key=first]/uint32-range",
+				value: []string{"493"},
+			},
+			wantErr: true,
+		},
+		// {
+		// 	name: "range-check",
+		// 	args: args{
+		// 		path:  "/sample/single-key-list[list-key=first]/int8-range",
+		// 		value: []string{"500"},
+		// 	},
+		// 	wantErr: false,
+		// },
+		{
+			name: "decimal-range",
+			args: args{
+				path:  "/sample/single-key-list[list-key=first]/decimal-range",
+				value: []string{"1.01"},
 			},
 			wantErr: false,
 		},
@@ -143,15 +160,19 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
-	leaf := RootData.Find("/sample/multiple-key-list[str=first][integer=1]/ok")
-	j, _ := leaf.MarshalJSON()
+	leaf := RootData.Find("/")
+	// j, _ := leaf.MarshalJSON()
+	j, _ := json.MarshalIndent(leaf, "", " ")
 	fmt.Println(string(j))
 
 	for i := len(tests) - 1; i >= 0; i-- {
 		tt := tests[i]
+		if tt.wantErr {
+			continue
+		}
 		t.Run(tt.name+".Delete", func(t *testing.T) {
 			if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantErr {
-				t.Errorf("Insert() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

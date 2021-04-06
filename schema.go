@@ -162,22 +162,21 @@ func TypeInfoString(e *yang.Entry, pathWithPrefix bool) string {
 	t := e.Type
 	rstr := fmt.Sprintf("- type: %s", t.Kind)
 	switch t.Kind {
-	case yang.Ybits:
-		data := GetAnnotation(e, "bits")
-		if data != nil {
-			rstr += fmt.Sprintf(" %v", data)
-		}
-	case yang.Yenum:
+	case yang.Ybits, yang.Yenum:
 		data := GetAnnotation(e, "enum")
-		if data != nil {
-			rstr += fmt.Sprintf(" %v", data)
+		if v, ok := data.(map[string]int64); ok {
+			enum := make([]string, 0, len(v))
+			for e := range v {
+				enum = append(enum, e)
+			}
+			rstr += fmt.Sprintf(" %v", enum)
 		}
 	case yang.Yleafref:
 		rstr += fmt.Sprintf(" %q", t.Path)
 	case yang.Yidentityref:
 		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
 		if pathWithPrefix {
-			data := GetAnnotation(e, "prefix-qualified-identities")
+			data := GetAnnotation(e, "prefix-enum")
 			if data != nil {
 				rstr += fmt.Sprintf(" %v", data)
 			}
@@ -233,6 +232,9 @@ func TypeInfoString(e *yang.Entry, pathWithPrefix bool) string {
 
 // GetAnnotation finds an annotation from the schema entry
 func GetAnnotation(entry *yang.Entry, name string) interface{} {
+	if entry == nil {
+		return nil
+	}
 	if entry.Annotation != nil {
 		data, ok := entry.Annotation[name]
 		if ok {
@@ -242,41 +244,75 @@ func GetAnnotation(entry *yang.Entry, name string) interface{} {
 	return nil
 }
 
+func getEnumAnnotation(entry *yang.Entry, name string) map[string]int64 {
+	if entry == nil {
+		return nil
+	}
+	if entry.Annotation != nil {
+		if data, ok := entry.Annotation[name]; ok {
+			if m, ok := data.(map[string]int64); ok {
+				return m
+			}
+		}
+	}
+	return nil
+}
+
+func updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
+	if typ == nil {
+		return
+	}
+	switch typ.Kind {
+	case yang.Ybits:
+		var enum map[string]int64
+		if enum = getEnumAnnotation(entry, "enum"); enum == nil {
+			enum = map[string]int64{}
+		}
+		newenum := typ.Bit.NameMap()
+		for bs, bi := range newenum {
+			enum[bs] = bi
+		}
+		entry.Annotation["enum"] = enum
+	case yang.Yenum:
+		var enum map[string]int64
+		if enum = getEnumAnnotation(entry, "enum"); enum == nil {
+			enum = map[string]int64{}
+		}
+		newenum := typ.Enum.NameMap()
+		for bs, bi := range newenum {
+			enum[bs] = bi
+		}
+		entry.Annotation["enum"] = enum
+	case yang.Yidentityref:
+		var enum, penum map[string]int64
+		if enum = getEnumAnnotation(entry, "enum"); enum == nil {
+			enum = map[string]int64{}
+		}
+		if penum = getEnumAnnotation(entry, "prefix-enum"); penum == nil {
+			penum = map[string]int64{}
+		}
+		for i := range typ.IdentityBase.Values {
+			enum[typ.IdentityBase.Values[i].NName()] = int64(0)
+			penum[typ.IdentityBase.Values[i].PrefixedName()] = int64(0)
+		}
+		entry.Annotation["enum"] = enum
+		entry.Annotation["prefix-enum"] = penum
+	case yang.Yunion:
+		for i := range typ.Type {
+			updateTypeAnnotation(entry, typ.Type[i])
+		}
+	}
+	if typ.Root != nil {
+		entry.Annotation["root.type"] = typ.Root.Name
+	}
+}
+
 // updateAnnotation updates the schema info before enconding.
 func updateAnnotation(entry *yang.Entry) {
 	for _, child := range entry.Dir {
 		updateAnnotation(child)
 		child.Annotation = map[string]interface{}{}
-		t := child.Type
-		if t == nil {
-			continue
-		}
-
-		switch t.Kind {
-		case yang.Ybits:
-			nameMap := t.Bit.NameMap()
-			bits := make([]string, 0, len(nameMap))
-			for bitstr := range nameMap {
-				bits = append(bits, bitstr)
-			}
-			child.Annotation["bits"] = bits
-		case yang.Yenum:
-			nameMap := t.Enum.NameMap()
-			enum := make([]string, 0, len(nameMap))
-			for enumstr := range nameMap {
-				enum = append(enum, enumstr)
-			}
-			child.Annotation["enum"] = enum
-		case yang.Yidentityref:
-			identities := make([]string, 0, len(t.IdentityBase.Values))
-			for i := range t.IdentityBase.Values {
-				identities = append(identities, t.IdentityBase.Values[i].PrefixedName())
-			}
-			child.Annotation["prefix-qualified-identities"] = identities
-		}
-		if t.Root != nil {
-			child.Annotation["root.type"] = t.Root.Name
-		}
+		updateTypeAnnotation(child, child.Type)
 	}
 }
 
@@ -425,7 +461,7 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 	switch path[end] {
 	case '/':
 		begin = 1
-	case '[', ']':
+	case '[', ']', '=':
 		return nil, fmt.Errorf("yangtree: path '%s' starts with bracket", path)
 	}
 	end++
@@ -515,7 +551,7 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 	switch path[end] {
 	case '/':
 		begin = 1
-	case '[', ']':
+	case '[', ']', '=':
 		return nil, fmt.Errorf("yangtree: path '%s' starts with bracket", path)
 	}
 	end++
@@ -598,4 +634,183 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 		pathelem = append(pathelem, path[pathbegin:end])
 	}
 	return pathelem, nil
+}
+
+// ExtractKeys extracts the list key values from keystr
+func ExtractKeys(keys []string, keystr string) ([]string, error) {
+	length := len(keystr)
+	if length <= 0 {
+		return nil, fmt.Errorf("yangtree: extractkeys from empty keystr")
+	}
+	index := 0
+	begin := 0
+	end := 0
+	// insideBrackets is counted up when at least one '[' has been found.
+	// It is counted down when a closing ']' has been found.
+	insideBrackets := 0
+	keyval := make([]string, len(keys))
+
+	switch keystr[end] {
+	case '/':
+		begin = 1
+	case '[':
+		begin = 1
+		insideBrackets++
+	case ']', '=':
+		return nil, fmt.Errorf("yangtree: extractkeys keystr '%s' starts with invalid char", keystr)
+	}
+	end++
+	// fmt.Println(keys, keystr)
+
+	for end < length {
+		// fmt.Printf("%c, '%s', %d\n", keystr[end], keystr[begin:end], insideBrackets)
+		switch keystr[end] {
+		case '/':
+			if insideBrackets <= 0 {
+				begin = end + 1
+			}
+			end++
+		case '[':
+			if keystr[end-1] != '\\' {
+				if insideBrackets <= 0 {
+					begin = end + 1
+				}
+				insideBrackets++
+			}
+			end++
+		case ']':
+			if keystr[end-1] != '\\' {
+				insideBrackets--
+				if insideBrackets <= 0 {
+					// fmt.Println(keystr[begin:end])
+					keyval[index-1] = keystr[begin:end]
+					begin = end + 1
+				}
+			}
+			end++
+		case '=':
+			if insideBrackets <= 0 {
+				return nil, fmt.Errorf("yangtree: invalid key format '%s'", keystr[begin:end])
+			} else if insideBrackets == 1 {
+				if begin < end {
+					if keys[index] != keystr[begin:end] {
+						return nil, fmt.Errorf("yangtree: invalid key '%s'", keystr[begin:end])
+					}
+					index++
+					begin = end + 1
+				}
+			}
+			end++
+		default:
+			end++
+		}
+	}
+	if len(keys) != index {
+		return nil, fmt.Errorf("yangtree: invalid key '%s'", keystr)
+	}
+	return keyval, nil
+}
+
+func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
+	switch typ.Kind {
+	case yang.Ystring, yang.Ybinary:
+		if len(typ.Range) > 0 {
+			length := yang.FromInt(int64(len(value)))
+			inrange := false
+			for i := range typ.Range {
+				if !(typ.Range[i].Max.Less(length) || length.Less(typ.Range[i].Min)) {
+					inrange = true
+				}
+			}
+			if inrange {
+				return length.String(), nil
+			}
+			return nil, fmt.Errorf("out-of-range %v", typ.Range)
+		}
+		return value, nil
+	case yang.Ybool, yang.Yempty:
+		v := strings.ToLower(value)
+		if v == "true" {
+			return true, nil
+		} else if v == "false" {
+			return false, nil
+		}
+	case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
+		number, err := yang.ParseInt(value)
+		if err != nil {
+			return nil, err
+		}
+		if len(typ.Range) > 0 {
+			inrange := false
+			for i := range typ.Range {
+				if !(typ.Range[i].Max.Less(number) || number.Less(typ.Range[i].Min)) {
+					inrange = true
+				}
+			}
+			if !inrange {
+				return nil, fmt.Errorf("out-of-range %v", typ.Range)
+			}
+		}
+		n, err := number.Int()
+		if err != nil {
+			return nil, err
+		}
+		switch typ.Kind {
+		case yang.Yint8:
+			return int8(n), nil
+		case yang.Yint16:
+			return int16(n), nil
+		case yang.Yint32:
+			return int32(n), nil
+		case yang.Yint64:
+			return int64(n), nil
+		case yang.Yuint8:
+			return uint8(n), nil
+		case yang.Yuint16:
+			return uint16(n), nil
+		case yang.Yuint32:
+			return uint32(n), nil
+		case yang.Yuint64:
+			return uint64(n), nil
+		}
+		return number, nil
+	case yang.Ybits, yang.Yenum, yang.Yidentityref:
+		emap := GetAnnotation(entry, "enum")
+		if enum, ok := emap.(map[string]int64); ok {
+			if _, ok := enum[value]; ok {
+				return value, nil
+			}
+		}
+	case yang.Yleafref:
+		// [FIXME] Check the schema ? or data ?
+		// [FIXME] check the path refered
+		return value, nil
+	case yang.Ydecimal64:
+		number, err := yang.ParseDecimal(value, uint8(typ.FractionDigits))
+		if err != nil {
+			return nil, err
+		}
+		if len(typ.Range) > 0 {
+			inrange := false
+			for i := range typ.Range {
+				if !(typ.Range[i].Max.Less(number) || number.Less(typ.Range[i].Min)) {
+					inrange = true
+				}
+			}
+			if inrange {
+				return number, nil
+			}
+			return nil, fmt.Errorf("out-of-range %v", typ.Range)
+		}
+	case yang.Yunion:
+		for i := range typ.Type {
+			v, err := Set(entry, typ.Type[i], value)
+			if err == nil {
+				return v, nil
+			}
+		}
+	case yang.Ynone:
+		break
+	}
+	return nil, fmt.Errorf("invalid type '%v' for '%s'", value, entry.Name)
 }
