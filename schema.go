@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
@@ -850,35 +851,56 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 	return nil, fmt.Errorf("invalid type '%v' for '%s'", value, entry.Name)
 }
 
-func encodingToJSON(entry *yang.Entry, typ *yang.YangType, value interface{}, prefix bool) ([]byte, error) {
+func encodingToJSON(entry *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
 	switch typ.Kind {
-	// case yang.Ystring, yang.Ybinary:
-	// case yang.Ybool, yang.Yempty:
-	// case yang.Yleafref:
-	// case yang.Ynone:
-	// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
-	// case yang.Ybits, yang.Yenum:
-	case yang.Yidentityref:
-		if s, ok := value.(string); ok {
-			if prefix {
-				m := getIdentityrefAnnotation(entry)
-				return json.Marshal(m[s])
-			}
-		}
-	case yang.Ydecimal64:
-		if v, ok := value.(string); ok {
-			return []byte(v), nil
-		} else if v, ok := value.(yang.Number); ok {
-			return []byte(v.String()), nil
-		}
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := encodingToJSON(entry, typ.Type[i], value, prefix)
+			v, err := encodingToJSON(entry, typ.Type[i], value, rfc7951)
 			if err == nil {
 				return v, nil
 			}
 		}
 		return nil, fmt.Errorf("unexpected type found for value type '%s'", typ.Name)
+	case yang.YinstanceIdentifier:
+		// [FIXME] The leftmost (top-level) data node name is always in the
+		//   namespace-qualified form (qname).
 	}
+	if rfc7951 {
+		switch typ.Kind {
+		// case yang.Ystring, yang.Ybinary:
+		// case yang.Ybool:
+		// case yang.Yleafref:
+		// case yang.Ynone:
+		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
+		// case yang.Ybits, yang.Yenum:
+		case yang.Yempty:
+			return []byte("[null]"), nil
+		case yang.Yidentityref:
+			if s, ok := value.(string); ok {
+				m := getIdentityrefAnnotation(entry)
+				return json.Marshal(m[s])
+			}
+		case yang.Yint64:
+			if v, ok := value.(int64); ok {
+				str := strconv.FormatInt(v, 10)
+				return json.Marshal(str)
+			}
+		case yang.Yuint64:
+			if v, ok := value.(uint64); ok {
+				str := strconv.FormatUint(v, 10)
+				return json.Marshal(str)
+			}
+		}
+	} else {
+		switch typ.Kind {
+		case yang.Ydecimal64:
+			if v, ok := value.(string); ok {
+				return []byte(v), nil
+			} else if v, ok := value.(yang.Number); ok {
+				return []byte(v.String()), nil
+			}
+		}
+	}
+
 	return json.Marshal(value)
 }

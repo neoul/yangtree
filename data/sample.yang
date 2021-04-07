@@ -35,6 +35,12 @@ module sample {
           range "1 .. 3.14 | 10 | 20..max";
         }
       }
+      leaf empty-node {
+        type empty;
+      }
+      leaf uint64-node {
+        type uint64;
+      }
     }
 
     list multiple-key-list {

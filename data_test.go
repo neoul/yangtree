@@ -89,19 +89,35 @@ func TestDataNode(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		// {
-		// 	name: "range-check",
-		// 	args: args{
-		// 		path:  "/sample/single-key-list[list-key=first]/int8-range",
-		// 		value: []string{"500"},
-		// 	},
-		// 	wantErr: false,
-		// },
+		{
+			name: "range-check",
+			args: args{
+				path:  "/sample/single-key-list[list-key=first]/int8-range",
+				value: []string{"500"},
+			},
+			wantErr: true,
+		},
 		{
 			name: "decimal-range",
 			args: args{
 				path:  "/sample/single-key-list[list-key=first]/decimal-range",
 				value: []string{"1.01"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty-node",
+			args: args{
+				path:  "/sample/single-key-list[list-key=first]/empty-node",
+				value: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "uint64-node",
+			args: args{
+				path:  "/sample/single-key-list[list-key=first]/uint64-node",
+				value: []string{"1234567890"},
 			},
 			wantErr: false,
 		},
@@ -181,17 +197,17 @@ func TestDataNode(t *testing.T) {
 	// }
 	// fmt.Println(string(jsonietf))
 
-	// for i := len(tests) - 1; i >= 0; i-- {
-	// 	tt := tests[i]
-	// 	if tt.wantErr {
-	// 		continue
-	// 	}
-	// 	t.Run(tt.name+".Delete", func(t *testing.T) {
-	// 		if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantErr {
-	// 			t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
-	// 		}
-	// 	})
-	// }
+	for i := len(tests) - 1; i >= 0; i-- {
+		tt := tests[i]
+		if tt.wantErr {
+			continue
+		}
+		t.Run(tt.name+".Delete", func(t *testing.T) {
+			if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantErr {
+				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 
 	// jsonietf, err = MarshalJSONIndent(RootData, "", " ", true)
 	// if err != nil {
