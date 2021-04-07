@@ -186,9 +186,25 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
-	node := RootData.Find("/sample/single-key-list[list-key=first]")
+	path := []string{
+		"/sample/single-key-list[list-key=first]/list-key",
+		"/sample/single-key-list[list-key=first]",
+		"/sample/single-key-list/*",
+		"/sample/*",
+	}
+	for i := range path {
+		node, err := RootData.Retrieve(path[i])
+		if err != nil {
+			t.Errorf("Retrieve() path %v error = %v", path[i], err)
+		}
+		for j := range node {
+			j, _ := MarshalJSON(node[j], true)
+			fmt.Println(path[i], string(j))
+		}
+	}
+	node := RootData.Find("/sample")
 	// j, _ := node.MarshalJSON()
-	j, _ := MarshalJSONIndent(node, "", " ", true)
+	j, _ := MarshalJSONIndent(node, "", " ", false)
 	fmt.Println(string(j))
 
 	// jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)

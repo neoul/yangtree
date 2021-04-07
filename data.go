@@ -25,8 +25,13 @@ type DataNode interface {
 	Insert(key string, data DataNode) error
 	Delete(key string) error
 
-	Get(key string) DataNode // Get an child having the key.
-	Find(path string) DataNode
+	Get(key string) DataNode   // Get an child having the key.
+	Find(path string) DataNode // Find an exact data node
+
+	// Find all matched data nodes with wildcards (*, ...) and trace back strings (./ and ../)
+	// It also allows the namespace-qualified form.
+	// https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-path-conventions.md
+	Retrieve(path string) ([]DataNode, error)
 
 	MarshalJSON() ([]byte, error)      // Encoding to JSON
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF
@@ -50,7 +55,7 @@ func (branch *DataBranch) SetParent(parent *DataBranch, key ...string) {
 }
 func (branch *DataBranch) String() string {
 	if branch == nil {
-		return "branch.nil"
+		return "branch.null"
 	}
 	return "branch." + branch.schema.Name
 }
@@ -60,6 +65,9 @@ func (branch *DataBranch) Set(value ...string) error {
 }
 
 func (branch *DataBranch) Remove(value ...string) error {
+	if branch == nil {
+		return nil
+	}
 	if branch.parent != nil {
 		delete(branch.parent.Children, branch.key)
 		branch.parent = nil
@@ -79,8 +87,8 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 		}
 	} else {
 		if cschema != data.Schema() {
-			return fmt.Errorf("yangtree: invalid data node '%s' inserted for '%s'",
-				data.Schema().Name, cschema.Name)
+			return fmt.Errorf("yangtree: invalid %s inserted for '%s'",
+				data, cschema.Name)
 		}
 	}
 
@@ -96,7 +104,7 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 				keyschema := cschema.Dir[keyname[i]]
 				keynode, err := New(keyschema, keyval[i])
 				if err != nil {
-					return fmt.Errorf("yangtree: failed to create key '%s' to '%s'", keyname[i], keyval[i])
+					return fmt.Errorf("yangtree: failed to set leaf.%s to '%s'", keyname[i], keyval[i])
 				}
 				if err := data.Insert(keyname[i], keynode); err != nil {
 					return err
@@ -118,6 +126,11 @@ func (branch *DataBranch) Delete(key string) error {
 }
 
 func (branch *DataBranch) Get(key string) DataNode {
+	if key == ".." {
+		return branch.parent
+	} else if key == "." {
+		return branch
+	}
 	return branch.Children[key]
 }
 
@@ -140,6 +153,93 @@ func (branch *DataBranch) Find(path string) DataNode {
 	return node
 }
 
+// const metachars map[string]struct{} = map[string]struct{} {
+// 	"../": struct{},
+// 	"./": struct{},
+// 	"*]": struct{},
+// 	"/*": struct{},
+// 	"/...": struct{},
+// }
+
+func parsePath(path *string, pos, length int) (string, int, error) {
+	begin := pos
+	end := pos
+	// insideBrackets is counted up when at least one '[' has been found.
+	// It is counted down when a closing ']' has been found.
+	insideBrackets := 0
+	switch (*path)[end] {
+	case '/':
+		begin++
+	case '=': // ignore data string in path
+		return "", length, nil
+	case '[', ']':
+		return "", length, fmt.Errorf("yangtree: path '%s' starts with bracket", *path)
+	}
+	end++
+	for end < length {
+		switch (*path)[end] {
+		case '/':
+			if insideBrackets <= 0 {
+				return (*path)[begin:end], end + 1, nil
+			}
+		case '[':
+			if (*path)[end-1] != '\\' {
+				insideBrackets++
+			}
+		case ']':
+			if (*path)[end-1] != '\\' {
+				insideBrackets--
+			}
+		case '=':
+			if insideBrackets <= 0 {
+				return (*path)[begin:end], end + 1, nil
+			}
+		}
+		end++
+	}
+	return (*path)[begin:end], end + 1, nil
+}
+
+func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
+	return nil, nil
+	// var node DataNode
+	// if branch == nil {
+	// 	return nil, fmt.Errorf("yangtree: %s found on retrieve", branch)
+	// }
+	// pos := 0
+	// length := len(path)
+	// schema := branch.schema
+	// node = branch
+	// for pos < length {
+	// 	pathelem, next, err := parsePath(&path, pos, length)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	schema, err = FindSchema(schema, pathelem)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	node = node.Get(pathelem)
+	// 	if node == nil {
+	// 		return nil, fmt.Errorf("yangtree: '%s' not found in %s", pathelem, branch)
+	// 	}
+	// 	pos = next
+	// }
+	// key, err := SplitPath(branch.Schema(), path)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// var node DataNode
+	// node = branch
+	// for i := range key {
+	// 	node = node.Get(key[i])
+	// 	if node == nil {
+	// 		return nil, fmt.Errorf("yangtree: '%s' not found in %s", key[i], branch)
+	// 	}
+	// }
+	// return []DataNode{node}, nil
+}
+
 func (branch *DataBranch) Key() string {
 	return branch.key
 }
@@ -156,7 +256,7 @@ func (leaf *DataLeaf) SetParent(parent *DataBranch, key ...string) { leaf.parent
 func (leaf *DataLeaf) GetParent() *DataBranch                      { return leaf.parent }
 func (leaf *DataLeaf) String() string {
 	if leaf == nil {
-		return "leaf.nil"
+		return "leaf.null"
 	}
 	return "leaf." + leaf.schema.Name
 }
@@ -180,11 +280,11 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 }
 
 func (leaf *DataLeaf) Insert(key string, data DataNode) error {
-	return fmt.Errorf("yangtree: insert not supported for %v", leaf)
+	return fmt.Errorf("yangtree: insert not supported for %s", leaf)
 }
 
 func (leaf *DataLeaf) Delete(key string) error {
-	return fmt.Errorf("yangtree: delete not supported for %v", leaf)
+	return fmt.Errorf("yangtree: delete not supported for %s", leaf)
 }
 
 func (leaf *DataLeaf) Get(key string) DataNode {
@@ -194,6 +294,11 @@ func (leaf *DataLeaf) Get(key string) DataNode {
 func (leaf *DataLeaf) Find(path string) DataNode {
 	return nil
 }
+
+func (leaf *DataLeaf) Retrieve(path string) ([]DataNode, error) {
+	return nil, fmt.Errorf("yangtree: retrieve not supported for %s", leaf)
+}
+
 func (leaf *DataLeaf) Key() string {
 	return leaf.schema.Name
 }
@@ -227,14 +332,14 @@ func (leaflist *DataLeafList) GetParent() *DataBranch {
 }
 func (leaflist *DataLeafList) String() string {
 	if leaflist == nil {
-		return "leaf-list.nil"
+		return "leaf-list.null"
 	}
 	return "leaf-list." + leaflist.schema.Name
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
 	if leaflist == nil {
-		return fmt.Errorf("yangtree: null leaflist for set")
+		return fmt.Errorf("yangtree: %s found on set", leaflist)
 	}
 	for i := range value {
 		v, err := Set(leaflist.schema, leaflist.schema.Type, value[i])
@@ -257,7 +362,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 
 func (leaflist *DataLeafList) Remove(value ...string) error {
 	if leaflist == nil {
-		return fmt.Errorf("yangtree: null leaflist for remove")
+		return fmt.Errorf("yangtree: %s found on remove", leaflist)
 	}
 	for i := range value {
 		for j := range leaflist.Value {
@@ -318,13 +423,21 @@ func (leaflist *DataLeafList) Find(path string) DataNode {
 	return nil
 }
 
+func (leaflist *DataLeafList) Retrieve(path string) ([]DataNode, error) {
+	node := leaflist.Find(path)
+	if node == nil {
+		return nil, nil
+	}
+	return []DataNode{node}, nil
+}
+
 func (leaflist *DataLeafList) Key() string {
 	return leaflist.schema.Name
 }
 
 func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
-		return nil, fmt.Errorf("yangtree: null schema for new")
+		return nil, fmt.Errorf("yangtree: schema.null on new")
 	}
 	var newdata DataNode
 	switch {
@@ -362,18 +475,22 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 
 func Insert(root DataNode, path string, value ...string) error {
 	if root == nil {
-		return fmt.Errorf("yangtree: null root data node")
+		return fmt.Errorf("yangtree: data node is null")
 	}
 	key, err := SplitPath(root.Schema(), path)
 	if err != nil {
 		return err
 	}
+	var createdTop DataNode
 	for i := range key {
 		found := root.Get(key[i])
 		if found == nil {
-			schema, err := FindSchema(root.Schema(), key[i])
-			if err != nil {
-				return err
+			schema := root.Schema()
+			if !schema.IsLeafList() {
+				schema, err = FindSchema(root.Schema(), key[i])
+				if err != nil {
+					return err
+				}
 			}
 			found, err = New(schema)
 			if err != nil {
@@ -382,15 +499,25 @@ func Insert(root DataNode, path string, value ...string) error {
 			if err := root.Insert(key[i], found); err != nil {
 				return err
 			}
+			if createdTop == nil {
+				createdTop = found
+			}
 		}
 		root = found
 	}
-	return root.Set(value...)
+	err = root.Set(value...)
+	if err != nil {
+		if createdTop != nil {
+			createdTop.Remove()
+		}
+		return err
+	}
+	return nil
 }
 
 func Delete(root DataNode, path string, value ...string) error {
 	if root == nil {
-		return fmt.Errorf("yangtree: null root data node")
+		return fmt.Errorf("yangtree: data node is null")
 	}
 	key, err := SplitPath(root.Schema(), path)
 	if err != nil {
@@ -403,7 +530,7 @@ func Delete(root DataNode, path string, value ...string) error {
 		}
 		found := root.Get(key[i])
 		if found == nil {
-			return fmt.Errorf("yangtree: data node %v not found", key[:i])
+			return fmt.Errorf("yangtree: '%s' not found in %s", key[i], root)
 		}
 		root = found
 	}

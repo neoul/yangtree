@@ -477,9 +477,6 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 	if entry == nil {
 		return nil, fmt.Errorf("yangtree: nil schema")
 	}
-	if entry.IsLeafList() {
-		return entry, nil
-	}
 
 	length := len(path)
 	if length <= 0 {
@@ -504,29 +501,35 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 		switch path[end] {
 		case '/':
 			if insideBrackets <= 0 {
-				if begin < end {
+				elem := path[begin:end]
+				switch elem {
+				case "", ".": // do nothing
+				case "..":
+					entry = entry.Parent
+				default:
 					entry = entry.Dir[path[begin:end]]
-					if entry == nil {
-						return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
-					}
-					begin = end + 1
-				} else {
-					begin++
 				}
+				if entry == nil {
+					return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
+				}
+				begin = end + 1
 			}
 			end++
 		case '[':
 			if path[end-1] != '\\' {
 				if insideBrackets <= 0 {
-					if begin < end {
+					elem := path[begin:end]
+					switch elem {
+					case "", ".": // do nothing
+					case "..":
+						entry = entry.Parent
+					default:
 						entry = entry.Dir[path[begin:end]]
-						if entry == nil {
-							return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-						}
-						begin = end + 1
-					} else {
-						begin++
 					}
+					if entry == nil {
+						return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
+					}
+					begin = end + 1
 				}
 				insideBrackets++
 			}
@@ -546,11 +549,16 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 			end++
 		}
 	}
-	if begin < end {
+	elem := path[begin:end]
+	switch elem {
+	case "", ".": // do nothing
+	case "..":
+		entry = entry.Parent
+	default:
 		entry = entry.Dir[path[begin:end]]
-		if entry == nil {
-			return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
-		}
+	}
+	if entry == nil {
+		return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
 	}
 	return entry, nil
 }
@@ -603,10 +611,8 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 					if entry == nil {
 						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 					}
-					begin = end + 1
-				} else {
-					begin++
 				}
+				begin = end + 1
 				if pathbegin < end {
 					pathelem = append(pathelem, path[pathbegin:end])
 				}
@@ -621,10 +627,8 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 						if entry == nil {
 							return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 						}
-						begin = end + 1
-					} else {
-						begin++
 					}
+					begin = end + 1
 				}
 				insideBrackets++
 			}
@@ -642,10 +646,8 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 					if entry == nil {
 						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 					}
-					begin = end + 1
-				} else {
-					begin++
 				}
+				begin = end + 1
 				reachToEnd = true
 			} else {
 				end++
