@@ -170,33 +170,33 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
-	node := RootData.Find("/")
+	node := RootData.Find("/sample/single-key-list[list-key=first]")
 	// j, _ := node.MarshalJSON()
-	j, _ := MarshalJSONIndent(node, "", " ", false)
+	j, _ := MarshalJSONIndent(node, "", " ", true)
 	fmt.Println(string(j))
 
-	jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
-	if err != nil {
-		t.Error(err)
-	}
-	fmt.Println(string(jsonietf))
+	// jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
+	// if err != nil {
+	// 	t.Error(err)
+	// }
+	// fmt.Println(string(jsonietf))
 
-	for i := len(tests) - 1; i >= 0; i-- {
-		tt := tests[i]
-		if tt.wantErr {
-			continue
-		}
-		t.Run(tt.name+".Delete", func(t *testing.T) {
-			if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantErr {
-				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+	// for i := len(tests) - 1; i >= 0; i-- {
+	// 	tt := tests[i]
+	// 	if tt.wantErr {
+	// 		continue
+	// 	}
+	// 	t.Run(tt.name+".Delete", func(t *testing.T) {
+	// 		if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantErr {
+	// 			t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
+	// 		}
+	// 	})
+	// }
 
-	jsonietf, err = MarshalJSONIndent(RootData, "", " ", true)
-	if err != nil {
-		t.Error(err)
-	}
-	fmt.Println(string(jsonietf))
-	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	// jsonietf, err = MarshalJSONIndent(RootData, "", " ", true)
+	// if err != nil {
+	// 	t.Error(err)
+	// }
+	// fmt.Println(string(jsonietf))
+	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }

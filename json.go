@@ -8,6 +8,18 @@ import (
 	"strings"
 )
 
+// rfc7951s (rfc7951 processing status)
+type rfc7951s int
+
+const (
+	// rfc7951disabled - rfc7951 encoding disabled
+	rfc7951Disabled rfc7951s = iota
+	// rfc7951InProgress - rfc7951 encoding is in progress
+	rfc7951InProgress
+	// rfc7951enabled - rfc7951 encoding enabled
+	rfc7951Enabled
+)
+
 func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int, error) {
 	schema := node[i].Schema()
 	keyname := strings.Split(schema.Key, " ")
@@ -48,21 +60,34 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int,
 	return i, nil
 }
 
-func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int) (int, error) {
+func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc7951 rfc7951s) (int, error) {
 	schema := node[i].Schema()
-	buffer.WriteString("\"" + schema.Name + "\":")
+	var qname interface{} // namespace-qualified name required
+	switch rfc7951 {
+	case rfc7951InProgress:
+		qname = GetAnnotation(schema, "ns-boundary")
+	case rfc7951Enabled:
+		qname = GetAnnotation(schema, "qname")
+	default:
+	}
+	if qname != nil {
+		buffer.WriteString("\"" + qname.(string) + "\":")
+	} else {
+		buffer.WriteString("\"" + schema.Name + "\":")
+	}
+
 	j := i
 	for ; j < length; j++ {
 		if schema != node[j].Schema() {
 			break
 		}
 	}
-	keylist := make([]DataNode, 0, j-i)
+	keylist := make([]rfc7951DataNode, 0, j-i)
 	for ; i < j; i++ {
 		if schema != node[i].Schema() {
 			break
 		}
-		keylist = append(keylist, node[i])
+		keylist = append(keylist, rfc7951DataNode{node[i]})
 	}
 	jsonValue, err := json.Marshal(keylist)
 	if err != nil {
@@ -75,7 +100,7 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int
 	return j, nil
 }
 
-func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
+func (branch *DataBranch) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if branch == nil {
 		return []byte("null"), nil
 	}
@@ -95,8 +120,8 @@ func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
 	for i := 0; i < length; {
 		if node[i].Schema().IsList() {
 			var err error
-			if rfc7951 {
-				i, err = marshalListRFC7951(buffer, node, i, length)
+			if rfc7951 != rfc7951Disabled {
+				i, err = marshalListRFC7951(buffer, node, i, length, rfc7951)
 			} else {
 				i, err = marshalList(buffer, node, i, length)
 			}
@@ -107,20 +132,25 @@ func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
 		}
 		var err error
 		var jsonValue []byte
-		if rfc7951 {
-			jsonValue, err = json.Marshal(rfc7951DataNode{node[i]})
-		} else {
-			jsonValue, err = json.Marshal(node[i])
-		}
-		if err != nil {
-			return nil, err
-		}
-		if rfc7951 {
-			if qname := GetAnnotation(node[i].Schema(), "qname"); qname != nil {
-				buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
-			} else {
-				buffer.WriteString("\"" + node[i].Key() + "\":" + string(jsonValue))
+		var qname interface{} // namespace-qualified name required
+		switch rfc7951 {
+		case rfc7951InProgress:
+			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
+				return nil, err
 			}
+			qname = GetAnnotation(node[i].Schema(), "ns-boundary")
+		case rfc7951Enabled:
+			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
+				return nil, err
+			}
+			qname = GetAnnotation(node[i].Schema(), "qname")
+		default:
+			if jsonValue, err = json.Marshal(node[i]); err != nil {
+				return nil, err
+			}
+		}
+		if qname != nil {
+			buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
 		} else {
 			buffer.WriteString("\"" + node[i].Key() + "\":" + string(jsonValue))
 		}
@@ -133,32 +163,38 @@ func (branch *DataBranch) marshalJSON(rfc7951 bool) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (leaf *DataLeaf) marshalJSON(rfc7951 bool) ([]byte, error) {
+func (leaf *DataLeaf) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if leaf == nil {
 		return nil, nil
 	}
-	return encodingToJSON(leaf.schema, leaf.schema.Type, leaf.Value, rfc7951)
+	prefix := false
+	if rfc7951 != rfc7951Disabled {
+		prefix = true
+	}
+	return encodingToJSON(leaf.schema, leaf.schema.Type, leaf.Value, prefix)
 }
 
-func (leaflist *DataLeafList) marshalJSON(rfc7951 bool) ([]byte, error) {
+func (leaflist *DataLeafList) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if leaflist == nil {
 		return nil, nil
 	}
+	// [FIXME] - need json encoding for each entry of leaflist
 	return json.Marshal(leaflist.Value)
 }
 
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {
-	return branch.marshalJSON(false)
+	return branch.marshalJSON(rfc7951Disabled)
 }
 
 func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
-	return leaf.marshalJSON(false)
+	return leaf.marshalJSON(rfc7951Disabled)
 }
 
 func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
-	return leaflist.marshalJSON(false)
+	return leaflist.marshalJSON(rfc7951Disabled)
 }
 
+// rfc7951DataNode is used to print the qname of the namespace boundary nodes for rfc7951.
 type rfc7951DataNode struct {
 	DataNode
 }
@@ -166,31 +202,48 @@ type rfc7951DataNode struct {
 func (node rfc7951DataNode) MarshalJSON() ([]byte, error) {
 	switch n := node.DataNode.(type) {
 	case *DataBranch:
-		return n.marshalJSON(true)
+		return n.marshalJSON(rfc7951InProgress)
 	case *DataLeaf:
-		return n.marshalJSON(true)
+		return n.marshalJSON(rfc7951InProgress)
 	case *DataLeafList:
-		return n.marshalJSON(true)
+		return n.marshalJSON(rfc7951InProgress)
 	}
-	return nil, fmt.Errorf("unknown type node %T", node.DataNode)
+	return nil, fmt.Errorf("unknown type '%T'", node.DataNode)
+}
+
+// rfc7951TopDataNode is used to print the qname of the top nodes for rfc7951.
+type rfc7951TopDataNode struct {
+	DataNode
+}
+
+func (node rfc7951TopDataNode) MarshalJSON() ([]byte, error) {
+	switch n := node.DataNode.(type) {
+	case *DataBranch:
+		return n.marshalJSON(rfc7951Enabled)
+	case *DataLeaf:
+		return n.marshalJSON(rfc7951Enabled)
+	case *DataLeafList:
+		return n.marshalJSON(rfc7951Enabled)
+	}
+	return nil, fmt.Errorf("unknown type '%T'", node.DataNode)
 }
 
 func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
-	n := rfc7951DataNode{
+	n := rfc7951TopDataNode{
 		DataNode: branch,
 	}
 	return n.MarshalJSON()
 }
 
 func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
-	n := rfc7951DataNode{
+	n := rfc7951TopDataNode{
 		DataNode: leaf,
 	}
 	return n.MarshalJSON()
 }
 
 func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
-	n := rfc7951DataNode{
+	n := rfc7951TopDataNode{
 		DataNode: leaflist,
 	}
 	return n.MarshalJSON()
@@ -199,8 +252,8 @@ func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
 // MarshalJSON returns the JSON encoding of DataNode.
 //
 // Marshal traverses the value v recursively.
-func MarshalJSON(node DataNode, rfc7159 bool) ([]byte, error) {
-	if rfc7159 {
+func MarshalJSON(node DataNode, rfc7951 bool) ([]byte, error) {
+	if rfc7951 {
 		return node.MarshalJSON_IETF()
 	} else {
 		return node.MarshalJSON()
@@ -208,9 +261,9 @@ func MarshalJSON(node DataNode, rfc7159 bool) ([]byte, error) {
 }
 
 // MarshalJSON_IETF is like Marshal but applies Indent to format the output.
-func MarshalJSONIndent(node DataNode, prefix, indent string, rfc7159 bool) ([]byte, error) {
-	if rfc7159 {
-		n := rfc7951DataNode{node}
+func MarshalJSONIndent(node DataNode, prefix, indent string, rfc7951 bool) ([]byte, error) {
+	if rfc7951 {
+		n := rfc7951TopDataNode{node}
 		return json.MarshalIndent(n, prefix, indent)
 	} else {
 		return json.MarshalIndent(node, prefix, indent)

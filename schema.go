@@ -323,9 +323,10 @@ func updateModuleAnnotation(entry *yang.Entry, curModule *yang.Module, modules *
 	}
 	// namespace-qualified name of RFC 7951
 	nsname := fmt.Sprintf("%s:%s", module.Name, entry.Name)
-	entry.Annotation["fullname"] = nsname
+	entry.Annotation["qname"] = nsname
 	if curModule != module {
-		entry.Annotation["qname"] = nsname
+		// the entry of the namespace boundary
+		entry.Annotation["ns-boundary"] = nsname
 	}
 	for _, child := range entry.Dir {
 		if err := updateModuleAnnotation(child, module, modules); err != nil {
