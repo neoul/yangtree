@@ -161,83 +161,134 @@ func (branch *DataBranch) Find(path string) DataNode {
 // 	"/...": struct{},
 // }
 
-func parsePath(path *string, pos, length int) (string, int, error) {
+func parsePath(path *string, pos, length int) (pathelem string, end int, testAll bool, err error) {
 	begin := pos
-	end := pos
+	end = pos
 	// insideBrackets is counted up when at least one '[' has been found.
 	// It is counted down when a closing ']' has been found.
 	insideBrackets := 0
+	beginBracket := 0
 	switch (*path)[end] {
 	case '/':
 		begin++
 	case '=': // ignore data string in path
-		return "", length, nil
+		end = length
+		return
 	case '[', ']':
-		return "", length, fmt.Errorf("yangtree: path '%s' starts with bracket", *path)
+		end = length
+		err = fmt.Errorf("yangtree: path '%s' starts with bracket", *path)
+		return
 	}
 	end++
 	for end < length {
 		switch (*path)[end] {
 		case '/':
 			if insideBrackets <= 0 {
-				return (*path)[begin:end], end + 1, nil
+				if pathelem == "" {
+					pathelem = (*path)[begin:end]
+				}
+				end++
+				return
 			}
 		case '[':
 			if (*path)[end-1] != '\\' {
+				if insideBrackets <= 0 {
+					beginBracket = end
+				}
 				insideBrackets++
 			}
 		case ']':
 			if (*path)[end-1] != '\\' {
 				insideBrackets--
 			}
+		case '*':
+			if insideBrackets == 1 {
+				if end+1 < length && (*path)[end-1:end+2] == "=*]" { // * wildcard inside key value
+					pathelem = (*path)[begin:beginBracket]
+					testAll = true
+				}
+			}
 		case '=':
 			if insideBrackets <= 0 {
-				return (*path)[begin:end], end + 1, nil
+				if pathelem == "" {
+					pathelem = (*path)[begin:end]
+				}
+				end = length
+				return
 			}
 		}
 		end++
 	}
-	return (*path)[begin:end], end + 1, nil
+	if pathelem == "" {
+		pathelem = (*path)[begin:end]
+	}
+	return
 }
 
 func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
-	return nil, nil
-	// var node DataNode
-	// if branch == nil {
-	// 	return nil, fmt.Errorf("yangtree: %s found on retrieve", branch)
-	// }
-	// pos := 0
-	// length := len(path)
-	// schema := branch.schema
-	// node = branch
-	// for pos < length {
-	// 	pathelem, next, err := parsePath(&path, pos, length)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	schema, err = FindSchema(schema, pathelem)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	node = node.Get(pathelem)
-	// 	if node == nil {
-	// 		return nil, fmt.Errorf("yangtree: '%s' not found in %s", pathelem, branch)
-	// 	}
-	// 	pos = next
-	// }
-	// key, err := SplitPath(branch.Schema(), path)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// var node DataNode
-	// node = branch
-	// for i := range key {
-	// 	node = node.Get(key[i])
-	// 	if node == nil {
-	// 		return nil, fmt.Errorf("yangtree: '%s' not found in %s", key[i], branch)
-	// 	}
-	// }
-	// return []DataNode{node}, nil
+	if branch == nil {
+		return nil, fmt.Errorf("yangtree: %s found on retrieve", branch)
+	}
+	pathlen := len(path)
+	if pathlen == 0 {
+		return []DataNode{branch}, nil
+	}
+	testAllDescendant := false
+	pathelem, pos, testMatching, err := parsePath(&path, 0, pathlen)
+	if err != nil {
+		return nil, err
+	}
+	switch pathelem {
+	case "", ".":
+		return branch.Retrieve(path[pos:])
+	case "..":
+		return branch.parent.Retrieve(path[pos:])
+	case "...":
+		testAllDescendant = true
+		fallthrough
+	case "*":
+		testMatching = true
+		pathelem = ""
+	default:
+		// exact matching
+		cschema, err := FindSchema(branch.schema, pathelem)
+		if err != nil {
+			return nil, nil
+		}
+		if cschema.IsList() && cschema.Name == pathelem {
+			testMatching = true
+		}
+	}
+
+	// wildcard maching
+	if testMatching || testAllDescendant {
+		var nodes []DataNode
+		for k, child := range branch.Children {
+			if strings.HasPrefix(k, pathelem) {
+				n, err := child.Retrieve(path[pos:])
+				if err != nil {
+					return nil, err
+				}
+				nodes = append(nodes, n...)
+			}
+		}
+		if testAllDescendant {
+			for _, child := range branch.Children {
+				n, err := child.Retrieve(path)
+				if err != nil {
+					return nil, err
+				}
+				nodes = append(nodes, n...)
+			}
+		}
+		return nodes, nil
+	}
+
+	node := branch.Get(pathelem)
+	if node == nil {
+		return nil, nil
+	}
+	return node.Retrieve(path[pos:])
 }
 
 func (branch *DataBranch) Key() string {
@@ -296,7 +347,29 @@ func (leaf *DataLeaf) Find(path string) DataNode {
 }
 
 func (leaf *DataLeaf) Retrieve(path string) ([]DataNode, error) {
-	return nil, fmt.Errorf("yangtree: retrieve not supported for %s", leaf)
+	if leaf == nil {
+		return nil, fmt.Errorf("yangtree: %s found on retrieve", leaf)
+	}
+	pathlen := len(path)
+	if pathlen == 0 {
+		return []DataNode{leaf}, nil
+	}
+	pathelem, pos, _, err := parsePath(&path, 0, pathlen)
+	if err != nil {
+		return nil, err
+	}
+	switch pathelem {
+	case "", ".":
+		return leaf.Retrieve(path[pos:])
+	case "..":
+		return leaf.parent.Retrieve(path[pos:])
+	case "...":
+		return nil, nil
+	case "*":
+		return nil, nil
+	default:
+		return nil, nil
+	}
 }
 
 func (leaf *DataLeaf) Key() string {
@@ -424,11 +497,33 @@ func (leaflist *DataLeafList) Find(path string) DataNode {
 }
 
 func (leaflist *DataLeafList) Retrieve(path string) ([]DataNode, error) {
-	node := leaflist.Find(path)
-	if node == nil {
-		return nil, nil
+	if leaflist == nil {
+		return nil, fmt.Errorf("yangtree: %s found on retrieve", leaflist)
 	}
-	return []DataNode{node}, nil
+	pathlen := len(path)
+	if pathlen == 0 {
+		return []DataNode{leaflist}, nil
+	}
+	pathelem, pos, _, err := parsePath(&path, 0, pathlen)
+	if err != nil {
+		return nil, err
+	}
+	switch pathelem {
+	case "", ".":
+		return leaflist.Retrieve(path[pos:])
+	case "..":
+		return leaflist.parent.Retrieve(path[pos:])
+	case "...":
+		return nil, nil
+	case "*":
+		return nil, nil
+	default:
+		node := leaflist.Find(path[pos:])
+		if node == nil {
+			return nil, nil
+		}
+		return []DataNode{node}, nil
+	}
 }
 
 func (leaflist *DataLeafList) Key() string {
@@ -530,7 +625,7 @@ func Delete(root DataNode, path string, value ...string) error {
 		}
 		found := root.Get(key[i])
 		if found == nil {
-			return fmt.Errorf("yangtree: '%s' not found in %s", key[i], root)
+			return fmt.Errorf("yangtree: '%s' not from %s", key[i], root)
 		}
 		root = found
 	}

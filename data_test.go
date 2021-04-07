@@ -52,7 +52,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/",
+				path:  "/sample/single-key-list[list-key=AAA]/",
 				value: []string{"true"},
 			},
 			wantErr: false,
@@ -68,7 +68,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/country-code",
+				path:  "/sample/single-key-list[list-key=AAA]/country-code",
 				value: []string{"KR"},
 			},
 			wantErr: false,
@@ -76,7 +76,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/uint32-range",
+				path:  "/sample/single-key-list[list-key=AAA]/uint32-range",
 				value: []string{"100"},
 			},
 			wantErr: false,
@@ -84,7 +84,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "range-check",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/uint32-range",
+				path:  "/sample/single-key-list[list-key=AAA]/uint32-range",
 				value: []string{"493"},
 			},
 			wantErr: true,
@@ -92,7 +92,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "range-check",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/int8-range",
+				path:  "/sample/single-key-list[list-key=AAA]/int8-range",
 				value: []string{"500"},
 			},
 			wantErr: true,
@@ -100,7 +100,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "decimal-range",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/decimal-range",
+				path:  "/sample/single-key-list[list-key=AAA]/decimal-range",
 				value: []string{"1.01"},
 			},
 			wantErr: false,
@@ -108,7 +108,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "empty-node",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/empty-node",
+				path:  "/sample/single-key-list[list-key=AAA]/empty-node",
 				value: nil,
 			},
 			wantErr: false,
@@ -116,7 +116,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "uint64-node",
 			args: args{
-				path:  "/sample/single-key-list[list-key=first]/uint64-node",
+				path:  "/sample/single-key-list[list-key=AAA]/uint64-node",
 				value: []string{"1234567890"},
 			},
 			wantErr: false,
@@ -187,25 +187,31 @@ func TestDataNode(t *testing.T) {
 	}
 	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 	path := []string{
-		"/sample/single-key-list[list-key=first]/list-key",
-		"/sample/single-key-list[list-key=first]",
-		"/sample/single-key-list/*",
-		"/sample/*",
+		// "/sample/multiple-key-list[str=first][integer=*]/ok",
+		// "/sample/single-key-list[list-key=AAA]/list-key",
+		// "/sample/single-key-list[list-key=AAA]",
+		"/sample/single-key-list[list-key=*]",
+		// "/sample/single-key-list/*",
+		// "/sample/*",
+		// "/sample/...",
+		// "/sample/.../enum-val",
+		// "/sample/*/*/",
 	}
 	for i := range path {
 		node, err := RootData.Retrieve(path[i])
 		if err != nil {
 			t.Errorf("Retrieve() path %v error = %v", path[i], err)
 		}
+		fmt.Println(node)
 		for j := range node {
 			j, _ := MarshalJSON(node[j], true)
 			fmt.Println(path[i], string(j))
 		}
 	}
-	node := RootData.Find("/sample")
-	// j, _ := node.MarshalJSON()
-	j, _ := MarshalJSONIndent(node, "", " ", false)
-	fmt.Println(string(j))
+	// node := RootData.Find("/sample")
+	// // j, _ := node.MarshalJSON()
+	// j, _ := MarshalJSONIndent(node, "", " ", false)
+	// fmt.Println(string(j))
 
 	// jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
 	// if err != nil {
