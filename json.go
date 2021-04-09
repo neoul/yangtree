@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/openconfig/goyang/pkg/yang"
 )
 
 // rfc7951s (rfc7951 processing status)
@@ -171,7 +173,7 @@ func (leaf *DataLeaf) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if rfc7951 != rfc7951Disabled {
 		prefix = true
 	}
-	return encodingToJSON(leaf.schema, leaf.schema.Type, leaf.Value, prefix)
+	return encodeToJSONValue(leaf.schema, leaf.schema.Type, leaf.Value, prefix)
 }
 
 func (leaflist *DataLeafList) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
@@ -192,6 +194,129 @@ func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
 
 func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 	return leaflist.marshalJSON(rfc7951Disabled)
+}
+
+func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
+	jdata, ok := jval.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected json type %T", jval)
+	}
+	if len(kname) != len(kval) {
+		for k, v := range jdata {
+			kval = append(kval, k)
+			err := branch.unmarshalList(cschema, kname, kval, v)
+			if err != nil {
+				return err
+			}
+			kval = kval[:len(kval)-1]
+		}
+		return nil
+	}
+	// check existent DataNode
+	var err error
+	var key string
+	for i := range kval {
+		key = key + "[" + kname[i] + "=" + kval[i] + "]"
+	}
+	key = cschema.Name + key
+	child := branch.Get(key)
+	if child == nil {
+		if child, err = New(cschema); err != nil {
+			return err
+		}
+		if err = branch.Insert(key, child); err != nil {
+			return err
+		}
+	}
+	// Update DataNode
+	return child.unmarshalJSON(jval)
+}
+
+func (branch *DataBranch) unmarshalJSON(jval interface{}) error {
+	switch jdata := jval.(type) {
+	case map[string]interface{}:
+		for k, v := range jdata {
+			cschema, err := FindSchema(branch.schema, k)
+			if err != nil {
+				return err
+			}
+			switch {
+			case cschema.IsList():
+				kname := strings.Split(cschema.Key, " ")
+				kval := make([]string, 0, len(kname))
+				if err := branch.unmarshalList(cschema, kname, kval, v); err != nil {
+					return err
+				}
+			default:
+				child := branch.Children[k]
+				if child == nil {
+					if child, err = New(cschema); err != nil {
+						return err
+					}
+					if err = branch.Insert(k, child); err != nil {
+						return err
+					}
+				}
+				if err := child.unmarshalJSON(v); err != nil {
+					return err
+				}
+			}
+		}
+	default:
+		return fmt.Errorf("unexpected json '%v' inserted for %s", jdata, branch)
+	}
+	return nil
+}
+
+func (leaf *DataLeaf) unmarshalJSON(jval interface{}) error {
+	valstr, err := JSONValueToString(jval)
+	if err != nil {
+		return err
+	}
+	return leaf.Set(valstr)
+}
+
+func (leaflist *DataLeafList) unmarshalJSON(jval interface{}) error {
+	if islice, ok := jval.([]interface{}); ok {
+		for i := range islice {
+			valstr, err := JSONValueToString(islice[i])
+			if err != nil {
+				return err
+			}
+			if err = leaflist.Set(valstr); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("unexpected json type %T", jval)
+}
+
+func (branch *DataBranch) UnmarshalJSON(jsonbyte []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jsonbyte, &jval)
+	if err != nil {
+		return err
+	}
+	return branch.unmarshalJSON(jval)
+}
+
+func (leaf *DataLeaf) UnmarshalJSON(jsonbyte []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jsonbyte, &jval)
+	if err != nil {
+		return err
+	}
+	return leaf.unmarshalJSON(jval)
+}
+
+func (leaflist *DataLeafList) UnmarshalJSON(jsonbyte []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jsonbyte, &jval)
+	if err != nil {
+		return err
+	}
+	return leaflist.unmarshalJSON(jval)
 }
 
 // rfc7951DataNode is used to print the qname of the namespace boundary nodes for rfc7951.

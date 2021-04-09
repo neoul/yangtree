@@ -35,6 +35,9 @@ type DataNode interface {
 
 	MarshalJSON() ([]byte, error)      // Encoding to JSON
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF
+
+	UnmarshalJSON([]byte) error // Assembling DataNode using JSON input
+	unmarshalJSON(jtree interface{}) error
 }
 
 type DataBranch struct {
@@ -79,6 +82,9 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 	cschema, err := FindSchema(branch.schema, key)
 	if err != nil {
 		return err
+	}
+	if branch.schema != cschema.Parent {
+		return fmt.Errorf("yangtree: the schema found by '%s' is not a child of %s", key, branch)
 	}
 	if data == nil {
 		data, err = New(cschema)
@@ -362,10 +368,11 @@ func (leaf *DataLeaf) Retrieve(path string) ([]DataNode, error) {
 	case "", ".":
 		return leaf.Retrieve(path[pos:])
 	case "..":
-		return leaf.parent.Retrieve(path[pos:])
-	case "...":
-		return nil, nil
-	case "*":
+		if leaf.parent != nil {
+			return leaf.parent.Retrieve(path[pos:])
+		}
+		fallthrough
+	case "...", "*":
 		return nil, nil
 	default:
 		return nil, nil
@@ -455,20 +462,20 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 }
 
 func (leaflist *DataLeafList) Insert(key string, data DataNode) error {
-	if other, ok := data.(*DataLeafList); ok && other != nil {
-		for i := range other.Value {
-			insert := true
-			for j := range leaflist.Value {
-				if other.Value[i] == leaflist.Value[j] {
-					insert = false
-					break
-				}
-			}
-			if insert {
-				leaflist.Value = append(leaflist.Value, other.Value[i])
-			}
-		}
-	}
+	// if other, ok := data.(*DataLeafList); ok && other != nil {
+	// 	for i := range other.Value {
+	// 		insert := true
+	// 		for j := range leaflist.Value {
+	// 			if other.Value[i] == leaflist.Value[j] {
+	// 				insert = false
+	// 				break
+	// 			}
+	// 		}
+	// 		if insert {
+	// 			leaflist.Value = append(leaflist.Value, other.Value[i])
+	// 		}
+	// 	}
+	// }
 	return leaflist.Set(key)
 }
 
@@ -512,10 +519,11 @@ func (leaflist *DataLeafList) Retrieve(path string) ([]DataNode, error) {
 	case "", ".":
 		return leaflist.Retrieve(path[pos:])
 	case "..":
-		return leaflist.parent.Retrieve(path[pos:])
-	case "...":
-		return nil, nil
-	case "*":
+		if leaflist.parent != nil {
+			return leaflist.parent.Retrieve(path[pos:])
+		}
+		fallthrough
+	case "...", "*":
 		return nil, nil
 	default:
 		node := leaflist.Find(path[pos:])

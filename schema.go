@@ -769,6 +769,8 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 			return true, nil
 		} else if v == "false" {
 			return false, nil
+		} else {
+			return false, nil
 		}
 	case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
 		number, err := yang.ParseInt(value)
@@ -808,7 +810,7 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 		case yang.Yuint64:
 			return uint64(n), nil
 		}
-		return number.String(), nil
+		return number, nil
 	case yang.Ybits, yang.Yenum:
 		emap := getEnumAnnotation(entry)
 		if _, ok := emap[value]; ok {
@@ -836,7 +838,7 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 				}
 			}
 			if inrange {
-				return number.String(), nil
+				return number, nil
 			}
 			return nil, fmt.Errorf("out-of-range %v", typ.Range)
 		}
@@ -850,14 +852,14 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 	case yang.Ynone:
 		break
 	}
-	return nil, fmt.Errorf("invalid type '%v' for '%s'", value, entry.Name)
+	return nil, fmt.Errorf("invalid type '%v' for '%s' (%v)", value, entry.Name, typ.Kind)
 }
 
-func encodingToJSON(entry *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
+func encodeToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
 	switch typ.Kind {
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := encodingToJSON(entry, typ.Type[i], value, rfc7951)
+			v, err := encodeToJSONValue(entry, typ.Type[i], value, rfc7951)
 			if err == nil {
 				return v, nil
 			}
@@ -896,13 +898,52 @@ func encodingToJSON(entry *yang.Entry, typ *yang.YangType, value interface{}, rf
 	} else {
 		switch typ.Kind {
 		case yang.Ydecimal64:
-			if v, ok := value.(string); ok {
-				return []byte(v), nil
-			} else if v, ok := value.(yang.Number); ok {
+			switch v := value.(type) {
+			case yang.Number:
 				return []byte(v.String()), nil
+			case string:
+				return []byte(v), nil
 			}
 		}
 	}
 
 	return json.Marshal(value)
 }
+
+func isIntegral(val float64) bool {
+	return val == float64(int(val))
+}
+
+func JSONValueToString(jval interface{}) (string, error) {
+	switch jdata := jval.(type) {
+	case float64:
+		if isIntegral(jdata) {
+			return fmt.Sprint(int64(jdata)), nil
+		}
+		return fmt.Sprint(jdata), nil
+	case string:
+		return jdata, nil
+	case nil:
+		return "", nil
+	case bool:
+		if jdata {
+			return "true", nil
+		}
+		return "false", nil
+	default:
+		return "", fmt.Errorf("unexpected json type %T", jval)
+	}
+}
+
+// func decodeJSONValue(entry *yang.Entry, jval interface{}, rfc7951 bool) (interface{}, error) {
+// 	var err error
+// 	var svalue string // string value for json value
+// 	if rfc7951 {
+// 	} else {
+// 		svalue, err = JSONValueToString(jval)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("unexpected json value %T inserted for %s", jval, entry.Path())
+// 		}
+// 	}
+// 	return Set(entry, entry.Type, svalue)
+// }

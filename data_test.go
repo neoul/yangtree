@@ -2,7 +2,6 @@ package yangtree
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/neoul/gdump"
@@ -11,8 +10,7 @@ import (
 func TestDataNode(t *testing.T) {
 	RootSchema, err := Load([]string{"data"}, nil, nil)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		t.Fatal(err)
 	}
 	RootData, err := New(RootSchema)
 	if err != nil {
@@ -24,14 +22,15 @@ func TestDataNode(t *testing.T) {
 		value []string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name          string
+		args          args
+		wantInsertErr bool
+		wantDeleteErr bool
 	}{
 		{
-			name:    "test-item",
-			args:    args{path: "/"},
-			wantErr: false,
+			name:          "test-item",
+			args:          args{path: "/"},
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -39,7 +38,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/str-val",
 				value: []string{"abc"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -47,7 +46,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/empty-val",
 				value: []string{"true"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -55,7 +54,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/",
 				value: []string{"true"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -63,7 +62,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-ke=first]",
 				value: []string{"true"},
 			},
-			wantErr: true,
+			wantInsertErr: true,
 		},
 		{
 			name: "test-item",
@@ -71,7 +70,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/country-code",
 				value: []string{"KR"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -79,7 +78,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/uint32-range",
 				value: []string{"100"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "range-check",
@@ -87,7 +86,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/uint32-range",
 				value: []string{"493"},
 			},
-			wantErr: true,
+			wantInsertErr: true,
 		},
 		{
 			name: "range-check",
@@ -95,7 +94,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/int8-range",
 				value: []string{"500"},
 			},
-			wantErr: true,
+			wantInsertErr: true,
 		},
 		{
 			name: "decimal-range",
@@ -103,7 +102,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/decimal-range",
 				value: []string{"1.01"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "empty-node",
@@ -111,7 +110,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/empty-node",
 				value: nil,
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "uint64-node",
@@ -119,7 +118,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/single-key-list[list-key=AAA]/uint64-node",
 				value: []string{"1234567890"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -127,7 +126,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/multiple-key-list[str=first][integer=1]/ok",
 				value: []string{"true"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -135,7 +134,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/multiple-key-list[str=first][integer=2]/str",
 				value: []string{"first"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -143,7 +142,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/container-val/leaf-list-val",
 				value: nil,
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -151,7 +150,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/container-val/leaf-list-val",
 				value: []string{"leaf-list-first", "leaf-list-second"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -159,7 +158,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/container-val/leaf-list-val",
 				value: []string{"leaf-list-third"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -167,7 +166,7 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/container-val/leaf-list-val/leaf-list-fourth",
 				value: nil,
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 		{
 			name: "test-item",
@@ -175,13 +174,13 @@ func TestDataNode(t *testing.T) {
 				path:  "/sample/container-val/enum-val",
 				value: []string{"enum2"},
 			},
-			wantErr: false,
+			wantInsertErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+".Insert", func(t *testing.T) {
-			if err := Insert(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantErr {
-				t.Errorf("Insert() error = %v, wantErr %v", err, tt.wantErr)
+			if err := Insert(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantInsertErr {
+				t.Errorf("Insert() error = %v, wantInsertErr %v", err, tt.wantInsertErr)
 			}
 		})
 	}
@@ -213,20 +212,20 @@ func TestDataNode(t *testing.T) {
 	// j, _ := MarshalJSONIndent(node, "", " ", false)
 	// fmt.Println(string(j))
 
-	// jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
-	// if err != nil {
-	// 	t.Error(err)
-	// }
-	// fmt.Println(string(jsonietf))
+	jj, err := MarshalJSONIndent(RootData, "", " ", false)
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(string(jj))
 
 	for i := len(tests) - 1; i >= 0; i-- {
 		tt := tests[i]
-		if tt.wantErr {
+		if tt.wantInsertErr {
 			continue
 		}
 		t.Run(tt.name+".Delete", func(t *testing.T) {
-			if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantErr {
-				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
+			if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantDeleteErr {
+				t.Errorf("Delete() error = %v, wantDeleteErr %v", err, tt.wantDeleteErr)
 			}
 		})
 	}
