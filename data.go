@@ -146,19 +146,35 @@ func (branch *DataBranch) Find(path string) DataNode {
 	if branch == nil {
 		return nil
 	}
-	key, err := SplitPath(branch.Schema(), path)
-	if err != nil {
-		return nil
-	}
-	var node DataNode
-	node = branch
-	for i := range key {
-		node = node.Get(key[i])
-		if node == nil {
+	var err error
+	var pos int
+	var key string
+	var found DataNode
+	pathlen := len(path)
+	found = branch
+Loop:
+	for {
+		key, pos, _, err = parsePath(&path, pos, pathlen)
+		if err != nil {
 			return nil
 		}
+		switch key {
+		case "":
+			if pos >= pathlen {
+				break Loop
+			}
+			return nil
+		}
+
+		found := found.Get(key)
+		if found == nil {
+			return nil
+		}
+		if pos >= pathlen {
+			break
+		}
 	}
-	return node
+	return found
 }
 
 func parsePath(path *string, pos, length int) (pathelem string, end int, testAll bool, err error) {
@@ -580,17 +596,29 @@ func Insert(root DataNode, path string, value ...string) error {
 	if root == nil {
 		return fmt.Errorf("yangtree: data node is null")
 	}
-	key, err := SplitPath(root.Schema(), path)
-	if err != nil {
-		return err
-	}
-	var createdTop DataNode
-	for i := range key {
-		found := root.Get(key[i])
+	var err error
+	var pos int
+	var key string
+	var created DataNode
+	pathlen := len(path)
+Loop:
+	for {
+		key, pos, _, err = parsePath(&path, pos, pathlen)
+		if err != nil {
+			return err
+		}
+		switch key {
+		case "":
+			if pos >= pathlen {
+				break Loop
+			}
+			return fmt.Errorf("yangtree: invalid path %s", path)
+		}
+		found := root.Get(key)
 		if found == nil {
 			schema := root.Schema()
 			if !schema.IsLeafList() {
-				schema, err = FindSchema(root.Schema(), key[i])
+				schema, err = FindSchema(root.Schema(), key)
 				if err != nil {
 					return err
 				}
@@ -599,19 +627,23 @@ func Insert(root DataNode, path string, value ...string) error {
 			if err != nil {
 				return err
 			}
-			if err := root.Insert(key[i], found); err != nil {
+			if err := root.Insert(key, found); err != nil {
 				return err
 			}
-			if createdTop == nil {
-				createdTop = found
+			if created == nil {
+				created = found
 			}
 		}
 		root = found
+		if pos >= pathlen {
+			break
+		}
 	}
+
 	err = root.Set(value...)
 	if err != nil {
-		if createdTop != nil {
-			createdTop.Remove()
+		if created != nil {
+			created.Remove()
 		}
 		return err
 	}
@@ -622,20 +654,36 @@ func Delete(root DataNode, path string, value ...string) error {
 	if root == nil {
 		return fmt.Errorf("yangtree: data node is null")
 	}
-	key, err := SplitPath(root.Schema(), path)
-	if err != nil {
-		return err
-	}
+	var err error
+	var pos int
+	var key string
+	pathlen := len(path)
+Loop:
+	for {
+		key, pos, _, err = parsePath(&path, pos, pathlen)
+		if err != nil {
+			return err
+		}
+		switch key {
+		case "":
+			if pos >= pathlen {
+				break Loop
+			}
+			return fmt.Errorf("yangtree: invalid path %s", path)
+		}
 
-	for i := range key {
-		if _, ok := root.(*DataLeafList); ok {
-			value = append(value, key[i:]...)
-		}
-		found := root.Get(key[i])
+		found := root.Get(key)
 		if found == nil {
-			return fmt.Errorf("yangtree: '%s' not from %s", key[i], root)
+			if _, ok := root.(*DataLeafList); ok {
+				value = append(value, key)
+			}
+			break Loop
 		}
+
 		root = found
+		if pos >= pathlen {
+			break
+		}
 	}
 	return root.Remove(value...)
 }

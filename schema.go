@@ -530,97 +530,97 @@ func lookupSchema(entry *yang.Entry, name string) (centry *yang.Entry, reachToEn
 	return
 }
 
-// SplitPath splits the path and check the validation of the schema in the path
-func SplitPath(entry *yang.Entry, path string) ([]string, error) {
-	if entry == nil {
-		return nil, fmt.Errorf("yangtree: nil schema")
-	}
-	if !entry.IsDir() {
-		return nil, nil
-	}
-	length := len(path)
-	if length <= 0 {
-		return nil, nil
-	}
-	begin := 0
-	end := 0
-	// insideBrackets is counted up when at least one '[' has been found.
-	// It is counted down when a closing ']' has been found.
-	insideBrackets := 0
+// // SplitPath splits the path and check the validation of the schema in the path
+// func SplitPath(entry *yang.Entry, path string) ([]string, error) {
+// 	if entry == nil {
+// 		return nil, fmt.Errorf("yangtree: nil schema")
+// 	}
+// 	if !entry.IsDir() {
+// 		return nil, nil
+// 	}
+// 	length := len(path)
+// 	if length <= 0 {
+// 		return nil, nil
+// 	}
+// 	begin := 0
+// 	end := 0
+// 	// insideBrackets is counted up when at least one '[' has been found.
+// 	// It is counted down when a closing ']' has been found.
+// 	insideBrackets := 0
 
-	switch path[end] {
-	case '/':
-		begin = 1
-	case '[', ']', '=':
-		return nil, fmt.Errorf("yangtree: path '%s' starts with bracket", path)
-	}
-	end++
+// 	switch path[end] {
+// 	case '/':
+// 		begin = 1
+// 	case '[', ']', '=':
+// 		return nil, fmt.Errorf("yangtree: path '%s' starts with bracket", path)
+// 	}
+// 	end++
 
-	pathbegin := begin
-	pathelem := make([]string, 0, 8)
-	reachToEnd := false
+// 	pathbegin := begin
+// 	pathelem := make([]string, 0, 8)
+// 	reachToEnd := false
 
-	for end < length {
-		// fmt.Printf("%c, '%s', %d\n", path[end], path[begin:end], insideBrackets)
-		switch path[end] {
-		case '/':
-			if insideBrackets <= 0 {
-				entry, reachToEnd = lookupSchema(entry, path[begin:end])
-				if entry == nil {
-					return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-				}
-				begin = end + 1
-				if pathbegin < end {
-					pathelem = append(pathelem, path[pathbegin:end])
-				}
-				pathbegin = begin
-			}
-			end++
-		case '[':
-			if path[end-1] != '\\' {
-				if insideBrackets <= 0 {
-					entry, reachToEnd = lookupSchema(entry, path[begin:end])
-					if entry == nil {
-						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-					}
-					begin = end + 1
-				}
-				insideBrackets++
-			}
-			end++
-		case ']':
-			if path[end-1] != '\\' {
-				insideBrackets--
-				begin = end + 1
-			}
-			end++
-		case '=':
-			if insideBrackets <= 0 {
-				entry, _ = lookupSchema(entry, path[begin:end])
-				if entry == nil {
-					return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-				}
-				begin = end + 1
-				reachToEnd = true
-			} else {
-				end++
-			}
-		default:
-			end++
-		}
-		if reachToEnd {
-			end = length
-		}
-	}
-	entry, _ = lookupSchema(entry, path[begin:end])
-	if entry == nil {
-		return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-	}
-	if pathbegin < end {
-		pathelem = append(pathelem, path[pathbegin:end])
-	}
-	return pathelem, nil
-}
+// 	for end < length {
+// 		// fmt.Printf("%c, '%s', %d\n", path[end], path[begin:end], insideBrackets)
+// 		switch path[end] {
+// 		case '/':
+// 			if insideBrackets <= 0 {
+// 				entry, reachToEnd = lookupSchema(entry, path[begin:end])
+// 				if entry == nil {
+// 					return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
+// 				}
+// 				begin = end + 1
+// 				if pathbegin < end {
+// 					pathelem = append(pathelem, path[pathbegin:end])
+// 				}
+// 				pathbegin = begin
+// 			}
+// 			end++
+// 		case '[':
+// 			if path[end-1] != '\\' {
+// 				if insideBrackets <= 0 {
+// 					entry, reachToEnd = lookupSchema(entry, path[begin:end])
+// 					if entry == nil {
+// 						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
+// 					}
+// 					begin = end + 1
+// 				}
+// 				insideBrackets++
+// 			}
+// 			end++
+// 		case ']':
+// 			if path[end-1] != '\\' {
+// 				insideBrackets--
+// 				begin = end + 1
+// 			}
+// 			end++
+// 		case '=':
+// 			if insideBrackets <= 0 {
+// 				entry, _ = lookupSchema(entry, path[begin:end])
+// 				if entry == nil {
+// 					return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
+// 				}
+// 				begin = end + 1
+// 				reachToEnd = true
+// 			} else {
+// 				end++
+// 			}
+// 		default:
+// 			end++
+// 		}
+// 		if reachToEnd {
+// 			end = length
+// 		}
+// 	}
+// 	entry, _ = lookupSchema(entry, path[begin:end])
+// 	if entry == nil {
+// 		return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
+// 	}
+// 	if pathbegin < end {
+// 		pathelem = append(pathelem, path[pathbegin:end])
+// 	}
+// 	return pathelem, nil
+// }
 
 // ExtractKeyValues extracts the list key values from keystr
 func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
