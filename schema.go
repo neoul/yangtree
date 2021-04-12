@@ -156,81 +156,6 @@ func GeneratePath(entry *yang.Entry, prefixTagging bool) string {
 	return path
 }
 
-// TypeInfoString returns a type information
-func TypeInfoString(e *yang.Entry, pathWithPrefix bool) string {
-	if e == nil || e.Type == nil {
-		return "unknown type"
-	}
-	t := e.Type
-	rstr := fmt.Sprintf("- type: %s", t.Kind)
-	switch t.Kind {
-	case yang.Ybits, yang.Yenum:
-		e := getEnumAnnotation(e)
-		enum := make([]string, 0, len(e))
-		for e := range e {
-			enum = append(enum, e)
-		}
-		rstr += fmt.Sprintf(" %v", enum)
-	case yang.Yleafref:
-		rstr += fmt.Sprintf(" %q", t.Path)
-	case yang.Yidentityref:
-		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
-		if pathWithPrefix {
-			identities := make([]string, 0, 64)
-			for i := range t.IdentityBase.Values {
-				identities = append(identities, t.IdentityBase.Values[i].PrefixedName())
-			}
-			rstr += fmt.Sprintf(" %v", identities)
-		} else {
-			identities := make([]string, 0, 64)
-			for i := range t.IdentityBase.Values {
-				identities = append(identities, t.IdentityBase.Values[i].Name)
-			}
-			rstr += fmt.Sprintf(" %v", identities)
-		}
-
-	case yang.Yunion:
-		unionlist := make([]string, 0, len(t.Type))
-		for i := range t.Type {
-			unionlist = append(unionlist, t.Type[i].Name)
-		}
-		rstr += fmt.Sprintf(" %v", unionlist)
-	default:
-	}
-	rstr += "\n"
-
-	if t.Root != nil {
-		data := GetAnnotation(e, "root.type")
-		if data != nil && t.Kind.String() != data.(string) {
-			rstr += fmt.Sprintf("- root.type: %v\n", data)
-		}
-	}
-	if t.Units != "" {
-		rstr += fmt.Sprintf("- units: %s\n", t.Units)
-	}
-	if t.Default != "" {
-		rstr += fmt.Sprintf("- default: %q\n", t.Default)
-	}
-	if t.FractionDigits != 0 {
-		rstr += fmt.Sprintf("- fraction-digits: %d\n", t.FractionDigits)
-	}
-	if len(t.Length) > 0 {
-		rstr += fmt.Sprintf("- length: %s\n", t.Length)
-	}
-	if t.Kind == yang.YinstanceIdentifier && !t.OptionalInstance {
-		rstr += "- required\n"
-	}
-
-	if len(t.Pattern) > 0 {
-		rstr += fmt.Sprintf("- pattern: %s\n", strings.Join(t.Pattern, "|"))
-	}
-	b := yang.BaseTypedefs[t.Kind.String()].YangType
-	if len(t.Range) > 0 && !t.Range.Equal(b.Range) {
-		rstr += fmt.Sprintf("- range: %s\n", t.Range)
-	}
-	return rstr
-}
-
 // GetAnnotation finds an annotation from the schema entry
 func GetAnnotation(entry *yang.Entry, name string) interface{} {
 	if entry == nil {
@@ -263,6 +188,18 @@ func getIdentityrefAnnotation(entry *yang.Entry) map[string]string {
 	}
 	if data, ok := entry.Annotation["identityref"]; ok {
 		if m, ok := data.(map[string]string); ok {
+			return m
+		}
+	}
+	return nil
+}
+
+func getModuleAnnotation(entry *yang.Entry) *yang.Module {
+	if entry == nil || entry.Annotation == nil {
+		return nil
+	}
+	if data, ok := entry.Annotation["module"]; ok {
+		if m, ok := data.(*yang.Module); ok {
 			return m
 		}
 	}
@@ -309,12 +246,12 @@ func _updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
 			_updateTypeAnnotation(entry, typ.Type[i])
 		}
 	}
-	if typ.Root != nil {
-		entry.Annotation["root.type"] = typ.Root.Name
-	}
+	// if typ.Root != nil {
+	// 	entry.Annotation["root.type"] = typ.Root.Name
+	// }
 }
 
-func updateModuleAnnotation(entry *yang.Entry, curModule *yang.Module, modules *yang.Modules) error {
+func updateModuleAnnotation(parent, entry *yang.Entry, current *yang.Module, modules *yang.Modules) error {
 	if entry.Annotation == nil {
 		entry.Annotation = map[string]interface{}{}
 	}
@@ -324,13 +261,25 @@ func updateModuleAnnotation(entry *yang.Entry, curModule *yang.Module, modules *
 	}
 	// namespace-qualified name of RFC 7951
 	nsname := fmt.Sprintf("%s:%s", module.Name, entry.Name)
+	entry.Annotation["module"] = module
 	entry.Annotation["qname"] = nsname
-	if curModule != module {
+	if current != module {
 		// the entry of the namespace boundary
-		entry.Annotation["ns-boundary"] = nsname
+		entry.Annotation["qname-boundary"] = nsname
+	}
+	if parent != nil {
+		if parent.Annotation == nil {
+			parent.Annotation = map[string]interface{}{}
+		}
+		if parent.Annotation["dir"] == nil {
+			parent.Annotation["dir"] = map[string]*yang.Entry{}
+		}
+		dir := parent.Annotation["dir"].(map[string]*yang.Entry)
+		dir[entry.Prefix.Name+":"+entry.Name] = entry
+		dir[module.Name+":"+entry.Name] = entry
 	}
 	for _, child := range entry.Dir {
-		if err := updateModuleAnnotation(child, module, modules); err != nil {
+		if err := updateModuleAnnotation(entry, child, module, modules); err != nil {
 			return err
 		}
 	}
@@ -354,7 +303,6 @@ func buildRootEntry() *yang.Entry {
 		Annotation: map[string]interface{}{},
 	}
 	rootEntry.Name = "root"
-	rootEntry.Annotation["schemapath"] = "/"
 	rootEntry.Kind = yang.DirectoryEntry
 	// Always annotate the root as a fake root, so that it is not treated
 	// as a path element in ytypes.
@@ -375,9 +323,9 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 	}
 	if errors := ms.Process(); len(errors) > 0 {
 		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "yang processing error: %v\n", e)
+			fmt.Fprintf(os.Stderr, "yangtree: yang loading error: %v\n", e)
 		}
-		return nil, fmt.Errorf("yang processing failed with %d errors", len(errors))
+		return nil, fmt.Errorf("yangtree: yang loading failed with %d errors", len(errors))
 	}
 	// Keep track of the top level modules we read in.
 	// Those are the only modules we want to print below.
@@ -398,15 +346,21 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 
 	root := buildRootEntry()
 	for _, mentry := range entries {
-		for _, entry := range mentry.Dir {
-			skip := false
-			for i := range e {
-				if entry.Name == e[i] {
-					skip = true
-				}
+		skip := false
+		for i := range e {
+			if mentry.Name == e[i] {
+				skip = true
 			}
-			if !skip {
-				updateModuleAnnotation(entry, nil, ms)
+		}
+		if !skip {
+			for _, entry := range mentry.Dir {
+				if same, ok := root.Dir[entry.Name]; ok {
+					mo := getModuleAnnotation(same)
+					return nil, fmt.Errorf(
+						"yangtree: multiple top-level nodes are defined in %s and %s",
+						mentry.Name, mo.Name)
+				}
+				updateModuleAnnotation(root, entry, nil, ms)
 				updateTypeAnnotation(entry)
 				root.Dir[entry.Name] = entry
 				entry.Parent = root
@@ -472,12 +426,34 @@ func checkKey(entry *yang.Entry, key string) error {
 	return nil
 }
 
+func GetSchema(entry *yang.Entry, name string) (*yang.Entry, error) {
+	var child *yang.Entry
+	switch name {
+	case "", ".":
+		return entry, nil
+	case "..":
+		child = entry.Parent
+	default:
+		child = entry.Dir[name]
+		if child == nil {
+			if d, ok := entry.Annotation["dir"]; ok {
+				dir := d.(map[string]*yang.Entry)
+				child = dir[name]
+			}
+		}
+	}
+	if child == nil {
+		return nil, fmt.Errorf("yangtree: '%s' schema not found", name)
+	}
+	return child, nil
+}
+
 // FindSchema finds *yang.Entry from the schema entry
 func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
+	var err error
 	if entry == nil {
 		return nil, fmt.Errorf("yangtree: nil schema")
 	}
-
 	length := len(path)
 	if length <= 0 {
 		return entry, nil
@@ -501,16 +477,8 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 		switch path[end] {
 		case '/':
 			if insideBrackets <= 0 {
-				elem := path[begin:end]
-				switch elem {
-				case "", ".": // do nothing
-				case "..":
-					entry = entry.Parent
-				default:
-					entry = entry.Dir[path[begin:end]]
-				}
-				if entry == nil {
-					return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
+				if entry, err = GetSchema(entry, path[begin:end]); err != nil {
+					return nil, err
 				}
 				begin = end + 1
 			}
@@ -518,16 +486,8 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 		case '[':
 			if path[end-1] != '\\' {
 				if insideBrackets <= 0 {
-					elem := path[begin:end]
-					switch elem {
-					case "", ".": // do nothing
-					case "..":
-						entry = entry.Parent
-					default:
-						entry = entry.Dir[path[begin:end]]
-					}
-					if entry == nil {
-						return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
+					if entry, err = GetSchema(entry, path[begin:end]); err != nil {
+						return nil, err
 					}
 					begin = end + 1
 				}
@@ -549,27 +509,23 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 			end++
 		}
 	}
-	elem := path[begin:end]
-	switch elem {
-	case "", ".": // do nothing
-	case "..":
-		entry = entry.Parent
-	default:
-		entry = entry.Dir[path[begin:end]]
-	}
-	if entry == nil {
-		return nil, fmt.Errorf("yangtree: '%s' schema not found", path[begin:end])
+	if entry, err = GetSchema(entry, path[begin:end]); err != nil {
+		return nil, err
 	}
 	return entry, nil
 }
 
-func lookupSchema(entry *yang.Entry, entryname string) (centry *yang.Entry, reachToEnd bool) {
+func lookupSchema(entry *yang.Entry, name string) (centry *yang.Entry, reachToEnd bool) {
+	var err error
 	switch {
 	case entry.Dir == nil: // leaf, leaf-list
 		centry = entry
 		reachToEnd = true
 	default: // container, case, etc.
-		centry = entry.Dir[entryname]
+		centry, err = GetSchema(entry, name)
+		if err != nil {
+			return
+		}
 	}
 	return
 }
@@ -578,6 +534,9 @@ func lookupSchema(entry *yang.Entry, entryname string) (centry *yang.Entry, reac
 func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 	if entry == nil {
 		return nil, fmt.Errorf("yangtree: nil schema")
+	}
+	if !entry.IsDir() {
+		return nil, nil
 	}
 	length := len(path)
 	if length <= 0 {
@@ -606,11 +565,9 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 		switch path[end] {
 		case '/':
 			if insideBrackets <= 0 {
-				if begin < end {
-					entry, reachToEnd = lookupSchema(entry, path[begin:end])
-					if entry == nil {
-						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-					}
+				entry, reachToEnd = lookupSchema(entry, path[begin:end])
+				if entry == nil {
+					return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 				}
 				begin = end + 1
 				if pathbegin < end {
@@ -622,11 +579,9 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 		case '[':
 			if path[end-1] != '\\' {
 				if insideBrackets <= 0 {
-					if begin < end {
-						entry, reachToEnd = lookupSchema(entry, path[begin:end])
-						if entry == nil {
-							return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-						}
+					entry, reachToEnd = lookupSchema(entry, path[begin:end])
+					if entry == nil {
+						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 					}
 					begin = end + 1
 				}
@@ -641,11 +596,9 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 			end++
 		case '=':
 			if insideBrackets <= 0 {
-				if begin < end {
-					entry, _ = lookupSchema(entry, path[begin:end])
-					if entry == nil {
-						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-					}
+				entry, _ = lookupSchema(entry, path[begin:end])
+				if entry == nil {
+					return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 				}
 				begin = end + 1
 				reachToEnd = true
@@ -659,11 +612,9 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 			end = length
 		}
 	}
-	if begin < end {
-		entry, _ = lookupSchema(entry, path[begin:end])
-		if entry == nil {
-			return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
-		}
+	entry, _ = lookupSchema(entry, path[begin:end])
+	if entry == nil {
+		return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 	}
 	if pathbegin < end {
 		pathelem = append(pathelem, path[pathbegin:end])
@@ -671,8 +622,8 @@ func SplitPath(entry *yang.Entry, path string) ([]string, error) {
 	return pathelem, nil
 }
 
-// ExtractKeys extracts the list key values from keystr
-func ExtractKeys(keys []string, keystr string) ([]string, error) {
+// ExtractKeyValues extracts the list key values from keystr
+func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	length := len(keystr)
 	if length <= 0 {
 		return nil, fmt.Errorf("yangtree: extractkeys from empty keystr")
@@ -868,6 +819,13 @@ func encodeToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{},
 	case yang.YinstanceIdentifier:
 		// [FIXME] The leftmost (top-level) data node name is always in the
 		//   namespace-qualified form (qname).
+	case yang.Ydecimal64:
+		switch v := value.(type) {
+		case yang.Number:
+			return []byte(v.String()), nil
+		case string:
+			return []byte(v), nil
+		}
 	}
 	if rfc7951 {
 		switch typ.Kind {
@@ -895,18 +853,7 @@ func encodeToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{},
 				return json.Marshal(str)
 			}
 		}
-	} else {
-		switch typ.Kind {
-		case yang.Ydecimal64:
-			switch v := value.(type) {
-			case yang.Number:
-				return []byte(v.String()), nil
-			case string:
-				return []byte(v), nil
-			}
-		}
 	}
-
 	return json.Marshal(value)
 }
 
@@ -930,20 +877,10 @@ func JSONValueToString(jval interface{}) (string, error) {
 			return "true", nil
 		}
 		return "false", nil
-	default:
-		return "", fmt.Errorf("unexpected json type %T", jval)
+	case []interface{}:
+		if len(jdata) == 1 && jdata[0] == nil {
+			return "true", nil
+		}
 	}
+	return "", fmt.Errorf("unexpected json type %T", jval)
 }
-
-// func decodeJSONValue(entry *yang.Entry, jval interface{}, rfc7951 bool) (interface{}, error) {
-// 	var err error
-// 	var svalue string // string value for json value
-// 	if rfc7951 {
-// 	} else {
-// 		svalue, err = JSONValueToString(jval)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("unexpected json value %T inserted for %s", jval, entry.Path())
-// 		}
-// 	}
-// 	return Set(entry, entry.Type, svalue)
-// }

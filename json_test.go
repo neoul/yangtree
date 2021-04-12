@@ -95,3 +95,61 @@ func TestDataBranch_JSON(t *testing.T) {
 	// 	})
 	// }
 }
+
+func TestDataBranch_JSON_IETF(t *testing.T) {
+	RootSchema, err := Load([]string{"data"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	RootData, err := New(RootSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jbyte := `
+	{
+		"sample:sample": {
+		 "container-val": {
+		  "enum-val": "enum2",
+		  "leaf-list-val": [
+		   "leaf-list-first",
+		   "leaf-list-second",
+		   "leaf-list-third",
+		   "leaf-list-fourth"
+		  ]
+		 },
+		 "empty-val": [
+		  null
+		 ],
+		 "multiple-key-list": [
+		  {
+		   "integer": 1,
+		   "ok": true,
+		   "str": "first"
+		  },
+		  {
+		   "integer": 2,
+		   "str": "first"
+		  }
+		 ],
+		 "single-key-list": [
+		  {
+		   "country-code": "KR",
+		   "decimal-range": 1.01,
+		   "empty-node": [
+			null
+		   ],
+		   "list-key": "AAA",
+		   "uint32-range": 100,
+		   "uint64-node": "1234567890"
+		  }
+		 ],
+		 "str-val": "abc"
+		}
+	   }	   
+	`
+	if err := RootData.UnmarshalJSON([]byte(jbyte)); err != nil {
+		t.Error(err)
+	}
+
+	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+}

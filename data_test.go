@@ -171,7 +171,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/container-val/enum-val",
+				path:  "/sample:sample/sample:container-val/sample:enum-val",
 				value: []string{"enum2"},
 			},
 			wantInsertErr: false,
@@ -212,7 +212,7 @@ func TestDataNode(t *testing.T) {
 	// j, _ := MarshalJSONIndent(node, "", " ", false)
 	// fmt.Println(string(j))
 
-	jj, err := MarshalJSONIndent(RootData, "", " ", false)
+	jj, err := MarshalJSONIndent(RootData, "", " ", true)
 	if err != nil {
 		t.Error(err)
 	}

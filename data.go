@@ -34,9 +34,11 @@ type DataNode interface {
 	Retrieve(path string) ([]DataNode, error)
 
 	MarshalJSON() ([]byte, error)      // Encoding to JSON
-	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF
+	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
 
-	UnmarshalJSON([]byte) error // Assembling DataNode using JSON input
+	UnmarshalJSON([]byte) error // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
+
+	// internal interfaces
 	unmarshalJSON(jtree interface{}) error
 }
 
@@ -102,7 +104,7 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 	case cschema.IsList():
 		if !ManualKeyCreation {
 			keyname := strings.Split(cschema.Key, " ")
-			keyval, err := ExtractKeys(keyname, key)
+			keyval, err := ExtractKeyValues(keyname, key)
 			if err != nil {
 				return err
 			}
@@ -158,14 +160,6 @@ func (branch *DataBranch) Find(path string) DataNode {
 	}
 	return node
 }
-
-// const metachars map[string]struct{} = map[string]struct{} {
-// 	"../": struct{},
-// 	"./": struct{},
-// 	"*]": struct{},
-// 	"/*": struct{},
-// 	"/...": struct{},
-// }
 
 func parsePath(path *string, pos, length int) (pathelem string, end int, testAll bool, err error) {
 	begin := pos
@@ -240,12 +234,14 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 		return []DataNode{branch}, nil
 	}
 	testAllDescendant := false
-	pathelem, pos, testMatching, err := parsePath(&path, 0, pathlen)
+	pathelem, pos, testAllChildren, err := parsePath(&path, 0, pathlen)
 	if err != nil {
 		return nil, err
 	}
 	switch pathelem {
-	case "", ".":
+	case "":
+		return nil, fmt.Errorf("yangtree: invalid path %s", path)
+	case ".":
 		return branch.Retrieve(path[pos:])
 	case "..":
 		return branch.parent.Retrieve(path[pos:])
@@ -253,7 +249,7 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 		testAllDescendant = true
 		fallthrough
 	case "*":
-		testMatching = true
+		testAllChildren = true
 		pathelem = ""
 	default:
 		// exact matching
@@ -262,12 +258,12 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 			return nil, nil
 		}
 		if cschema.IsList() && cschema.Name == pathelem {
-			testMatching = true
+			testAllChildren = true
 		}
 	}
 
 	// wildcard maching
-	if testMatching || testAllDescendant {
+	if testAllChildren || testAllDescendant {
 		var nodes []DataNode
 		for k, child := range branch.Children {
 			if strings.HasPrefix(k, pathelem) {
@@ -365,7 +361,9 @@ func (leaf *DataLeaf) Retrieve(path string) ([]DataNode, error) {
 		return nil, err
 	}
 	switch pathelem {
-	case "", ".":
+	case "":
+		return nil, fmt.Errorf("yangtree: invalid path %s", path)
+	case ".":
 		return leaf.Retrieve(path[pos:])
 	case "..":
 		if leaf.parent != nil {
@@ -516,7 +514,9 @@ func (leaflist *DataLeafList) Retrieve(path string) ([]DataNode, error) {
 		return nil, err
 	}
 	switch pathelem {
-	case "", ".":
+	case "":
+		return nil, fmt.Errorf("yangtree: invalid path %s", path)
+	case ".":
 		return leaflist.Retrieve(path[pos:])
 	case "..":
 		if leaflist.parent != nil {

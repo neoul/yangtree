@@ -32,7 +32,7 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int,
 		if schema != node[i].Schema() {
 			break
 		}
-		keyval, err := ExtractKeys(keyname, node[i].Key())
+		keyval, err := ExtractKeyValues(keyname, node[i].Key())
 		if err != nil {
 			return 0, err
 		}
@@ -67,7 +67,7 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int
 	var qname interface{} // namespace-qualified name required
 	switch rfc7951 {
 	case rfc7951InProgress:
-		qname = GetAnnotation(schema, "ns-boundary")
+		qname = GetAnnotation(schema, "qname-boundary")
 	case rfc7951Enabled:
 		qname = GetAnnotation(schema, "qname")
 	default:
@@ -140,7 +140,7 @@ func (branch *DataBranch) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
 				return nil, err
 			}
-			qname = GetAnnotation(node[i].Schema(), "ns-boundary")
+			qname = GetAnnotation(node[i].Schema(), "qname-boundary")
 		case rfc7951Enabled:
 			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
 				return nil, err
@@ -232,6 +232,45 @@ func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kva
 	return child.unmarshalJSON(jval)
 }
 
+func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
+	for i := range listentry {
+		jentry, ok := listentry[i].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected json type %T", listentry[i])
+		}
+		// check existent DataNode
+		var err error
+		var key string
+		for i := range kname {
+			_, err := GetSchema(cschema, kname[i])
+			if err != nil {
+				return err
+			}
+			kval := fmt.Sprint(jentry[kname[i]])
+			// kchild, err := New(kschema, kval)
+			// if err != nil {
+			// 	return err
+			// }
+			key = key + "[" + kname[i] + "=" + kval + "]"
+		}
+		key = cschema.Name + key
+		child := branch.Get(key)
+		if child == nil {
+			if child, err = New(cschema); err != nil {
+				return err
+			}
+			if err = branch.Insert(key, child); err != nil {
+				return err
+			}
+		}
+		// Update DataNode
+		if err := child.unmarshalJSON(jentry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (branch *DataBranch) unmarshalJSON(jval interface{}) error {
 	switch jdata := jval.(type) {
 	case map[string]interface{}:
@@ -242,10 +281,15 @@ func (branch *DataBranch) unmarshalJSON(jval interface{}) error {
 			}
 			switch {
 			case cschema.IsList():
-				kname := strings.Split(cschema.Key, " ")
-				kval := make([]string, 0, len(kname))
-				if err := branch.unmarshalList(cschema, kname, kval, v); err != nil {
-					return err
+				if rfc7951List, ok := v.([]interface{}); ok {
+					kname := strings.Split(cschema.Key, " ")
+					branch.unmarshalListRFC7951(cschema, kname, rfc7951List)
+				} else {
+					kname := strings.Split(cschema.Key, " ")
+					kval := make([]string, 0, len(kname))
+					if err := branch.unmarshalList(cschema, kname, kval, v); err != nil {
+						return err
+					}
 				}
 			default:
 				child := branch.Children[k]
