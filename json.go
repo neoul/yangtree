@@ -174,7 +174,7 @@ func (leaf *DataLeaf) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if rfc7951 != rfc7951Disabled {
 		prefix = true
 	}
-	return encodeToJSONValue(leaf.schema, leaf.schema.Type, leaf.Value, prefix)
+	return encodeToJSONValue(leaf.schema, leaf.schema.Type, leaf.value, prefix)
 }
 
 func (leaflist *DataLeafList) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
@@ -182,7 +182,7 @@ func (leaflist *DataLeafList) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 		return nil, nil
 	}
 	// [FIXME] - need json encoding for each entry of leaflist
-	return json.Marshal(leaflist.Value)
+	return json.Marshal(leaflist.value)
 }
 
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {

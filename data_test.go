@@ -230,7 +230,7 @@ func TestDataNode(t *testing.T) {
 			t.Errorf("Retrieve() path %v error = %v", path[i], err)
 		}
 		for j := range node {
-			t.Log("Retrieve", i, path[i], "::::", node[j], node[j])
+			t.Log("Retrieve", i, path[i], "::::", node[j].Path(), node[j])
 			// j, _ := MarshalJSON(node[j], true)
 			// t.Log("Retrieve", i, "", path[i], string(j))
 		}

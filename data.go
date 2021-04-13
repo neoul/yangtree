@@ -33,6 +33,10 @@ type DataNode interface {
 	// https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-path-conventions.md
 	Retrieve(path string) ([]DataNode, error)
 
+	String() string
+	Path() string
+	Value() interface{}
+
 	MarshalJSON() ([]byte, error)      // Encoding to JSON
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
 
@@ -127,6 +131,24 @@ func (branch *DataBranch) SetParent(parent *DataBranch, key ...string) {
 		branch.key = key[i]
 	}
 }
+
+func (branch *DataBranch) Value() interface{} {
+	return nil
+}
+
+func (branch *DataBranch) Path() string {
+	if branch == nil {
+		return ""
+	}
+	if branch.key == "" {
+		return ""
+	}
+	if branch.parent != nil {
+		return branch.parent.Path() + "/" + branch.key
+	}
+	return "/" + branch.key
+}
+
 func (branch *DataBranch) String() string {
 	if branch == nil {
 		return "branch.null"
@@ -323,7 +345,7 @@ func (branch *DataBranch) Key() string {
 type DataLeaf struct {
 	schema *yang.Entry
 	parent *DataBranch
-	Value  interface{}
+	value  interface{}
 }
 
 func (leaf *DataLeaf) IsYangDataNode()                             {}
@@ -337,15 +359,29 @@ func (leaf *DataLeaf) String() string {
 	return "leaf." + leaf.schema.Name
 }
 
+func (leaf *DataLeaf) Path() string {
+	if leaf == nil {
+		return ""
+	}
+	if leaf.parent != nil {
+		return leaf.parent.Path() + "/" + leaf.Key()
+	}
+	return "/" + leaf.Key()
+}
+
+func (leaf *DataLeaf) Value() interface{} {
+	return leaf.value
+}
+
 func (leaf *DataLeaf) Set(value ...string) error {
 	for i := range value {
 		v, err := Set(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
 			return err
 		}
-		leaf.Value = v
+		leaf.value = v
 	}
-	// fmt.Printf("\n##leaf.Value Type %T %v\n", leaf.Value, leaf.Value)
+	// fmt.Printf("\n##leaf.value Type %T %v\n", leaf.value, leaf.value)
 	return nil
 }
 
@@ -409,7 +445,7 @@ func (leaf *DataLeaf) Key() string {
 type DataLeafList struct {
 	schema *yang.Entry
 	parent *DataBranch
-	Value  []interface{}
+	value  []interface{}
 }
 
 func (leaflist *DataLeafList) IsYangDataNode() {}
@@ -438,6 +474,20 @@ func (leaflist *DataLeafList) String() string {
 	return "leaf-list." + leaflist.schema.Name
 }
 
+func (leaflist *DataLeafList) Path() string {
+	if leaflist == nil {
+		return ""
+	}
+	if leaflist.parent != nil {
+		return leaflist.parent.Path() + "/" + leaflist.Key()
+	}
+	return "/" + leaflist.Key()
+}
+
+func (leaflist *DataLeafList) Value() interface{} {
+	return leaflist.value
+}
+
 func (leaflist *DataLeafList) Set(value ...string) error {
 	if leaflist == nil {
 		return fmt.Errorf("yangtree: %s found on set", leaflist)
@@ -448,14 +498,14 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 			return err
 		}
 		insert := true
-		for j := range leaflist.Value {
-			if leaflist.Value[j] == v {
+		for j := range leaflist.value {
+			if leaflist.value[j] == v {
 				insert = false
 				break
 			}
 		}
 		if insert {
-			leaflist.Value = append(leaflist.Value, v)
+			leaflist.value = append(leaflist.value, v)
 		}
 	}
 	return nil
@@ -466,9 +516,9 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 		return fmt.Errorf("yangtree: %s found on remove", leaflist)
 	}
 	for i := range value {
-		for j := range leaflist.Value {
-			if leaflist.Value[j] == value[i] {
-				leaflist.Value = append(leaflist.Value[:j], leaflist.Value[j+1:]...)
+		for j := range leaflist.value {
+			if leaflist.value[j] == value[i] {
+				leaflist.value = append(leaflist.value[:j], leaflist.value[j+1:]...)
 				break
 			}
 		}
@@ -484,16 +534,16 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 
 func (leaflist *DataLeafList) Insert(key string, data DataNode) error {
 	// if other, ok := data.(*DataLeafList); ok && other != nil {
-	// 	for i := range other.Value {
+	// 	for i := range other.value {
 	// 		insert := true
-	// 		for j := range leaflist.Value {
-	// 			if other.Value[i] == leaflist.Value[j] {
+	// 		for j := range leaflist.value {
+	// 			if other.value[i] == leaflist.value[j] {
 	// 				insert = false
 	// 				break
 	// 			}
 	// 		}
 	// 		if insert {
-	// 			leaflist.Value = append(leaflist.Value, other.Value[i])
+	// 			leaflist.value = append(leaflist.value, other.value[i])
 	// 		}
 	// 	}
 	// }
@@ -506,8 +556,8 @@ func (leaflist *DataLeafList) Delete(key string) error {
 
 // Get finds the key from its value.
 func (leaflist *DataLeafList) Get(key string) DataNode {
-	for i := range leaflist.Value {
-		if leaflist.Value[i] == key {
+	for i := range leaflist.value {
+		if leaflist.value[i] == key {
 			return leaflist
 		}
 	}
@@ -516,8 +566,8 @@ func (leaflist *DataLeafList) Get(key string) DataNode {
 
 // Get finds the key from its value.
 func (leaflist *DataLeafList) Find(path string) DataNode {
-	for i := range leaflist.Value {
-		if leaflist.Value[i] == path {
+	for i := range leaflist.value {
+		if leaflist.value[i] == path {
 			return leaflist
 		}
 	}
