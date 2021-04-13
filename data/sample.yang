@@ -54,6 +54,23 @@ module sample {
       leaf-list leaf-list-val {
         type string;
       }
+
+      leaf test-default {
+        type int8;
+        default 1;
+      }
+
+      choice test-choice {     // This example is illegal YANG
+        case test-case-a {
+            leaf a {
+              type string; 
+            }
+        }
+        case test-case-b {
+            container b {
+            }
+        }
+      }
       
       leaf enum-val {
         type enumeration {

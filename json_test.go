@@ -1,10 +1,7 @@
 package yangtree
 
 import (
-	"fmt"
 	"testing"
-
-	"github.com/neoul/gdump"
 )
 
 func TestDataBranch_JSON(t *testing.T) {
@@ -60,7 +57,7 @@ func TestDataBranch_JSON(t *testing.T) {
 		t.Error(err)
 	}
 
-	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 
 	// type fields struct {
 	// 	schema   *yang.Entry
@@ -151,5 +148,5 @@ func TestDataBranch_JSON_IETF(t *testing.T) {
 		t.Error(err)
 	}
 
-	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }

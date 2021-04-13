@@ -3,9 +3,19 @@ package yangtree
 import (
 	"fmt"
 	"testing"
-
-	"github.com/neoul/gdump"
 )
+
+// func TestDataNodeInterface(t *testing.T) {
+// 	RootSchema, err := Load([]string{"data"}, nil, nil)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	RootData, err := New(RootSchema)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	// RootData.Set()
+// }
 
 func TestDataNode(t *testing.T) {
 	RootSchema, err := Load([]string{"data"}, nil, nil)
@@ -176,6 +186,22 @@ func TestDataNode(t *testing.T) {
 			},
 			wantInsertErr: false,
 		},
+		{
+			name: "test-item",
+			args: args{
+				path:  "/sample:sample/sample:container-val/sample:test-default",
+				value: []string{"11"},
+			},
+			wantInsertErr: false,
+		},
+		{
+			name: "test-choice",
+			args: args{
+				path:  "/sample:sample/sample:container-val/a",
+				value: []string{"A"},
+			},
+			wantInsertErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+".Insert", func(t *testing.T) {
@@ -184,27 +210,29 @@ func TestDataNode(t *testing.T) {
 			}
 		})
 	}
-	gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+
+	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+
 	path := []string{
-		// "/sample/multiple-key-list[str=first][integer=*]/ok",
-		// "/sample/single-key-list[list-key=AAA]/list-key",
-		// "/sample/single-key-list[list-key=AAA]",
+		"/sample/multiple-key-list[str=first][integer=*]/ok",
+		"/sample/single-key-list[list-key=AAA]/list-key",
+		"/sample/single-key-list[list-key=AAA]",
 		"/sample/single-key-list[list-key=*]",
-		// "/sample/single-key-list/*",
-		// "/sample/*",
-		// "/sample/...",
-		// "/sample/.../enum-val",
-		// "/sample/*/*/",
+		"/sample/single-key-list/*",
+		"/sample/*",
+		"/sample/...",
+		"/sample/.../enum-val",
+		"/sample/*/*/",
 	}
 	for i := range path {
 		node, err := RootData.Retrieve(path[i])
 		if err != nil {
 			t.Errorf("Retrieve() path %v error = %v", path[i], err)
 		}
-		fmt.Println(node)
 		for j := range node {
-			j, _ := MarshalJSON(node[j], true)
-			fmt.Println(path[i], string(j))
+			t.Log("Retrieve", i, path[i], "::::", node[j], node[j])
+			// j, _ := MarshalJSON(node[j], true)
+			// t.Log("Retrieve", i, "", path[i], string(j))
 		}
 	}
 	// node := RootData.Find("/sample")

@@ -67,7 +67,7 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int
 	var qname interface{} // namespace-qualified name required
 	switch rfc7951 {
 	case rfc7951InProgress:
-		qname = GetAnnotation(schema, "qname-boundary")
+		qname = GetAnnotation(schema, "qboundary")
 	case rfc7951Enabled:
 		qname = GetAnnotation(schema, "qname")
 	default:
@@ -140,7 +140,8 @@ func (branch *DataBranch) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
 				return nil, err
 			}
-			qname = GetAnnotation(node[i].Schema(), "qname-boundary")
+			// qname boundary
+			qname = GetAnnotation(node[i].Schema(), "qboundary")
 		case rfc7951Enabled:
 			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
 				return nil, err

@@ -264,10 +264,21 @@ func updateModuleAnnotation(parent, entry *yang.Entry, current *yang.Module, mod
 	entry.Annotation["module"] = module
 	entry.Annotation["qname"] = nsname
 	if current != module {
-		// the entry of the namespace boundary
-		entry.Annotation["qname-boundary"] = nsname
+		entry.Annotation["qboundary"] = nsname // namespace boundary
 	}
 	if parent != nil {
+		switch {
+		case parent.IsChoice(), parent.IsCase():
+			for parent.Parent != nil {
+				parent = parent.Parent
+				if !parent.IsChoice() && !parent.IsCase() {
+					break
+				}
+			}
+			if parent == nil {
+				return fmt.Errorf("yangtree: updating schema tree failed")
+			}
+		}
 		if parent.Annotation == nil {
 			parent.Annotation = map[string]interface{}{}
 		}
@@ -277,6 +288,7 @@ func updateModuleAnnotation(parent, entry *yang.Entry, current *yang.Module, mod
 		dir := parent.Annotation["dir"].(map[string]*yang.Entry)
 		dir[entry.Prefix.Name+":"+entry.Name] = entry
 		dir[module.Name+":"+entry.Name] = entry
+		dir[entry.Name] = entry
 	}
 	for _, child := range entry.Dir {
 		if err := updateModuleAnnotation(entry, child, module, modules); err != nil {
@@ -301,11 +313,12 @@ func buildRootEntry() *yang.Entry {
 	rootEntry := &yang.Entry{
 		Dir:        map[string]*yang.Entry{},
 		Annotation: map[string]interface{}{},
+		Kind:       yang.DirectoryEntry, // root is container
 	}
 	rootEntry.Name = "root"
 	rootEntry.Kind = yang.DirectoryEntry
-	// Always annotate the root as a fake root, so that it is not treated
-	// as a path element in ytypes.
+	// Always annotate the root as a fake root,
+	// so that it is not treated as a path element.
 	rootEntry.Annotation["root"] = true
 	return rootEntry
 }
@@ -360,10 +373,10 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 						"yangtree: multiple top-level nodes are defined in %s and %s",
 						mentry.Name, mo.Name)
 				}
+				entry.Parent = root
+				root.Dir[entry.Name] = entry
 				updateModuleAnnotation(root, entry, nil, ms)
 				updateTypeAnnotation(entry)
-				root.Dir[entry.Name] = entry
-				entry.Parent = root
 			}
 		}
 	}
@@ -434,18 +447,32 @@ func GetSchema(entry *yang.Entry, name string) (*yang.Entry, error) {
 	case "..":
 		child = entry.Parent
 	default:
-		child = entry.Dir[name]
-		if child == nil {
-			if d, ok := entry.Annotation["dir"]; ok {
-				dir := d.(map[string]*yang.Entry)
-				child = dir[name]
-			}
+		if d, ok := entry.Annotation["dir"]; ok {
+			dir := d.(map[string]*yang.Entry)
+			child = dir[name]
 		}
+		// child = entry.Dir[name]
+		// if child == nil {
+		// 	if d, ok := entry.Annotation["dir"]; ok {
+		// 		dir := d.(map[string]*yang.Entry)
+		// 		child = dir[name]
+		// 	}
+		// }
 	}
 	if child == nil {
 		return nil, fmt.Errorf("yangtree: '%s' schema not found", name)
 	}
 	return child, nil
+}
+
+// GetPresentParentSchema is used to get the non-choice and non-case parent schema entry.
+func GetPresentParentSchema(entry *yang.Entry) *yang.Entry {
+	for p := entry.Parent; p != nil; p = p.Parent {
+		if !p.IsCase() && !p.IsChoice() {
+			return p
+		}
+	}
+	return nil
 }
 
 // FindSchema finds *yang.Entry from the schema entry

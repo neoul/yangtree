@@ -42,142 +42,7 @@ type DataNode interface {
 	unmarshalJSON(jtree interface{}) error
 }
 
-type DataBranch struct {
-	schema   *yang.Entry
-	parent   *DataBranch
-	key      string
-	Children map[string]DataNode
-}
-
-func (branch *DataBranch) IsYangDataNode()        {}
-func (branch *DataBranch) Schema() *yang.Entry    { return branch.schema }
-func (branch *DataBranch) GetParent() *DataBranch { return branch.parent }
-func (branch *DataBranch) SetParent(parent *DataBranch, key ...string) {
-	branch.parent = parent
-	for i := range key {
-		branch.key = key[i]
-	}
-}
-func (branch *DataBranch) String() string {
-	if branch == nil {
-		return "branch.null"
-	}
-	return "branch." + branch.schema.Name
-}
-
-func (branch *DataBranch) Set(value ...string) error {
-	return nil
-}
-
-func (branch *DataBranch) Remove(value ...string) error {
-	if branch == nil {
-		return nil
-	}
-	if branch.parent != nil {
-		delete(branch.parent.Children, branch.key)
-		branch.parent = nil
-	}
-	return nil
-}
-
-func (branch *DataBranch) Insert(key string, data DataNode) error {
-	cschema, err := FindSchema(branch.schema, key)
-	if err != nil {
-		return err
-	}
-	if branch.schema != cschema.Parent {
-		return fmt.Errorf("yangtree: the schema found by '%s' is not a child of %s", key, branch)
-	}
-	if data == nil {
-		data, err = New(cschema)
-		if err != nil {
-			return err
-		}
-	} else {
-		if cschema != data.Schema() {
-			return fmt.Errorf("yangtree: invalid %s inserted for '%s'",
-				data, cschema.Name)
-		}
-	}
-
-	switch {
-	case cschema.IsList():
-		if !ManualKeyCreation {
-			keyname := strings.Split(cschema.Key, " ")
-			keyval, err := ExtractKeyValues(keyname, key)
-			if err != nil {
-				return err
-			}
-			for i := range keyval {
-				keyschema := cschema.Dir[keyname[i]]
-				keynode, err := New(keyschema, keyval[i])
-				if err != nil {
-					return fmt.Errorf("yangtree: failed to set leaf.%s to '%s'", keyname[i], keyval[i])
-				}
-				if err := data.Insert(keyname[i], keynode); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	branch.Children[key] = data
-	data.SetParent(branch, key)
-	return nil
-}
-
-func (branch *DataBranch) Delete(key string) error {
-	if c := branch.Children[key]; c != nil {
-		delete(branch.Children, key)
-		c.SetParent(nil, "")
-	}
-	return nil
-}
-
-func (branch *DataBranch) Get(key string) DataNode {
-	if key == ".." {
-		return branch.parent
-	} else if key == "." {
-		return branch
-	}
-	return branch.Children[key]
-}
-
-func (branch *DataBranch) Find(path string) DataNode {
-	if branch == nil {
-		return nil
-	}
-	var err error
-	var pos int
-	var key string
-	var found DataNode
-	pathlen := len(path)
-	found = branch
-Loop:
-	for {
-		key, pos, _, err = parsePath(&path, pos, pathlen)
-		if err != nil {
-			return nil
-		}
-		switch key {
-		case "":
-			if pos >= pathlen {
-				break Loop
-			}
-			return nil
-		}
-
-		found := found.Get(key)
-		if found == nil {
-			return nil
-		}
-		if pos >= pathlen {
-			break
-		}
-	}
-	return found
-}
-
-func parsePath(path *string, pos, length int) (pathelem string, end int, testAll bool, err error) {
+func parsePath(path *string, pos, length int) (prefix, pathelem string, end int, testAll bool, err error) {
 	begin := pos
 	end = pos
 	// insideBrackets is counted up when at least one '[' has been found.
@@ -232,6 +97,11 @@ func parsePath(path *string, pos, length int) (pathelem string, end int, testAll
 				end = length
 				return
 			}
+		case ':':
+			if insideBrackets <= 0 {
+				prefix = (*path)[begin:end]
+				begin = end + 1
+			}
 		}
 		end++
 	}
@@ -239,6 +109,143 @@ func parsePath(path *string, pos, length int) (pathelem string, end int, testAll
 		pathelem = (*path)[begin:end]
 	}
 	return
+}
+
+type DataBranch struct {
+	schema   *yang.Entry
+	parent   *DataBranch
+	key      string
+	Children map[string]DataNode
+}
+
+func (branch *DataBranch) IsYangDataNode()        {}
+func (branch *DataBranch) Schema() *yang.Entry    { return branch.schema }
+func (branch *DataBranch) GetParent() *DataBranch { return branch.parent }
+func (branch *DataBranch) SetParent(parent *DataBranch, key ...string) {
+	branch.parent = parent
+	for i := range key {
+		branch.key = key[i]
+	}
+}
+func (branch *DataBranch) String() string {
+	if branch == nil {
+		return "branch.null"
+	}
+	return "branch." + branch.schema.Name
+}
+
+func (branch *DataBranch) Set(value ...string) error {
+	// A value become a key upon branch
+
+	return nil
+}
+
+func (branch *DataBranch) Remove(value ...string) error {
+	if branch == nil {
+		return nil
+	}
+	if branch.parent != nil {
+		delete(branch.parent.Children, branch.key)
+		branch.parent = nil
+	}
+	return nil
+}
+
+func (branch *DataBranch) Insert(key string, data DataNode) error {
+	var err error
+	var cschema *yang.Entry
+
+	if data == nil {
+		cschema, err = FindSchema(branch.schema, key)
+		if err != nil {
+			return err
+		}
+		data, err = New(cschema)
+		if err != nil {
+			return err
+		}
+	} else {
+		cschema = data.Schema()
+		if branch.schema != GetPresentParentSchema(cschema) {
+			return fmt.Errorf("yangtree: the schema found by '%s' is not a child of %s", key, branch)
+		}
+	}
+
+	switch {
+	case cschema.IsList():
+		if !ManualKeyCreation {
+			keyname := strings.Split(cschema.Key, " ")
+			keyval, err := ExtractKeyValues(keyname, key)
+			if err != nil {
+				return err
+			}
+			for i := range keyval {
+				keyschema := cschema.Dir[keyname[i]]
+				keynode, err := New(keyschema, keyval[i])
+				if err != nil {
+					return fmt.Errorf("yangtree: failed to set leaf.%s to '%s'", keyname[i], keyval[i])
+				}
+				if err := data.Insert(keyname[i], keynode); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	branch.Children[key] = data
+	data.SetParent(branch, key)
+	return nil
+}
+
+func (branch *DataBranch) Delete(key string) error {
+	if c := branch.Children[key]; c != nil {
+		delete(branch.Children, key)
+		c.SetParent(nil, "")
+	}
+	return nil
+}
+
+func (branch *DataBranch) Get(key string) DataNode {
+	if key == ".." {
+		return branch.parent
+	} else if key == "." {
+		return branch
+	}
+	return branch.Children[key]
+}
+
+func (branch *DataBranch) Find(path string) DataNode {
+	if branch == nil {
+		return nil
+	}
+	var err error
+	var pos int
+	var pathelem string
+	var found DataNode
+	pathlen := len(path)
+	found = branch
+Loop:
+	for {
+		_, pathelem, pos, _, err = parsePath(&path, pos, pathlen)
+		if err != nil {
+			return nil
+		}
+		switch pathelem {
+		case "":
+			if pos >= pathlen {
+				break Loop
+			}
+			return nil
+		}
+
+		found := found.Get(pathelem)
+		if found == nil {
+			return nil
+		}
+		if pos >= pathlen {
+			break
+		}
+	}
+	return found
 }
 
 func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
@@ -250,7 +257,7 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 		return []DataNode{branch}, nil
 	}
 	testAllDescendant := false
-	pathelem, pos, testAllChildren, err := parsePath(&path, 0, pathlen)
+	_, pathelem, pos, testAllChildren, err := parsePath(&path, 0, pathlen)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +379,7 @@ func (leaf *DataLeaf) Retrieve(path string) ([]DataNode, error) {
 	if pathlen == 0 {
 		return []DataNode{leaf}, nil
 	}
-	pathelem, pos, _, err := parsePath(&path, 0, pathlen)
+	_, pathelem, pos, _, err := parsePath(&path, 0, pathlen)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +532,7 @@ func (leaflist *DataLeafList) Retrieve(path string) ([]DataNode, error) {
 	if pathlen == 0 {
 		return []DataNode{leaflist}, nil
 	}
-	pathelem, pos, _, err := parsePath(&path, 0, pathlen)
+	_, pathelem, pos, _, err := parsePath(&path, 0, pathlen)
 	if err != nil {
 		return nil, err
 	}
@@ -558,6 +565,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("yangtree: schema.null on new")
 	}
+	var err error
 	var newdata DataNode
 	switch {
 	case schema.Dir == nil && schema.ListAttr != nil: // leaf-list
@@ -573,16 +581,24 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 		leaf := &DataLeaf{
 			schema: schema,
 		}
-		err := leaf.Set(value...)
+		if len(value) > 0 {
+			err = leaf.Set(value...)
+		} else if schema.Default != "" {
+			err = leaf.Set(schema.Default)
+		}
 		if err != nil {
 			return nil, err
 		}
 		newdata = leaf
 	case schema.ListAttr != nil: // list
-		newdata = &DataBranch{
+		branch := &DataBranch{
 			schema:   schema,
 			Children: map[string]DataNode{},
 		}
+		// for key, cschema := range schema.Dir {
+		// 	branch.Set(key)
+		// }
+		newdata = branch
 	default: // container, case, etc.
 		newdata = &DataBranch{
 			schema:   schema,
@@ -598,27 +614,27 @@ func Insert(root DataNode, path string, value ...string) error {
 	}
 	var err error
 	var pos int
-	var key string
+	var pathelem string
 	var created DataNode
 	pathlen := len(path)
 Loop:
 	for {
-		key, pos, _, err = parsePath(&path, pos, pathlen)
+		_, pathelem, pos, _, err = parsePath(&path, pos, pathlen)
 		if err != nil {
 			return err
 		}
-		switch key {
+		switch pathelem {
 		case "":
 			if pos >= pathlen {
 				break Loop
 			}
 			return fmt.Errorf("yangtree: invalid path %s", path)
 		}
-		found := root.Get(key)
+		found := root.Get(pathelem)
 		if found == nil {
 			schema := root.Schema()
 			if !schema.IsLeafList() {
-				schema, err = FindSchema(root.Schema(), key)
+				schema, err = FindSchema(root.Schema(), pathelem)
 				if err != nil {
 					return err
 				}
@@ -627,7 +643,7 @@ Loop:
 			if err != nil {
 				return err
 			}
-			if err := root.Insert(key, found); err != nil {
+			if err := root.Insert(pathelem, found); err != nil {
 				return err
 			}
 			if created == nil {
@@ -656,15 +672,15 @@ func Delete(root DataNode, path string, value ...string) error {
 	}
 	var err error
 	var pos int
-	var key string
+	var pathelem string
 	pathlen := len(path)
 Loop:
 	for {
-		key, pos, _, err = parsePath(&path, pos, pathlen)
+		_, pathelem, pos, _, err = parsePath(&path, pos, pathlen)
 		if err != nil {
 			return err
 		}
-		switch key {
+		switch pathelem {
 		case "":
 			if pos >= pathlen {
 				break Loop
@@ -672,10 +688,10 @@ Loop:
 			return fmt.Errorf("yangtree: invalid path %s", path)
 		}
 
-		found := root.Get(key)
+		found := root.Get(pathelem)
 		if found == nil {
 			if _, ok := root.(*DataLeafList); ok {
-				value = append(value, key)
+				value = append(value, pathelem)
 			}
 			break Loop
 		}
