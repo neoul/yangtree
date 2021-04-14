@@ -16,8 +16,8 @@ type DataNode interface {
 	IsYangDataNode()
 	Key() string
 	Schema() *yang.Entry
-	GetParent() *DataBranch
-	SetParent(parent *DataBranch, key ...string)
+	GetParent() DataNode
+	SetParent(parent DataNode, key ...string)
 
 	Set(value ...string) error
 	Remove(value ...string) error
@@ -117,15 +117,15 @@ func parsePath(path *string, pos, length int) (prefix, pathelem string, end int,
 
 type DataBranch struct {
 	schema   *yang.Entry
-	parent   *DataBranch
+	parent   DataNode
 	key      string
 	Children map[string]DataNode
 }
 
-func (branch *DataBranch) IsYangDataNode()        {}
-func (branch *DataBranch) Schema() *yang.Entry    { return branch.schema }
-func (branch *DataBranch) GetParent() *DataBranch { return branch.parent }
-func (branch *DataBranch) SetParent(parent *DataBranch, key ...string) {
+func (branch *DataBranch) IsYangDataNode()     {}
+func (branch *DataBranch) Schema() *yang.Entry { return branch.schema }
+func (branch *DataBranch) GetParent() DataNode { return branch.parent }
+func (branch *DataBranch) SetParent(parent DataNode, key ...string) {
 	branch.parent = parent
 	for i := range key {
 		branch.key = key[i]
@@ -166,8 +166,12 @@ func (branch *DataBranch) Remove(value ...string) error {
 	if branch == nil {
 		return nil
 	}
-	if branch.parent != nil {
-		delete(branch.parent.Children, branch.key)
+	if branch.parent == nil {
+		return nil
+	}
+	switch p := branch.parent.(type) {
+	case *DataBranch:
+		delete(p.Children, branch.key)
 		branch.parent = nil
 	}
 	return nil
@@ -342,16 +346,23 @@ func (branch *DataBranch) Key() string {
 	return branch.key
 }
 
+// type DataList struct {
+// 	schema   *yang.Entry
+// 	parent   DataNode
+// 	key      string
+// 	Children map[string]DataNode
+// }
+
 type DataLeaf struct {
 	schema *yang.Entry
-	parent *DataBranch
+	parent DataNode
 	value  interface{}
 }
 
-func (leaf *DataLeaf) IsYangDataNode()                             {}
-func (leaf *DataLeaf) Schema() *yang.Entry                         { return leaf.schema }
-func (leaf *DataLeaf) SetParent(parent *DataBranch, key ...string) { leaf.parent = parent }
-func (leaf *DataLeaf) GetParent() *DataBranch                      { return leaf.parent }
+func (leaf *DataLeaf) IsYangDataNode()                          {}
+func (leaf *DataLeaf) Schema() *yang.Entry                      { return leaf.schema }
+func (leaf *DataLeaf) SetParent(parent DataNode, key ...string) { leaf.parent = parent }
+func (leaf *DataLeaf) GetParent() DataNode                      { return leaf.parent }
 func (leaf *DataLeaf) String() string {
 	if leaf == nil {
 		return "leaf.null"
@@ -386,8 +397,14 @@ func (leaf *DataLeaf) Set(value ...string) error {
 }
 
 func (leaf *DataLeaf) Remove(value ...string) error {
-	delete(leaf.parent.Children, leaf.schema.Name)
-	leaf.parent = nil
+	if leaf.parent == nil {
+		return nil
+	}
+	switch p := leaf.parent.(type) {
+	case *DataBranch:
+		delete(p.Children, leaf.schema.Name)
+		leaf.parent = nil
+	}
 	return nil
 }
 
@@ -444,7 +461,7 @@ func (leaf *DataLeaf) Key() string {
 // It can be set by the key
 type DataLeafList struct {
 	schema *yang.Entry
-	parent *DataBranch
+	parent DataNode
 	value  []interface{}
 }
 
@@ -455,13 +472,13 @@ func (leaflist *DataLeafList) Schema() *yang.Entry {
 	}
 	return leaflist.schema
 }
-func (leaflist *DataLeafList) SetParent(parent *DataBranch, key ...string) {
+func (leaflist *DataLeafList) SetParent(parent DataNode, key ...string) {
 	if leaflist == nil {
 		return
 	}
 	leaflist.parent = parent
 }
-func (leaflist *DataLeafList) GetParent() *DataBranch {
+func (leaflist *DataLeafList) GetParent() DataNode {
 	if leaflist == nil {
 		return nil
 	}
@@ -524,8 +541,12 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 		}
 	}
 	if len(value) == 0 {
-		if leaflist.parent != nil {
-			delete(leaflist.parent.Children, leaflist.schema.Name)
+		if leaflist.parent == nil {
+			return nil
+		}
+		switch p := leaflist.parent.(type) {
+		case *DataBranch:
+			delete(p.Children, leaflist.schema.Name)
 			leaflist.parent = nil
 		}
 	}

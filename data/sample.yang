@@ -43,6 +43,11 @@ module sample {
       }
     }
 
+    list non-key-list {
+      leaf uintval { type uint32; }
+      leaf strval { type string; }
+    }
+
     list multiple-key-list {
       key "str integer";
       leaf integer { type uint32; }
