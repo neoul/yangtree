@@ -3,9 +3,60 @@ package yangtree
 import (
 	"fmt"
 	"testing"
-
-	"github.com/kylelemons/godebug/pretty"
 )
+
+func TestNew(t *testing.T) {
+	RootSchema, err := Load([]string{"data"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jbyte := `
+	{
+		"sample": {
+		 "container-val": {
+		  "enum-val": "enum2",
+		  "leaf-list-val": [
+		   "leaf-list-first",
+		   "leaf-list-second",
+		   "leaf-list-third",
+		   "leaf-list-fourth"
+		  ]
+		 },
+		 "empty-val": null,
+		 "multiple-key-list": {
+		  "first": {
+		   "1": {
+			"integer": 1,
+			"ok": true,
+			"str": "first"
+		   },
+		   "2": {
+			"integer": 2,
+			"str": "first"
+		   }
+		  }
+		 },
+		 "single-key-list": {
+		  "AAA": {
+		   "country-code": "KR",
+		   "decimal-range": 1.01,
+		   "empty-node": null,
+		   "list-key": "AAA",
+		   "uint32-range": 100,
+		   "uint64-node": 1234567890
+		  }
+		 },
+		 "str-val": "abc"
+		}
+	   }	   
+	`
+	RootData, err := New(RootSchema, jbyte)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ := MarshalJSONIndent(RootData, "", " ", false)
+	fmt.Println(string(j))
+}
 
 func TestChildDataNodeListing(t *testing.T) {
 	RootSchema, err := Load([]string{"data"}, nil, nil)
@@ -32,8 +83,7 @@ func TestChildDataNodeListing(t *testing.T) {
 	for i := range input {
 		Set(RootData, input[i])
 	}
-	n, _ := RootData.Retrieve("/sample")
-	pretty.Print(n)
+	// n, _ := RootData.Retrieve("/sample")
 }
 
 func TestDataNode(t *testing.T) {
@@ -81,7 +131,7 @@ func TestDataNode(t *testing.T) {
 			name: "test-item",
 			args: args{
 				path:  "/sample/single-key-list[list-key=AAA]/",
-				value: []string{"true"},
+				value: nil,
 			},
 			wantInsertErr: false,
 		},
@@ -233,7 +283,7 @@ func TestDataNode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name+".Set", func(t *testing.T) {
 			if err := Set(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantInsertErr {
-				t.Errorf("Set() error = %v, wantInsertErr %v", err, tt.wantInsertErr)
+				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.args.path)
 			}
 		})
 	}

@@ -158,8 +158,12 @@ func (branch *DataBranch) String() string {
 }
 
 func (branch *DataBranch) Set(value ...string) error {
-	// A value become a key upon branch
-
+	for i := range value {
+		err := branch.UnmarshalJSON([]byte(value[i]))
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -528,6 +532,12 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 	if leaflist == nil {
 		return fmt.Errorf("yangtree: %s found on set", leaflist)
 	}
+	if len(value) == 1 {
+		v := strings.Trim(value[0], " ")
+		if strings.HasPrefix(v, "[") && strings.HasSuffix(v, "]") {
+			return leaflist.UnmarshalJSON([]byte(v))
+		}
+	}
 	for i := range value {
 		v, err := StringValueToValue(leaflist.schema, leaflist.schema.Type, value[i])
 		if err != nil {
@@ -687,19 +697,17 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 		}
 		newdata = leaf
 	case schema.ListAttr != nil: // list
+		fallthrough
+	default: // container, case, etc.
 		branch := &DataBranch{
 			schema:   schema,
 			children: []DataNode{},
 		}
-		// for key, cschema := range schema.Dir {
-		// 	branch.Set(key)
-		// }
-		newdata = branch
-	default: // container, case, etc.
-		newdata = &DataBranch{
-			schema:   schema,
-			children: []DataNode{},
+		err = branch.Set(value...)
+		if err != nil {
+			return nil, err
 		}
+		newdata = branch
 	}
 	return newdata, nil
 }
