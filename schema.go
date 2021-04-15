@@ -724,7 +724,7 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	return keyval, nil
 }
 
-func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
+func StringValueToValue(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
 	switch typ.Kind {
 	case yang.Ystring, yang.Ybinary:
 		if len(typ.Range) > 0 {
@@ -822,7 +822,7 @@ func Set(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, erro
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := Set(entry, typ.Type[i], value)
+			v, err := StringValueToValue(entry, typ.Type[i], value)
 			if err == nil {
 				return v, nil
 			}

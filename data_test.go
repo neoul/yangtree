@@ -3,19 +3,38 @@ package yangtree
 import (
 	"fmt"
 	"testing"
+
+	"github.com/kylelemons/godebug/pretty"
 )
 
-// func TestDataNodeInterface(t *testing.T) {
-// 	RootSchema, err := Load([]string{"data"}, nil, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	RootData, err := New(RootSchema)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	// RootData.Set()
-// }
+func TestChildDataNodeListing(t *testing.T) {
+	RootSchema, err := Load([]string{"data"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	RootData, err := New(RootSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := []string{
+		"/sample/single-key-list[list-key=A1]/uint32-range",
+		"/sample/single-key-list[list-key=A12]/uint32-range",
+		"/sample/single-key-list[list-key=A123]/uint32-range",
+		"/sample/single-key-list[list-key=A1234]/uint32-range",
+		// "/sample/single-key-list[list-key=A24]/uint32-range",
+		// "/sample/single-key-list[list-key=A3]/int8-range",
+		// "/sample/single-key-list[list-key=A4]/decimal-range",
+		// "/sample/single-key-list[list-key=A5]/empty-node",
+		// "/sample/single-key-list[list-key=A6]/uint64-node",
+		// "/sample/single-key-list[list-key=A0]/uint64-node",
+		// "/sample/multiple-key-list[str=first][integer=1]/ok",
+	}
+	for i := range input {
+		Insert(RootData, input[i])
+	}
+	n, _ := RootData.Retrieve("/sample")
+	pretty.Print(n)
+}
 
 func TestDataNode(t *testing.T) {
 	RootSchema, err := Load([]string{"data"}, nil, nil)

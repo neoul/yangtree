@@ -399,7 +399,7 @@ func (leaf *DataLeaf) Value() interface{} {
 
 func (leaf *DataLeaf) Set(value ...string) error {
 	for i := range value {
-		v, err := Set(leaf.schema, leaf.schema.Type, value[i])
+		v, err := StringValueToValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
 			return err
 		}
@@ -529,7 +529,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 		return fmt.Errorf("yangtree: %s found on set", leaflist)
 	}
 	for i := range value {
-		v, err := Set(leaflist.schema, leaflist.schema.Type, value[i])
+		v, err := StringValueToValue(leaflist.schema, leaflist.schema.Type, value[i])
 		if err != nil {
 			return err
 		}
