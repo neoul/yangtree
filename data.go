@@ -2,6 +2,7 @@ package yangtree
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
@@ -119,7 +120,7 @@ type DataBranch struct {
 	schema   *yang.Entry
 	parent   DataNode
 	key      string
-	Children map[string]DataNode
+	children []DataNode
 }
 
 func (branch *DataBranch) IsYangDataNode()     {}
@@ -171,7 +172,13 @@ func (branch *DataBranch) Remove(value ...string) error {
 	}
 	switch p := branch.parent.(type) {
 	case *DataBranch:
-		delete(p.Children, branch.key)
+		// [FIXME] need the performance improvement
+		for i := range p.children {
+			if p.children[i] == branch {
+				p.children = append(p.children[:i], p.children[i+1:]...)
+				break
+			}
+		}
 		branch.parent = nil
 	}
 	return nil
@@ -217,14 +224,22 @@ func (branch *DataBranch) Insert(key string, data DataNode) error {
 			}
 		}
 	}
-	branch.Children[key] = data
+	iindex := sort.Search(len(branch.children),
+		func(i int) bool { return branch.children[i].Key() >= key })
+	branch.children = append(branch.children, nil)
+	copy(branch.children[iindex+1:], branch.children[iindex:])
+	branch.children[iindex] = data
 	data.SetParent(branch, key)
 	return nil
 }
 
 func (branch *DataBranch) Delete(key string) error {
-	if c := branch.Children[key]; c != nil {
-		delete(branch.Children, key)
+	length := len(branch.children)
+	iindex := sort.Search(length,
+		func(i int) bool { return branch.children[i].Key() >= key })
+	if iindex < length && branch.children[iindex].Key() == key {
+		c := branch.children[iindex]
+		branch.children = append(branch.children[:iindex], branch.children[:iindex+1]...)
 		c.SetParent(nil, "")
 	}
 	return nil
@@ -236,7 +251,12 @@ func (branch *DataBranch) Get(key string) DataNode {
 	} else if key == "." {
 		return branch
 	}
-	return branch.Children[key]
+	iindex := sort.Search(len(branch.children),
+		func(i int) bool { return branch.children[i].Key() >= key })
+	if iindex < len(branch.children) && branch.children[iindex].Key() == key {
+		return branch.children[iindex]
+	}
+	return nil
 }
 
 func (branch *DataBranch) Find(path string) DataNode {
@@ -314,8 +334,8 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 	// wildcard maching
 	if testAllChildren || testAllDescendant {
 		var nodes []DataNode
-		for k, child := range branch.Children {
-			if strings.HasPrefix(k, pathelem) {
+		for i, child := range branch.children {
+			if strings.HasPrefix(branch.children[i].Key(), pathelem) {
 				n, err := child.Retrieve(path[pos:])
 				if err != nil {
 					return nil, err
@@ -324,7 +344,7 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 			}
 		}
 		if testAllDescendant {
-			for _, child := range branch.Children {
+			for _, child := range branch.children {
 				n, err := child.Retrieve(path)
 				if err != nil {
 					return nil, err
@@ -345,13 +365,6 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 func (branch *DataBranch) Key() string {
 	return branch.key
 }
-
-// type DataList struct {
-// 	schema   *yang.Entry
-// 	parent   DataNode
-// 	key      string
-// 	Children map[string]DataNode
-// }
 
 type DataLeaf struct {
 	schema *yang.Entry
@@ -402,7 +415,13 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 	}
 	switch p := leaf.parent.(type) {
 	case *DataBranch:
-		delete(p.Children, leaf.schema.Name)
+		// [FIXME] need the performance improvement
+		for i := range p.children {
+			if p.children[i] == leaf {
+				p.children = append(p.children[:i], p.children[i+1:]...)
+				break
+			}
+		}
 		leaf.parent = nil
 	}
 	return nil
@@ -546,7 +565,13 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 		}
 		switch p := leaflist.parent.(type) {
 		case *DataBranch:
-			delete(p.Children, leaflist.schema.Name)
+			// [FIXME] need the performance improvement
+			for i := range p.children {
+				if p.children[i] == leaflist {
+					p.children = append(p.children[:i], p.children[i+1:]...)
+					break
+				}
+			}
 			leaflist.parent = nil
 		}
 	}
@@ -664,7 +689,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	case schema.ListAttr != nil: // list
 		branch := &DataBranch{
 			schema:   schema,
-			Children: map[string]DataNode{},
+			children: []DataNode{},
 		}
 		// for key, cschema := range schema.Dir {
 		// 	branch.Set(key)
@@ -673,7 +698,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	default: // container, case, etc.
 		newdata = &DataBranch{
 			schema:   schema,
-			Children: map[string]DataNode{},
+			children: []DataNode{},
 		}
 	}
 	return newdata, nil

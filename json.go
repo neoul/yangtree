@@ -106,14 +106,14 @@ func (branch *DataBranch) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if branch == nil {
 		return []byte("null"), nil
 	}
-	length := len(branch.Children)
+	length := len(branch.children)
 	if length == 0 {
 		// FIXME - Which should be returned? nil or empty object?
 		return []byte("{}"), nil
 	}
 	buffer := bytes.NewBufferString("{")
 	node := make([]DataNode, 0, length)
-	for _, c := range branch.Children {
+	for _, c := range branch.children {
 		node = append(node, c)
 	}
 	sort.Slice(node, func(i, j int) bool {
@@ -293,8 +293,12 @@ func (branch *DataBranch) unmarshalJSON(jval interface{}) error {
 					}
 				}
 			default:
-				child := branch.Children[k]
-				if child == nil {
+				iindex := sort.Search(len(branch.children),
+					func(i int) bool { return branch.children[i].Key() >= k })
+				var child DataNode
+				if iindex < len(branch.children) && branch.children[iindex].Key() == k {
+					child = branch.children[iindex]
+				} else {
 					if child, err = New(cschema); err != nil {
 						return err
 					}

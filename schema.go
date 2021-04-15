@@ -880,6 +880,11 @@ func encodeToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{},
 				return json.Marshal(str)
 			}
 		}
+	} else {
+		switch typ.Kind {
+		case yang.Yempty:
+			return []byte("null"), nil
+		}
 	}
 	return json.Marshal(value)
 }

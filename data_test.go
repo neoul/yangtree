@@ -39,7 +39,7 @@ func TestDataNode(t *testing.T) {
 	}{
 		{
 			name:          "test-item",
-			args:          args{path: "/"},
+			args:          args{path: "/sample"},
 			wantInsertErr: false,
 		},
 		{
@@ -149,6 +149,14 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
+				path:  "/sample:sample/container-val",
+				value: nil,
+			},
+			wantInsertErr: false,
+		},
+		{
+			name: "test-item",
+			args: args{
 				path:  "/sample/container-val/leaf-list-val",
 				value: nil,
 			},
@@ -240,7 +248,7 @@ func TestDataNode(t *testing.T) {
 	// j, _ := MarshalJSONIndent(node, "", " ", false)
 	// fmt.Println(string(j))
 
-	jj, err := MarshalJSONIndent(RootData, "", " ", true)
+	jj, err := MarshalJSONIndent(RootData, "", " ", false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -258,7 +266,7 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 
-	// jsonietf, err = MarshalJSONIndent(RootData, "", " ", true)
+	// jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
 	// if err != nil {
 	// 	t.Error(err)
 	// }
