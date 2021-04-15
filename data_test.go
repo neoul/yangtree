@@ -30,7 +30,7 @@ func TestChildDataNodeListing(t *testing.T) {
 		// "/sample/multiple-key-list[str=first][integer=1]/ok",
 	}
 	for i := range input {
-		Insert(RootData, input[i])
+		Set(RootData, input[i])
 	}
 	n, _ := RootData.Retrieve("/sample")
 	pretty.Print(n)
@@ -231,9 +231,9 @@ func TestDataNode(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name+".Insert", func(t *testing.T) {
-			if err := Insert(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantInsertErr {
-				t.Errorf("Insert() error = %v, wantInsertErr %v", err, tt.wantInsertErr)
+		t.Run(tt.name+".Set", func(t *testing.T) {
+			if err := Set(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantInsertErr {
+				t.Errorf("Set() error = %v, wantInsertErr %v", err, tt.wantInsertErr)
 			}
 		})
 	}

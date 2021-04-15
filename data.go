@@ -704,7 +704,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	return newdata, nil
 }
 
-func Insert(root DataNode, path string, value ...string) error {
+func Set(root DataNode, path string, value ...string) error {
 	if root == nil {
 		return fmt.Errorf("yangtree: data node is null")
 	}
