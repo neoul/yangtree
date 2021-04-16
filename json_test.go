@@ -24,9 +24,9 @@ func TestDataBranch_JSON(t *testing.T) {
 		  "enum-val": "enum2",
 		  "leaf-list-val": [
 		   "leaf-list-first",
+		   "leaf-list-fourth",
 		   "leaf-list-second",
-		   "leaf-list-third",
-		   "leaf-list-fourth"
+		   "leaf-list-third"
 		  ]
 		 },
 		 "empty-val": null,
@@ -98,9 +98,9 @@ func TestDataBranch_JSON_IETF(t *testing.T) {
 		  "enum-val": "enum2",
 		  "leaf-list-val": [
 		   "leaf-list-first",
+		   "leaf-list-fourth", 
 		   "leaf-list-second",
-		   "leaf-list-third",
-		   "leaf-list-fourth"
+		   "leaf-list-third"
 		  ]
 		 },
 		 "empty-val": [

@@ -724,7 +724,7 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	return keyval, nil
 }
 
-func StringValueToValue(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
+func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
 	switch typ.Kind {
 	case yang.Ystring, yang.Ybinary:
 		if len(typ.Range) > 0 {
@@ -741,7 +741,7 @@ func StringValueToValue(entry *yang.Entry, typ *yang.YangType, value string) (in
 			return nil, fmt.Errorf("out-of-range %v", typ.Range)
 		}
 		return value, nil
-	case yang.Ybool, yang.Yempty:
+	case yang.Ybool:
 		v := strings.ToLower(value)
 		if v == "true" {
 			return true, nil
@@ -750,6 +750,8 @@ func StringValueToValue(entry *yang.Entry, typ *yang.YangType, value string) (in
 		} else {
 			return false, nil
 		}
+	case yang.Yempty:
+		return nil, nil
 	case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
 		number, err := yang.ParseInt(value)
 		if err != nil {
@@ -822,7 +824,7 @@ func StringValueToValue(entry *yang.Entry, typ *yang.YangType, value string) (in
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := StringValueToValue(entry, typ.Type[i], value)
+			v, err := StringToValue(entry, typ.Type[i], value)
 			if err == nil {
 				return v, nil
 			}
@@ -833,11 +835,48 @@ func StringValueToValue(entry *yang.Entry, typ *yang.YangType, value string) (in
 	return nil, fmt.Errorf("invalid type '%v' for '%s' (%v)", value, entry.Name, typ.Kind)
 }
 
-func encodeToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
+func ValueToString(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case int:
+		return strconv.FormatInt(int64(v), 10)
+	case int8:
+		return strconv.FormatInt(int64(v), 10)
+	case int16:
+		return strconv.FormatInt(int64(v), 10)
+	case int32:
+		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		return strconv.FormatInt(int64(v), 10)
+	case uint:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		return strconv.FormatUint(uint64(v), 10)
+	case bool:
+		if v {
+			return "true"
+		}
+		return "false"
+	case yang.Number:
+		return v.String()
+	case nil:
+		return ""
+	}
+	return fmt.Sprint(value)
+}
+
+func ValueToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
 	switch typ.Kind {
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := encodeToJSONValue(entry, typ.Type[i], value, rfc7951)
+			v, err := ValueToJSONValue(entry, typ.Type[i], value, rfc7951)
 			if err == nil {
 				return v, nil
 			}
@@ -880,12 +919,13 @@ func encodeToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{},
 				return json.Marshal(str)
 			}
 		}
-	} else {
-		switch typ.Kind {
-		case yang.Yempty:
-			return []byte("null"), nil
-		}
 	}
+	// else {
+	// 	switch typ.Kind {
+	// 	case yang.Yempty:
+	// 		return []byte("null"), nil
+	// 	}
+	// }
 	return json.Marshal(value)
 }
 

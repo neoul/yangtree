@@ -47,6 +47,18 @@ type DataNode interface {
 	unmarshalJSON(jtree interface{}) error
 }
 
+func SearchInOrder(n int, f func(int) bool) int {
+	// Define f(-1) == false and f(n) == true.
+	// Invariant: f(i-1) == false, f(j) == true.
+	i := 0
+	for ; i < n; i++ {
+		if f(i) {
+			break
+		}
+	}
+	return i
+}
+
 func parsePath(path *string, pos, length int) (prefix, pathelem string, end int, testAll bool, err error) {
 	begin := pos
 	end = pos
@@ -403,7 +415,7 @@ func (leaf *DataLeaf) Value() interface{} {
 
 func (leaf *DataLeaf) Set(value ...string) error {
 	for i := range value {
-		v, err := StringValueToValue(leaf.schema, leaf.schema.Type, value[i])
+		v, err := StringToValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
 			return err
 		}
@@ -539,20 +551,18 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 		}
 	}
 	for i := range value {
-		v, err := StringValueToValue(leaflist.schema, leaflist.schema.Type, value[i])
+		length := len(leaflist.value)
+		iindex := sort.Search(length,
+			func(j int) bool {
+				return ValueToString(leaflist.value[j]) >= value[i]
+			})
+		v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
 		if err != nil {
 			return err
 		}
-		insert := true
-		for j := range leaflist.value {
-			if leaflist.value[j] == v {
-				insert = false
-				break
-			}
-		}
-		if insert {
-			leaflist.value = append(leaflist.value, v)
-		}
+		leaflist.value = append(leaflist.value, nil)
+		copy(leaflist.value[iindex+1:], leaflist.value[iindex:])
+		leaflist.value[iindex] = v
 	}
 	return nil
 }
@@ -562,70 +572,61 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 		return fmt.Errorf("yangtree: %s found on remove", leaflist)
 	}
 	for i := range value {
-		for j := range leaflist.value {
-			if leaflist.value[j] == value[i] {
-				leaflist.value = append(leaflist.value[:j], leaflist.value[j+1:]...)
-				break
-			}
+		length := len(leaflist.value)
+		iindex := sort.Search(length,
+			func(j int) bool {
+				return ValueToString(leaflist.value[j]) >= value[i]
+			})
+		if iindex < length && ValueToString(leaflist.value[iindex]) == value[i] {
+			leaflist.value = append(leaflist.value[:iindex], leaflist.value[:iindex+1]...)
 		}
 	}
+	// remove itself if there is no value inserted.
 	if len(value) == 0 {
 		if leaflist.parent == nil {
 			return nil
 		}
-		switch p := leaflist.parent.(type) {
-		case *DataBranch:
-			// [FIXME] need the performance improvement
-			for i := range p.children {
-				if p.children[i] == leaflist {
-					p.children = append(p.children[:i], p.children[i+1:]...)
-					break
-				}
-			}
-			leaflist.parent = nil
+		if branch, ok := leaflist.parent.(*DataBranch); ok {
+			branch.Delete(leaflist.Key())
 		}
 	}
 	return nil
 }
 
 func (leaflist *DataLeafList) Insert(key string, data DataNode) error {
-	// if other, ok := data.(*DataLeafList); ok && other != nil {
-	// 	for i := range other.value {
-	// 		insert := true
-	// 		for j := range leaflist.value {
-	// 			if other.value[i] == leaflist.value[j] {
-	// 				insert = false
-	// 				break
-	// 			}
-	// 		}
-	// 		if insert {
-	// 			leaflist.value = append(leaflist.value, other.value[i])
-	// 		}
-	// 	}
-	// }
+	// return fmt.Errorf("yangtree: insert not supported for %s", leaflist)
 	return leaflist.Set(key)
 }
 
 func (leaflist *DataLeafList) Delete(key string) error {
+	// return fmt.Errorf("yangtree: delete not supported for %s", leaflist)
 	return leaflist.Remove(key)
 }
 
 // Get finds the key from its value.
+// [FIXME] Should it be supported?
 func (leaflist *DataLeafList) Get(key string) DataNode {
-	for i := range leaflist.value {
-		if leaflist.value[i] == key {
-			return leaflist
-		}
+	length := len(leaflist.value)
+	iindex := sort.Search(length,
+		func(j int) bool {
+			return ValueToString(leaflist.value[j]) >= key
+		})
+	if iindex < length && ValueToString(leaflist.value[iindex]) == key {
+		return leaflist
 	}
 	return nil
 }
 
 // Get finds the key from its value.
+// [FIXME] Should it be supported?
 func (leaflist *DataLeafList) Find(path string) DataNode {
-	for i := range leaflist.value {
-		if leaflist.value[i] == path {
-			return leaflist
-		}
+	length := len(leaflist.value)
+	iindex := sort.Search(length,
+		func(j int) bool {
+			return ValueToString(leaflist.value[j]) >= path
+		})
+	if iindex < length && ValueToString(leaflist.value[iindex]) == path {
+		return leaflist
 	}
 	return nil
 }
