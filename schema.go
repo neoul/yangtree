@@ -17,12 +17,13 @@ type SchemaGlobalOption struct {
 
 // SchemaMetadata is used to keep the additional data for a schema entry.
 type SchemaMetadata struct {
+	Module      *yang.Module           // used to store the module of the schema entry
+	Dir         map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
 	Enum        map[string]int64       // used to store all enumeration string
 	Identityref map[string]string      // used to store all identity values of the schema entry
-	Module      *yang.Module           // used to store the module of the schema entry
+	KeyName     []string               // used to store key list
 	QName       string                 // namespace-qualified name of RFC 7951
 	Qboundary   bool                   // used to indicate the boundary of the namespace-qualified name of RFC 7951
-	Dir         map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
 	IsRoot      bool
 }
 

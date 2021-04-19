@@ -2,6 +2,7 @@ package yangtree
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -341,4 +342,43 @@ func TestDataNode(t *testing.T) {
 	// }
 	// fmt.Println(string(jsonietf))
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+}
+
+func TestParseXPath(t *testing.T) {
+
+	tests := []struct {
+		path   string
+		result []string
+	}{
+		{path: "/interfaces/interface[name=1/1]", result: []string{"interfaces", "interface", "name=1/1"}},
+		{path: "/abc:interfaces/id[name=1/1]/xyz=10", result: []string{"abc", "interfaces", "id", "name=1/1", "xyz"}},
+		{path: "//", result: nil},
+		// {path: "/[?=what]", result: nil},
+	}
+	for _, tt := range tests {
+		t.Run("ParseXPath", func(t *testing.T) {
+			var pos int
+			var err error
+			var prefix, elem string
+			var attrs []string
+			var result []string
+			for pos < len(tt.path) {
+				prefix, elem, attrs, pos, err = ParseXPath(&tt.path, pos, len(tt.path))
+				if err != nil {
+					t.Error(err)
+					break
+				}
+				if prefix != "" {
+					result = append(result, prefix)
+				}
+				if elem != "" {
+					result = append(result, elem)
+				}
+				result = append(result, attrs...)
+			}
+			if !reflect.DeepEqual(result, tt.result) {
+				t.Errorf("not equal with got = %v, expect = %v", result, tt.result)
+			}
+		})
+	}
 }

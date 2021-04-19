@@ -59,6 +59,75 @@ func SearchInOrder(n int, f func(int) bool) int {
 	return i
 }
 
+// ParseXPath parses the input xpath and return a single element with its attrs.
+func ParseXPath(path *string, pos, length int) (prefix, elem string, attrs []string, end int, err error) {
+	begin := pos
+	end = pos
+	// insideBrackets is counted up when at least one '[' has been found.
+	// It is counted down when a closing ']' has been found.
+	insideBrackets := 0
+	switch (*path)[end] {
+	case '/':
+		begin++
+	case '=': // ignore data string in path
+		end = length
+		return
+	case '[', ']':
+		end = length
+		err = fmt.Errorf("yangtree: path '%s' starts with bracket", *path)
+		return
+	}
+	end++
+	for end < length {
+		switch (*path)[end] {
+		case '/':
+			if insideBrackets <= 0 {
+				if elem == "" {
+					elem = (*path)[begin:end]
+				}
+				end++
+				return
+			}
+		case '[':
+			if (*path)[end-1] != '\\' {
+				if insideBrackets <= 0 {
+					if elem == "" {
+						elem = (*path)[begin:end]
+					}
+					begin = end + 1
+				}
+				insideBrackets++
+			}
+		case ']':
+			if (*path)[end-1] != '\\' {
+				insideBrackets--
+				if insideBrackets <= 0 {
+					attrs = append(attrs, (*path)[begin:end])
+					begin = end + 1
+				}
+			}
+		case '=':
+			if insideBrackets <= 0 {
+				if elem == "" {
+					elem = (*path)[begin:end]
+				}
+				end = length
+				return
+			}
+		case ':':
+			if insideBrackets <= 0 {
+				prefix = (*path)[begin:end]
+				begin = end + 1
+			}
+		}
+		end++
+	}
+	if elem == "" {
+		elem = (*path)[begin:end]
+	}
+	return
+}
+
 func parsePath(path *string, pos, length int) (prefix, pathelem string, end int, testAll bool, err error) {
 	begin := pos
 	end = pos
