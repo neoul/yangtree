@@ -64,16 +64,8 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int,
 
 func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc7951 rfc7951s) (int, error) {
 	schema := node[i].Schema()
-	var qname interface{} // namespace-qualified name required
-	switch rfc7951 {
-	case rfc7951InProgress:
-		qname = GetAnnotation(schema, "qboundary")
-	case rfc7951Enabled:
-		qname = GetAnnotation(schema, "qname")
-	default:
-	}
-	if qname != nil {
-		buffer.WriteString("\"" + qname.(string) + "\":")
+	if qname, boundary := GetQName(schema); boundary || rfc7951 == rfc7951Enabled {
+		buffer.WriteString("\"" + qname + "\":")
 	} else {
 		buffer.WriteString("\"" + schema.Name + "\":")
 	}
@@ -136,17 +128,13 @@ func (branch *DataBranch) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 		var jsonValue []byte
 		var qname interface{} // namespace-qualified name required
 		switch rfc7951 {
-		case rfc7951InProgress:
+		case rfc7951InProgress, rfc7951Enabled:
 			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
 				return nil, err
 			}
-			// qname boundary
-			qname = GetAnnotation(node[i].Schema(), "qboundary")
-		case rfc7951Enabled:
-			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
-				return nil, err
+			if qn, boundary := GetQName(node[i].Schema()); boundary || rfc7951 == rfc7951Enabled {
+				qname = qn
 			}
-			qname = GetAnnotation(node[i].Schema(), "qname")
 		default:
 			if jsonValue, err = json.Marshal(node[i]); err != nil {
 				return nil, err

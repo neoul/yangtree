@@ -12,6 +12,20 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
+type SchemaGlobalOption struct {
+}
+
+// SchemaMetadata is used to keep the additional data for a schema entry.
+type SchemaMetadata struct {
+	Enum        map[string]int64       // used to store all enumeration string
+	Identityref map[string]string      // used to store all identity values of the schema entry
+	Module      *yang.Module           // used to store the module of the schema entry
+	QName       string                 // namespace-qualified name of RFC 7951
+	Qboundary   bool                   // used to indicate the boundary of the namespace-qualified name of RFC 7951
+	Dir         map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
+	IsRoot      bool
+}
+
 func resolveGlobs(globs []string) ([]string, error) {
 	results := make([]string, 0, len(globs))
 	for _, pattern := range globs {
@@ -156,115 +170,173 @@ func GeneratePath(entry *yang.Entry, prefixTagging bool) string {
 	return path
 }
 
-// GetAnnotation finds an annotation from the schema entry
-func GetAnnotation(entry *yang.Entry, name string) interface{} {
-	if entry == nil {
-		return nil
-	}
-	if entry.Annotation != nil {
-		data, ok := entry.Annotation[name]
-		if ok {
-			return data
-		}
-	}
-	return nil
-}
-
-func getEnumAnnotation(entry *yang.Entry) map[string]int64 {
+func getEnum(entry *yang.Entry) map[string]int64 {
 	if entry == nil || entry.Annotation == nil {
 		return nil
 	}
-	if data, ok := entry.Annotation["enum"]; ok {
-		if m, ok := data.(map[string]int64); ok {
-			return m
+	if data, ok := entry.Annotation["meta"]; ok {
+		if m, ok := data.(*SchemaMetadata); ok {
+			return m.Enum
 		}
 	}
 	return nil
 }
 
-func getIdentityrefAnnotation(entry *yang.Entry) map[string]string {
+func setEnum(entry *yang.Entry, enum map[string]int64) error {
+	if entry == nil || entry.Annotation == nil {
+		return fmt.Errorf("yangtree: nil entry or annotation for setting enum")
+	}
+	if data, ok := entry.Annotation["meta"]; ok {
+		if m, ok := data.(*SchemaMetadata); ok {
+			m.Enum = enum
+			return nil
+		}
+	}
+	return fmt.Errorf("yangtree: no schema meta data for setting enum")
+}
+
+func getIdentityref(entry *yang.Entry) map[string]string {
 	if entry == nil || entry.Annotation == nil {
 		return nil
 	}
-	if data, ok := entry.Annotation["identityref"]; ok {
-		if m, ok := data.(map[string]string); ok {
-			return m
+	if data, ok := entry.Annotation["meta"]; ok {
+		if m, ok := data.(*SchemaMetadata); ok {
+			return m.Identityref
 		}
 	}
 	return nil
 }
 
-func getModuleAnnotation(entry *yang.Entry) *yang.Module {
+func setIdentityref(entry *yang.Entry, identityref map[string]string) error {
+	if entry == nil || entry.Annotation == nil {
+		return fmt.Errorf("yangtree: nil entry or annotation for setting identityref")
+	}
+	if data, ok := entry.Annotation["meta"]; ok {
+		if m, ok := data.(*SchemaMetadata); ok {
+			m.Identityref = identityref
+			return nil
+		}
+	}
+	return fmt.Errorf("yangtree: no schema meta data for setting identityref")
+}
+
+func getModule(entry *yang.Entry) *yang.Module {
 	if entry == nil || entry.Annotation == nil {
 		return nil
 	}
-	if data, ok := entry.Annotation["module"]; ok {
-		if m, ok := data.(*yang.Module); ok {
-			return m
+	if data, ok := entry.Annotation["meta"]; ok {
+		if m, ok := data.(*SchemaMetadata); ok {
+			return m.Module
 		}
 	}
 	return nil
 }
 
-func _updateTypeAnnotation(entry *yang.Entry, typ *yang.YangType) {
+func updateSchemaMetaForType(entry *yang.Entry, typ *yang.YangType) error {
 	if typ == nil {
-		return
+		return nil
 	}
 	switch typ.Kind {
 	case yang.Ybits:
 		var enum map[string]int64
-		if enum = getEnumAnnotation(entry); enum == nil {
+		if enum = getEnum(entry); enum == nil {
 			enum = map[string]int64{}
 		}
 		newenum := typ.Bit.NameMap()
 		for bs, bi := range newenum {
 			enum[bs] = bi
 		}
-		entry.Annotation["enum"] = enum
+		if err := setEnum(entry, enum); err != nil {
+			return err
+		}
 	case yang.Yenum:
 		var enum map[string]int64
-		if enum = getEnumAnnotation(entry); enum == nil {
+		if enum = getEnum(entry); enum == nil {
 			enum = map[string]int64{}
 		}
 		newenum := typ.Enum.NameMap()
 		for bs, bi := range newenum {
 			enum[bs] = bi
 		}
-		entry.Annotation["enum"] = enum
+		if err := setEnum(entry, enum); err != nil {
+			return err
+		}
 	case yang.Yidentityref:
 		var identityref map[string]string
-		if identityref = getIdentityrefAnnotation(entry); identityref == nil {
+		if identityref = getIdentityref(entry); identityref == nil {
 			identityref = map[string]string{}
 		}
 		for i := range typ.IdentityBase.Values {
 			identityref[typ.IdentityBase.Values[i].NName()] = typ.IdentityBase.Values[i].PrefixedName()
 			identityref[typ.IdentityBase.Values[i].PrefixedName()] = typ.IdentityBase.Values[i].NName()
 		}
-		entry.Annotation["identityref"] = identityref
+		if err := setIdentityref(entry, identityref); err != nil {
+			return err
+		}
 	case yang.Yunion:
 		for i := range typ.Type {
-			_updateTypeAnnotation(entry, typ.Type[i])
+			if err := updateSchemaMetaForType(entry, typ.Type[i]); err != nil {
+				return err
+			}
 		}
 	}
-	// if typ.Root != nil {
-	// 	entry.Annotation["root.type"] = typ.Root.Name
-	// }
+	return nil
 }
 
-func updateModuleAnnotation(parent, entry *yang.Entry, current *yang.Module, modules *yang.Modules) error {
+func buildRootEntry() *yang.Entry {
+	rootEntry := &yang.Entry{
+		Dir: map[string]*yang.Entry{},
+		Annotation: map[string]interface{}{
+			"meta": &SchemaMetadata{
+				IsRoot: true,
+				Dir:    map[string]*yang.Entry{},
+			},
+		},
+		Kind: yang.DirectoryEntry, // root is container
+	}
+	rootEntry.Name = "root"
+	rootEntry.Kind = yang.DirectoryEntry
+	// Always annotate the root as a fake root,
+	// so that it is not treated as a path element.
+	rootEntry.Annotation["root"] = true
+	return rootEntry
+}
+
+func GetSchemaMeta(entry *yang.Entry) *SchemaMetadata {
+	if m, ok := entry.Annotation["meta"]; ok {
+		return m.(*SchemaMetadata)
+	}
+	return nil
+}
+
+func GetQName(entry *yang.Entry) (string, bool) {
+	if m, ok := entry.Annotation["meta"]; ok {
+		meta := m.(*SchemaMetadata)
+		return meta.QName, meta.Qboundary
+	}
+	return "", false
+}
+
+func updateSchemaEntry(parent, entry *yang.Entry, current *yang.Module, modules *yang.Modules) error {
 	if entry.Annotation == nil {
 		entry.Annotation = map[string]interface{}{}
 	}
+	meta := &SchemaMetadata{
+		Enum: map[string]int64{},
+	}
+	entry.Annotation["meta"] = meta
+
 	module, err := modules.FindModuleByPrefix(entry.Prefix.Name)
 	if err != nil {
 		return err
 	}
+	meta.Module = module
+
 	// namespace-qualified name of RFC 7951
 	nsname := fmt.Sprintf("%s:%s", module.Name, entry.Name)
-	entry.Annotation["module"] = module
-	entry.Annotation["qname"] = nsname
+	meta.QName = nsname
 	if current != module {
-		entry.Annotation["qboundary"] = nsname // namespace boundary
+		meta.Qboundary = true
 	}
 	if parent != nil {
 		switch {
@@ -282,45 +354,28 @@ func updateModuleAnnotation(parent, entry *yang.Entry, current *yang.Module, mod
 		if parent.Annotation == nil {
 			parent.Annotation = map[string]interface{}{}
 		}
-		if parent.Annotation["dir"] == nil {
-			parent.Annotation["dir"] = map[string]*yang.Entry{}
+		pmeta := GetSchemaMeta(parent)
+		if pmeta == nil {
+			pmeta = &SchemaMetadata{}
+			parent.Annotation["meta"] = pmeta
 		}
-		dir := parent.Annotation["dir"].(map[string]*yang.Entry)
-		dir[entry.Prefix.Name+":"+entry.Name] = entry
-		dir[module.Name+":"+entry.Name] = entry
-		dir[entry.Name] = entry
+		if pmeta.Dir == nil {
+			pmeta.Dir = map[string]*yang.Entry{}
+		}
+		pmeta.Dir[entry.Prefix.Name+":"+entry.Name] = entry
+		pmeta.Dir[module.Name+":"+entry.Name] = entry
+		pmeta.Dir[entry.Name] = entry
 	}
+	if err := updateSchemaMetaForType(entry, entry.Type); err != nil {
+		return err
+	}
+
 	for _, child := range entry.Dir {
-		if err := updateModuleAnnotation(entry, child, module, modules); err != nil {
+		if err := updateSchemaEntry(entry, child, module, modules); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// updateTypeAnnotation updates the schema info before enconding.
-func updateTypeAnnotation(entry *yang.Entry) {
-	if entry.Annotation == nil {
-		entry.Annotation = map[string]interface{}{}
-	}
-	_updateTypeAnnotation(entry, entry.Type)
-	for _, child := range entry.Dir {
-		updateTypeAnnotation(child)
-	}
-}
-
-func buildRootEntry() *yang.Entry {
-	rootEntry := &yang.Entry{
-		Dir:        map[string]*yang.Entry{},
-		Annotation: map[string]interface{}{},
-		Kind:       yang.DirectoryEntry, // root is container
-	}
-	rootEntry.Name = "root"
-	rootEntry.Kind = yang.DirectoryEntry
-	// Always annotate the root as a fake root,
-	// so that it is not treated as a path element.
-	rootEntry.Annotation["root"] = true
-	return rootEntry
 }
 
 func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
@@ -368,15 +423,16 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 		if !skip {
 			for _, entry := range mentry.Dir {
 				if same, ok := root.Dir[entry.Name]; ok {
-					mo := getModuleAnnotation(same)
+					mo := getModule(same)
 					return nil, fmt.Errorf(
 						"yangtree: multiple top-level nodes are defined in %s and %s",
 						mentry.Name, mo.Name)
 				}
 				entry.Parent = root
 				root.Dir[entry.Name] = entry
-				updateModuleAnnotation(root, entry, nil, ms)
-				updateTypeAnnotation(entry)
+				if err := updateSchemaEntry(root, entry, nil, ms); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -447,17 +503,9 @@ func GetSchema(entry *yang.Entry, name string) (*yang.Entry, error) {
 	case "..":
 		child = entry.Parent
 	default:
-		if d, ok := entry.Annotation["dir"]; ok {
-			dir := d.(map[string]*yang.Entry)
-			child = dir[name]
+		if meta := GetSchemaMeta(entry); meta != nil {
+			child = meta.Dir[name]
 		}
-		// child = entry.Dir[name]
-		// if child == nil {
-		// 	if d, ok := entry.Annotation["dir"]; ok {
-		// 		dir := d.(map[string]*yang.Entry)
-		// 		child = dir[name]
-		// 	}
-		// }
 	}
 	if child == nil {
 		return nil, fmt.Errorf("yangtree: '%s' schema not found", name)
@@ -792,12 +840,12 @@ func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interfa
 		}
 		return number, nil
 	case yang.Ybits, yang.Yenum:
-		emap := getEnumAnnotation(entry)
+		emap := getEnum(entry)
 		if _, ok := emap[value]; ok {
 			return value, nil
 		}
 	case yang.Yidentityref:
-		imap := getIdentityrefAnnotation(entry)
+		imap := getIdentityref(entry)
 		if _, ok := imap[value]; ok {
 			return value, nil
 		}
@@ -905,7 +953,7 @@ func ValueToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{}, 
 			return []byte("[null]"), nil
 		case yang.Yidentityref:
 			if s, ok := value.(string); ok {
-				m := getIdentityrefAnnotation(entry)
+				m := getIdentityref(entry)
 				return json.Marshal(m[s])
 			}
 		case yang.Yint64:
