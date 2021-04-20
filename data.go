@@ -478,12 +478,12 @@ func (branch *DataBranch) Get(key string) DataNode {
 	}
 	iindex := sort.Search(len(branch.children),
 		func(i int) bool { return branch.children[i].Key() >= key })
-	if iindex < len(branch.children) {
-		return branch.children[iindex]
-	}
-	// if iindex < len(branch.children) && branch.children[iindex].Key() == key {
+	// if iindex < len(branch.children) {
 	// 	return branch.children[iindex]
 	// }
+	if iindex < len(branch.children) && branch.children[iindex].Key() == key {
+		return branch.children[iindex]
+	}
 	return nil
 }
 

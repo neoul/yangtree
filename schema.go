@@ -1034,5 +1034,5 @@ func JSONValueToString(jval interface{}) (string, error) {
 			return "true", nil
 		}
 	}
-	return "", fmt.Errorf("unexpected json type '%T'", jval)
+	return "", fmt.Errorf("unexpected jsonval '%v (%T)'", jval, jval)
 }
