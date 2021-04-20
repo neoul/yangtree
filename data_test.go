@@ -57,6 +57,9 @@ func TestNew(t *testing.T) {
 	}
 	j, _ := MarshalJSONIndent(RootData, "", " ", false)
 	fmt.Println(string(j))
+
+	cschema := GetSchema(RootSchema, "sample")
+	fmt.Println(New(cschema, `{"str-val": "ok"}`))
 }
 
 func TestChildDataNodeListing(t *testing.T) {
@@ -291,34 +294,34 @@ func TestDataNode(t *testing.T) {
 
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 
-	path := []string{
-		"/sample/multiple-key-list[str=first][integer=*]/ok",
-		"/sample/single-key-list[list-key=AAA]/list-key",
-		"/sample/single-key-list[list-key=AAA]",
-		"/sample/single-key-list[list-key=*]",
-		"/sample/single-key-list/*",
-		"/sample/*",
-		"/sample/...",
-		"/sample/.../enum-val",
-		"/sample/*/*/",
-	}
-	for i := range path {
-		node, err := RootData.Retrieve(path[i])
-		if err != nil {
-			t.Errorf("Retrieve() path %v error = %v", path[i], err)
-		}
-		for j := range node {
-			t.Log("Retrieve", i, path[i], "::::", node[j].Path(), node[j])
-			// j, _ := MarshalJSON(node[j], true)
-			// t.Log("Retrieve", i, "", path[i], string(j))
-		}
-	}
+	// path := []string{
+	// 	"/sample/multiple-key-list[str=first][integer=*]/ok",
+	// 	"/sample/single-key-list[list-key=AAA]/list-key",
+	// 	"/sample/single-key-list[list-key=AAA]",
+	// 	"/sample/single-key-list[list-key=*]",
+	// 	"/sample/single-key-list/*",
+	// 	"/sample/*",
+	// 	"/sample/...",
+	// 	"/sample/.../enum-val",
+	// 	"/sample/*/*/",
+	// }
+	// for i := range path {
+	// 	node, err := RootData.Retrieve(path[i])
+	// 	if err != nil {
+	// 		t.Errorf("Retrieve() path %v error = %v", path[i], err)
+	// 	}
+	// 	for j := range node {
+	// 		t.Log("Retrieve", i, path[i], "::::", node[j].Path(), node[j])
+	// 		// j, _ := MarshalJSON(node[j], true)
+	// 		// t.Log("Retrieve", i, "", path[i], string(j))
+	// 	}
+	// }
 	// node := RootData.Find("/sample")
 	// // j, _ := node.MarshalJSON()
 	// j, _ := MarshalJSONIndent(node, "", " ", false)
 	// fmt.Println(string(j))
 
-	jj, err := MarshalJSONIndent(RootData, "", " ", false)
+	jj, err := MarshalJSONIndent(RootData, "", " ", true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -336,23 +339,24 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 
-	// jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
-	// if err != nil {
-	// 	t.Error(err)
-	// }
-	// fmt.Println(string(jsonietf))
+	jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(string(jsonietf))
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }
 
 func TestParseXPath(t *testing.T) {
 
 	tests := []struct {
-		path   string
-		result []string
+		path  string
+		elems []string
+		attrs map[string]string
 	}{
-		{path: "/interfaces/interface[name=1/1]", result: []string{"interfaces", "interface", "name=1/1"}},
-		{path: "/abc:interfaces/id[name=1/1]/xyz=10", result: []string{"abc", "interfaces", "id", "name=1/1", "xyz"}},
-		{path: "//", result: nil},
+		{path: "/interfaces/interface[name=1/1]", elems: []string{"interfaces", "interface"}, attrs: map[string]string{"name": "1/1"}},
+		{path: "/abc:interfaces/id[name=1/1]/xyz=10", elems: []string{"abc", "interfaces", "id", "xyz"}, attrs: map[string]string{"name": "1/1"}},
+		// {path: "//", elems: nil},
 		// {path: "/[?=what]", result: nil},
 	}
 	for _, tt := range tests {
@@ -360,8 +364,9 @@ func TestParseXPath(t *testing.T) {
 			var pos int
 			var err error
 			var prefix, elem string
-			var attrs []string
+			var attrs map[string]string
 			var result []string
+			rattrs := map[string]string{}
 			for pos < len(tt.path) {
 				prefix, elem, attrs, pos, err = ParseXPath(&tt.path, pos, len(tt.path))
 				if err != nil {
@@ -374,10 +379,13 @@ func TestParseXPath(t *testing.T) {
 				if elem != "" {
 					result = append(result, elem)
 				}
-				result = append(result, attrs...)
+				for k, v := range attrs {
+					rattrs[k] = v
+				}
 			}
-			if !reflect.DeepEqual(result, tt.result) {
-				t.Errorf("not equal with got = %v, expect = %v", result, tt.result)
+
+			if !reflect.DeepEqual(result, tt.elems) && !reflect.DeepEqual(rattrs, tt.attrs) {
+				t.Errorf("not equal with got = %v %v, expect = %v %v", result, rattrs, tt.elems, tt.attrs)
 			}
 		})
 	}

@@ -318,6 +318,36 @@ func GetQName(entry *yang.Entry) (string, bool) {
 	return "", false
 }
 
+func KeyGen(entry *yang.Entry, attr map[string]string) (string, bool, error) {
+	for k := range attr {
+		if entry.Dir[k] == nil {
+			return "", false, fmt.Errorf("yangtree: unknown attribute %v", k)
+		}
+	}
+	m, ok := entry.Annotation["meta"]
+	if !ok {
+		return "", false, fmt.Errorf("no metadata found")
+	}
+	if !entry.IsList() {
+		return entry.Name, false, nil
+	}
+	key := entry.Name
+	testAll := false
+	meta := m.(*SchemaMetadata)
+	if len(meta.KeyName) == 0 {
+		testAll = true
+	}
+	for i := range meta.KeyName {
+		if v, ok := attr[meta.KeyName[i]]; ok {
+			key = key + "[" + meta.KeyName[i] + "=" + v + "]"
+		} else {
+			testAll = true
+			break
+		}
+	}
+	return key, testAll, nil
+}
+
 func updateSchemaEntry(parent, entry *yang.Entry, current *yang.Module, modules *yang.Modules) error {
 	if entry.Annotation == nil {
 		entry.Annotation = map[string]interface{}{}
@@ -339,6 +369,12 @@ func updateSchemaEntry(parent, entry *yang.Entry, current *yang.Module, modules 
 	if current != module {
 		meta.Qboundary = true
 	}
+
+	// set keyname
+	if entry.Key != "" {
+		meta.KeyName = strings.Split(entry.Key, " ")
+	}
+
 	if parent != nil {
 		switch {
 		case parent.IsChoice(), parent.IsCase():
@@ -496,11 +532,14 @@ func checkKey(entry *yang.Entry, key string) error {
 	return nil
 }
 
-func GetSchema(entry *yang.Entry, name string) (*yang.Entry, error) {
+func GetSchema(entry *yang.Entry, name string) *yang.Entry {
+	if entry == nil {
+		return nil
+	}
 	var child *yang.Entry
 	switch name {
 	case "", ".":
-		return entry, nil
+		return entry
 	case "..":
 		child = entry.Parent
 	default:
@@ -508,10 +547,7 @@ func GetSchema(entry *yang.Entry, name string) (*yang.Entry, error) {
 			child = meta.Dir[name]
 		}
 	}
-	if child == nil {
-		return nil, fmt.Errorf("yangtree: '%s' schema not found", name)
-	}
-	return child, nil
+	return child
 }
 
 // GetPresentParentSchema is used to get the non-choice and non-case parent schema entry.
@@ -526,7 +562,6 @@ func GetPresentParentSchema(entry *yang.Entry) *yang.Entry {
 
 // FindSchema finds *yang.Entry from the schema entry
 func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
-	var err error
 	if entry == nil {
 		return nil, fmt.Errorf("yangtree: nil schema")
 	}
@@ -553,8 +588,8 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 		switch path[end] {
 		case '/':
 			if insideBrackets <= 0 {
-				if entry, err = GetSchema(entry, path[begin:end]); err != nil {
-					return nil, err
+				if entry = GetSchema(entry, path[begin:end]); entry == nil {
+					return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 				}
 				begin = end + 1
 			}
@@ -562,8 +597,8 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 		case '[':
 			if path[end-1] != '\\' {
 				if insideBrackets <= 0 {
-					if entry, err = GetSchema(entry, path[begin:end]); err != nil {
-						return nil, err
+					if entry = GetSchema(entry, path[begin:end]); entry == nil {
+						return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 					}
 					begin = end + 1
 				}
@@ -585,23 +620,19 @@ func FindSchema(entry *yang.Entry, path string) (*yang.Entry, error) {
 			end++
 		}
 	}
-	if entry, err = GetSchema(entry, path[begin:end]); err != nil {
-		return nil, err
+	if entry = GetSchema(entry, path[begin:end]); entry == nil {
+		return nil, fmt.Errorf("yangtree: schema '%s' not found", path[begin:end])
 	}
 	return entry, nil
 }
 
 func lookupSchema(entry *yang.Entry, name string) (centry *yang.Entry, reachToEnd bool) {
-	var err error
 	switch {
 	case entry.Dir == nil: // leaf, leaf-list
 		centry = entry
 		reachToEnd = true
 	default: // container, case, etc.
-		centry, err = GetSchema(entry, name)
-		if err != nil {
-			return
-		}
+		centry = GetSchema(entry, name)
 	}
 	return
 }
@@ -1003,5 +1034,5 @@ func JSONValueToString(jval interface{}) (string, error) {
 			return "true", nil
 		}
 	}
-	return "", fmt.Errorf("unexpected json type %T", jval)
+	return "", fmt.Errorf("unexpected json type '%T'", jval)
 }

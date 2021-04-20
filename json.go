@@ -188,7 +188,7 @@ func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
 	jdata, ok := jval.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected json type %T", jval)
+		return fmt.Errorf("unexpected json type '%T' for %s", jval, cschema.Name)
 	}
 	if len(kname) != len(kval) {
 		for k, v := range jdata {
@@ -210,10 +210,7 @@ func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kva
 	key = cschema.Name + key
 	child := branch.Get(key)
 	if child == nil {
-		if child, err = New(cschema); err != nil {
-			return err
-		}
-		if err = branch.Insert(key, child); err != nil {
+		if child, err = branch.New(key); err != nil {
 			return err
 		}
 	}
@@ -225,15 +222,15 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 	for i := range listentry {
 		jentry, ok := listentry[i].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("unexpected json type %T", listentry[i])
+			return fmt.Errorf("yangtree: unexpected json type '%T' for %s", listentry[i], cschema.Name)
 		}
 		// check existent DataNode
 		var err error
 		var key string
 		for i := range kname {
-			_, err := GetSchema(cschema, kname[i])
-			if err != nil {
-				return err
+			found := GetSchema(cschema, kname[i])
+			if found == nil {
+				return fmt.Errorf("schema '%s' not found", kname[i])
 			}
 			kval := fmt.Sprint(jentry[kname[i]])
 			// kchild, err := New(kschema, kval)
@@ -245,10 +242,7 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 		key = cschema.Name + key
 		child := branch.Get(key)
 		if child == nil {
-			if child, err = New(cschema); err != nil {
-				return err
-			}
-			if err = branch.Insert(key, child); err != nil {
+			if child, err = branch.New(key); err != nil {
 				return err
 			}
 		}
@@ -287,10 +281,7 @@ func (branch *DataBranch) unmarshalJSON(jval interface{}) error {
 				if iindex < len(branch.children) && branch.children[iindex].Key() == k {
 					child = branch.children[iindex]
 				} else {
-					if child, err = New(cschema); err != nil {
-						return err
-					}
-					if err = branch.Insert(k, child); err != nil {
+					if child, err = branch.New(k); err != nil {
 						return err
 					}
 				}
@@ -326,7 +317,7 @@ func (leaflist *DataLeafList) unmarshalJSON(jval interface{}) error {
 		}
 		return nil
 	}
-	return fmt.Errorf("unexpected json type %T", jval)
+	return fmt.Errorf("unexpected json type '%T' for %s", jval, leaflist)
 }
 
 func (branch *DataBranch) UnmarshalJSON(jsonbyte []byte) error {
