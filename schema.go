@@ -303,6 +303,27 @@ func buildRootEntry() *yang.Entry {
 	return rootEntry
 }
 
+// IsDuplicatedList() checks the data nodes can be duplicated.
+func IsDuplicatedList(schema *yang.Entry) bool {
+	return schema.IsList() && schema.Key == ""
+}
+
+// IsUniqueList() checks the data nodes can be duplicated.
+func IsUniqueList(schema *yang.Entry) bool {
+	return schema.IsList() && schema.Key != ""
+}
+
+func IsList(schema *yang.Entry) bool {
+	return schema.IsList()
+}
+
+func ListKeyname(schema *yang.Entry) []string {
+	if schema.Key == "" {
+		return nil
+	}
+	return strings.Split(schema.Key, " ")
+}
+
 func GetSchemaMeta(entry *yang.Entry) *SchemaMetadata {
 	if m, ok := entry.Annotation["meta"]; ok {
 		return m.(*SchemaMetadata)

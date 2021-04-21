@@ -75,11 +75,6 @@ func isValid(node DataNode) bool {
 	return true
 }
 
-// isDuplicatable() checks the data nodes can be duplicated.
-func isDuplicatable(schema *yang.Entry) bool {
-	return schema.IsList() && schema.Key == ""
-}
-
 // _update() updates the first matched node or replaces it to the child if replace is true.
 func _update(parent *DataBranch, child DataNode) error {
 	if !isValid(child) {
@@ -102,7 +97,7 @@ func _update(parent *DataBranch, child DataNode) error {
 		})
 	// it just upates the first matched node.
 	// if not matched, it inserts the child to the proper location.
-	if i < length && parent.children[i].Key() == key && !isDuplicatable(parent.children[i].Schema()) {
+	if i < length && parent.children[i].Key() == key && !IsDuplicatedList(parent.children[i].Schema()) {
 		dest := parent.children[i]
 		if dest.Schema() != child.Schema() {
 			return fmt.Errorf("yangtree: unable to update different schema data")
@@ -270,7 +265,7 @@ func ParseXPath(path *string, pos, length int) (prefix, elem string, attrs map[s
 
 func GenerateKey(schema *yang.Entry, attrs map[string]string) (string, int) {
 	switch {
-	case schema.IsList():
+	case IsUniqueList(schema):
 		keyname := strings.Split(schema.Key, " ")
 		key := make([]string, 0, len(keyname)+1)
 		key = append(key, schema.Name)
@@ -415,8 +410,7 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch {
-	case cschema.IsList():
+	if IsUniqueList(cschema) {
 		keyname := strings.Split(cschema.Key, " ")
 		for i := range keyname {
 			knode, err := New(GetSchema(cschema, keyname[i]), attrs[keyname[i]])
@@ -486,7 +480,7 @@ func (branch *DataBranch) Insert(child DataNode) error {
 		})
 	// it just upates the first matched node.
 	// if not matched, it inserts the child to the proper location.
-	if i < length && branch.children[i].Key() == key && !isDuplicatable(branch.children[i].Schema()) {
+	if i < length && branch.children[i].Key() == key && !IsDuplicatedList(branch.children[i].Schema()) {
 		branch.children[i].setParent(nil, "")
 		branch.children[i] = child
 		child.setParent(branch, key)
@@ -652,7 +646,7 @@ func (branch *DataBranch) Key() string {
 		return branch.key
 	}
 	switch {
-	case branch.schema.IsList():
+	case IsUniqueList(branch.schema):
 		keyname := strings.Split(branch.schema.Key, " ")
 		key := make([]string, 0, len(keyname)+1)
 		key = append(key, branch.schema.Name)

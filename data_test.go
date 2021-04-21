@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 )
@@ -13,53 +12,63 @@ func TestNew(t *testing.T) {
 	}
 	jbyte := `
 	{
-		"sample": {
+		"sample:sample": {
 		 "container-val": {
+		  "a": "A",
 		  "enum-val": "enum2",
 		  "leaf-list-val": [
 		   "leaf-list-first",
+		   "leaf-list-fourth",
 		   "leaf-list-second",
-		   "leaf-list-third",
-		   "leaf-list-fourth"
-		  ]
+		   "leaf-list-third"
+		  ],
+		  "test-default": 11
 		 },
-		 "empty-val": null,
-		 "multiple-key-list": {
-		  "first": {
-		   "1": {
-			"integer": 1,
-			"ok": true,
-			"str": "first"
-		   },
-		   "2": {
-			"integer": 2,
-			"str": "first"
-		   }
+		 "empty-val": [
+		  null
+		 ],
+		 "multiple-key-list": [
+		  {
+		   "integer": 1,
+		   "ok": true,
+		   "str": "first"
+		  },
+		  {
+		   "integer": 2,
+		   "str": "first"
 		  }
-		 },
-		 "single-key-list": {
-		  "AAA": {
+		 ],
+		 "non-key-list": [
+		  {
+		   "strval": "XYZ",
+		   "uintval": 10
+		  }
+		 ],
+		 "single-key-list": [
+		  {
 		   "country-code": "KR",
 		   "decimal-range": 1.01,
-		   "empty-node": null,
+		   "empty-node": [
+			null
+		   ],
 		   "list-key": "AAA",
 		   "uint32-range": 100,
-		   "uint64-node": 1234567890
+		   "uint64-node": "1234567890"
 		  }
-		 },
+		 ],
 		 "str-val": "abc"
 		}
-	   }	   
+	   }
 	`
 	RootData, err := New(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
 	j, _ := MarshalJSONIndent(RootData, "", " ", false)
-	fmt.Println(string(j))
+	t.Log(string(j))
 
 	cschema := GetSchema(RootSchema, "sample")
-	fmt.Println(New(cschema, `{"str-val": "ok"}`))
+	t.Log(New(cschema, `{"str-val": "ok"}`))
 }
 
 func TestChildDataNodeListing(t *testing.T) {
@@ -283,6 +292,14 @@ func TestDataNode(t *testing.T) {
 			},
 			wantInsertErr: false,
 		},
+		{
+			name: "non-key-list",
+			args: args{
+				path:  "/sample:sample/non-key-list",
+				value: []string{`{"uintval": "10", "strval": "XYZ"}`},
+			},
+			wantInsertErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+".Set", func(t *testing.T) {
@@ -294,38 +311,38 @@ func TestDataNode(t *testing.T) {
 
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 
-	// path := []string{
-	// 	"/sample/multiple-key-list[str=first][integer=*]/ok",
-	// 	"/sample/single-key-list[list-key=AAA]/list-key",
-	// 	"/sample/single-key-list[list-key=AAA]",
-	// 	"/sample/single-key-list[list-key=*]",
-	// 	"/sample/single-key-list/*",
-	// 	"/sample/*",
-	// 	"/sample/...",
-	// 	"/sample/.../enum-val",
-	// 	"/sample/*/*/",
-	// }
-	// for i := range path {
-	// 	node, err := RootData.Retrieve(path[i])
-	// 	if err != nil {
-	// 		t.Errorf("Retrieve() path %v error = %v", path[i], err)
-	// 	}
-	// 	for j := range node {
-	// 		t.Log("Retrieve", i, path[i], "::::", node[j].Path(), node[j])
-	// 		// j, _ := MarshalJSON(node[j], true)
-	// 		// t.Log("Retrieve", i, "", path[i], string(j))
-	// 	}
-	// }
+	path := []string{
+		"/sample/multiple-key-list[str=first][integer=*]/ok",
+		"/sample/single-key-list[list-key=AAA]/list-key",
+		"/sample/single-key-list[list-key=AAA]",
+		"/sample/single-key-list[list-key=*]",
+		"/sample/single-key-list/*",
+		"/sample/*",
+		"/sample/...",
+		"/sample/.../enum-val",
+		"/sample/*/*/",
+	}
+	for i := range path {
+		node, err := RootData.Retrieve(path[i])
+		if err != nil {
+			t.Errorf("Retrieve() path %v error = %v", path[i], err)
+		}
+		for j := range node {
+			t.Log("Retrieve", i, path[i], "::::", node[j].Path(), node[j])
+			// j, _ := MarshalJSON(node[j], true)
+			// t.Log("Retrieve", i, "", path[i], string(j))
+		}
+	}
 	// node := RootData.Find("/sample")
 	// // j, _ := node.MarshalJSON()
 	// j, _ := MarshalJSONIndent(node, "", " ", false)
-	// fmt.Println(string(j))
+	// t.Log(string(j))
 
-	jj, err := MarshalJSONIndent(RootData, "", " ", true)
+	jj, err := MarshalJSONIndent(RootData, "", " ", false)
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(string(jj))
+	t.Log(string(jj))
 
 	for i := len(tests) - 1; i >= 0; i-- {
 		tt := tests[i]
@@ -343,7 +360,7 @@ func TestDataNode(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(string(jsonietf))
+	t.Log(string(jsonietf))
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }
 

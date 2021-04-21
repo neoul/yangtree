@@ -21,13 +21,15 @@ func TestDataBranch_JSON(t *testing.T) {
 	{
 		"sample": {
 		 "container-val": {
+		  "a": "A",
 		  "enum-val": "enum2",
 		  "leaf-list-val": [
 		   "leaf-list-first",
 		   "leaf-list-fourth",
 		   "leaf-list-second",
 		   "leaf-list-third"
-		  ]
+		  ],
+		  "test-default": 11
 		 },
 		 "empty-val": null,
 		 "multiple-key-list": {
@@ -43,6 +45,12 @@ func TestDataBranch_JSON(t *testing.T) {
 		   }
 		  }
 		 },
+		 "non-key-list": [
+		  {
+		   "strval": "XYZ",
+		   "uintval": 10
+		  }
+		 ],
 		 "single-key-list": {
 		  "AAA": {
 		   "country-code": "KR",
@@ -55,7 +63,7 @@ func TestDataBranch_JSON(t *testing.T) {
 		 },
 		 "str-val": "abc"
 		}
-	   }	   
+	   }
 	`
 	if err := RootData.UnmarshalJSON([]byte(jbyte)); err != nil {
 		t.Error(err)
@@ -95,13 +103,15 @@ func TestDataBranch_JSON_IETF(t *testing.T) {
 	{
 		"sample:sample": {
 		 "container-val": {
+		  "a": "A",
 		  "enum-val": "enum2",
 		  "leaf-list-val": [
 		   "leaf-list-first",
-		   "leaf-list-fourth", 
+		   "leaf-list-fourth",
 		   "leaf-list-second",
 		   "leaf-list-third"
-		  ]
+		  ],
+		  "test-default": 11
 		 },
 		 "empty-val": [
 		  null
@@ -115,6 +125,12 @@ func TestDataBranch_JSON_IETF(t *testing.T) {
 		  {
 		   "integer": 2,
 		   "str": "first"
+		  }
+		 ],
+		 "non-key-list": [
+		  {
+		   "strval": "XYZ",
+		   "uintval": 10
 		  }
 		 ],
 		 "single-key-list": [

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
@@ -22,12 +21,13 @@ const (
 	rfc7951Enabled
 )
 
-func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int, error) {
+func marshalList(buffer *bytes.Buffer, node []DataNode, i int) (int, error) {
 	schema := node[i].Schema()
 	keyname := strings.Split(schema.Key, " ")
 	keynamelen := len(keyname)
 	buffer.WriteString("\"" + schema.Name + "\":")
 	keymap := map[string]interface{}{}
+	length := len(node)
 	for ; i < length; i++ {
 		if schema != node[i].Schema() {
 			break
@@ -62,7 +62,36 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, length int) (int,
 	return i, nil
 }
 
-func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int, rfc7951 rfc7951s) (int, error) {
+func marshalDuplicatedList(buffer *bytes.Buffer, node []DataNode, i int) (int, error) {
+	schema := node[i].Schema()
+	buffer.WriteString("\"" + schema.Name + "\":")
+
+	j := i
+	length := len(node)
+	for ; j < length; j++ {
+		if schema != node[j].Schema() {
+			break
+		}
+	}
+	keylist := make([]DataNode, 0, j-i)
+	for ; i < j; i++ {
+		if schema != node[i].Schema() {
+			break
+		}
+		keylist = append(keylist, node[i])
+	}
+	jsonValue, err := json.Marshal(keylist)
+	if err != nil {
+		return i, err
+	}
+	buffer.WriteString(string(jsonValue))
+	if i < length {
+		buffer.WriteString(",")
+	}
+	return j, nil
+}
+
+func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, rfc7951 rfc7951s) (int, error) {
 	schema := node[i].Schema()
 	if qname, boundary := GetQName(schema); boundary || rfc7951 == rfc7951Enabled {
 		buffer.WriteString("\"" + qname + "\":")
@@ -71,6 +100,7 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, length int
 	}
 
 	j := i
+	length := len(node)
 	for ; j < length; j++ {
 		if schema != node[j].Schema() {
 			break
@@ -100,24 +130,21 @@ func (branch *DataBranch) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	}
 	length := len(branch.children)
 	if length == 0 {
-		// FIXME - Which should be returned? nil or empty object?
 		return []byte("{}"), nil
 	}
+	node := branch.children
 	buffer := bytes.NewBufferString("{")
-	node := make([]DataNode, 0, length)
-	for _, c := range branch.children {
-		node = append(node, c)
-	}
-	sort.Slice(node, func(i, j int) bool {
-		return node[i].Key() < node[j].Key()
-	})
 	for i := 0; i < length; {
-		if node[i].Schema().IsList() {
+		if IsList(node[i].Schema()) {
 			var err error
 			if rfc7951 != rfc7951Disabled {
-				i, err = marshalListRFC7951(buffer, node, i, length, rfc7951)
+				i, err = marshalListRFC7951(buffer, node, i, rfc7951)
 			} else {
-				i, err = marshalList(buffer, node, i, length)
+				if IsDuplicatedList(node[i].Schema()) {
+					i, err = marshalDuplicatedList(buffer, node, i)
+				} else {
+					i, err = marshalList(buffer, node, i)
+				}
 			}
 			if err != nil {
 				return nil, err
@@ -233,6 +260,7 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 				return fmt.Errorf("schema '%s' not found", kname[i])
 			}
 			kval := fmt.Sprint(jentry[kname[i]])
+			// [FIXME] need to check key validation
 			// kchild, err := New(kschema, kval)
 			// if err != nil {
 			// 	return err
@@ -240,12 +268,20 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 			key = key + "[" + kname[i] + "=" + kval + "]"
 		}
 		key = cschema.Name + key
-		child := branch.Get(key)
-		if child == nil {
+		var child DataNode
+		if IsDuplicatedList(cschema) {
 			if child, err = branch.New(key); err != nil {
 				return err
 			}
+		} else {
+			child = branch.Get(key)
+			if child == nil {
+				if child, err = branch.New(key); err != nil {
+					return err
+				}
+			}
 		}
+
 		// Update DataNode
 		if err := child.unmarshalJSON(jentry); err != nil {
 			return err
@@ -263,23 +299,26 @@ func (branch *DataBranch) unmarshalJSON(jval interface{}) error {
 				return err
 			}
 			switch {
-			case cschema.IsList():
-				if rfc7951List, ok := v.([]interface{}); ok {
-					kname := strings.Split(cschema.Key, " ")
-					branch.unmarshalListRFC7951(cschema, kname, rfc7951List)
+			case IsList(cschema):
+				if rfc7951StyleList, ok := v.([]interface{}); ok {
+					if err := branch.unmarshalListRFC7951(cschema, ListKeyname(cschema), rfc7951StyleList); err != nil {
+						return err
+					}
 				} else {
-					kname := strings.Split(cschema.Key, " ")
+					if IsDuplicatedList(cschema) {
+						return fmt.Errorf("yangtree: non-key list '%s' must have the array format of RFC7951", cschema.Name)
+					}
+					kname := ListKeyname(cschema)
 					kval := make([]string, 0, len(kname))
 					if err := branch.unmarshalList(cschema, kname, kval, v); err != nil {
 						return err
 					}
 				}
 			default:
-				iindex := sort.Search(len(branch.children),
-					func(i int) bool { return branch.children[i].Key() >= k })
 				var child DataNode
-				if iindex < len(branch.children) && branch.children[iindex].Key() == k {
-					child = branch.children[iindex]
+				i, _ := branch.Index(k)
+				if i < len(branch.children) && branch.children[i].Key() == k {
+					child = branch.children[i]
 				} else {
 					if child, err = branch.New(k); err != nil {
 						return err
