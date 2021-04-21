@@ -543,6 +543,7 @@ func GetSchema(entry *yang.Entry, name string) *yang.Entry {
 	case "..":
 		child = entry.Parent
 	default:
+		// child = entry.Dir[name]
 		if meta := GetSchemaMeta(entry); meta != nil {
 			child = meta.Dir[name]
 		}
