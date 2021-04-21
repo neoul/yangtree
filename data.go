@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	// ManualKeyCreation - The key data nodes of list nodes are automatically created if set to false.
-	ManualKeyCreation bool = false
+	// LeafListValueAsKey - leaf-list value can be represented to the path if it is set to true.
+	LeafListValueAsKey bool = true
 )
 
 type DataNode interface {
@@ -27,7 +27,7 @@ type DataNode interface {
 
 	New(key string, value ...string) (DataNode, error)
 
-	Get(key string) DataNode // Get an child having the key or being close
+	Get(key string) []DataNode // Get children having the key
 
 	Len() int                    // Len() returns the length of children
 	Index(key string) (int, int) // Index() finds all children and returns the indexes of them.
@@ -503,19 +503,15 @@ func (branch *DataBranch) Delete(child DataNode) error {
 	return _delete(branch, child)
 }
 
-func (branch *DataBranch) Get(key string) DataNode {
+func (branch *DataBranch) Get(key string) []DataNode {
 	if key == ".." {
-		return branch.parent
+		return []DataNode{branch.parent}
 	} else if key == "." {
-		return branch
+		return []DataNode{branch}
 	}
-	iindex := sort.Search(len(branch.children),
-		func(i int) bool { return branch.children[i].Key() >= key })
-	// if iindex < len(branch.children) {
-	// 	return branch.children[iindex]
-	// }
-	if iindex < len(branch.children) && branch.children[iindex].Key() == key {
-		return branch.children[iindex]
+	i, max := _index(branch, key, false)
+	if i < max && max <= len(branch.children) {
+		return branch.children[i:max]
 	}
 	return nil
 }
@@ -542,11 +538,11 @@ func (branch *DataBranch) Find(path string) DataNode {
 	var err error
 	var pos int
 	var pathelem string
-	var found DataNode
+	var parent DataNode
 	pathlen := len(path)
-	found = branch
+	parent = branch
 Loop:
-	for {
+	for pos < pathlen {
 		_, pathelem, pos, _, err = parsePath(&path, pos, pathlen)
 		if err != nil {
 			return nil
@@ -559,15 +555,12 @@ Loop:
 			return nil
 		}
 
-		found := found.Get(pathelem)
+		found := parent.Get(pathelem)
 		if found == nil {
 			return nil
 		}
-		if pos >= pathlen {
-			break
-		}
 	}
-	return found
+	return parent
 }
 
 func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
@@ -635,7 +628,15 @@ func (branch *DataBranch) Retrieve(path string) ([]DataNode, error) {
 	if node == nil {
 		return nil, nil
 	}
-	return node.Retrieve(path[pos:])
+	var found []DataNode
+	for i := range node {
+		rnode, err := node[i].Retrieve(path[pos:])
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, rnode...)
+	}
+	return found, nil
 }
 
 func (branch *DataBranch) Key() string {
@@ -742,7 +743,7 @@ func (leaf *DataLeaf) Delete(child DataNode) error {
 	return fmt.Errorf("yangtree: delete not supported for %s", leaf)
 }
 
-func (leaf *DataLeaf) Get(key string) DataNode {
+func (leaf *DataLeaf) Get(key string) []DataNode {
 	return nil
 }
 
@@ -914,7 +915,7 @@ func (leaflist *DataLeafList) Delete(child DataNode) error {
 
 // Get finds the key from its value.
 // [FIXME] Should it be supported?
-func (leaflist *DataLeafList) Get(key string) DataNode {
+func (leaflist *DataLeafList) Get(key string) []DataNode {
 	// length := len(leaflist.value)
 	// iindex := sort.Search(length,
 	// 	func(j int) bool {
@@ -1061,9 +1062,11 @@ Loop:
 			}
 			return fmt.Errorf("yangtree: invalid path %s", path)
 		}
-		if root.Schema().IsLeafList() {
-			value = append(value, elem)
-			break Loop
+		if LeafListValueAsKey {
+			if root.Schema().IsLeafList() {
+				value = append(value, elem)
+				break Loop
+			}
 		}
 		cschema := GetSchema(root.Schema(), elem)
 		if cschema == nil {
@@ -1119,9 +1122,11 @@ Loop:
 			}
 			return fmt.Errorf("yangtree: invalid path %s", path)
 		}
-		if root.Schema().IsLeafList() {
-			value = append(value, elem)
-			break Loop
+		if LeafListValueAsKey {
+			if root.Schema().IsLeafList() {
+				value = append(value, elem)
+				break Loop
+			}
 		}
 		cschema := GetSchema(root.Schema(), elem)
 		if cschema == nil {

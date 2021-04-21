@@ -212,6 +212,7 @@ func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 	return leaflist.marshalJSON(rfc7951Disabled)
 }
 
+// unmarshalList decode jval to the list that has the keys.
 func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
 	jdata, ok := jval.(map[string]interface{})
 	if !ok {
@@ -235,11 +236,14 @@ func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kva
 		key = key + "[" + kname[i] + "=" + kval[i] + "]"
 	}
 	key = cschema.Name + key
-	child := branch.Get(key)
-	if child == nil {
+	var child DataNode
+	found := branch.Get(key)
+	if len(found) == 0 {
 		if child, err = branch.New(key); err != nil {
 			return err
 		}
+	} else {
+		child = found[0]
 	}
 	// Update DataNode
 	return child.unmarshalJSON(jval)
@@ -274,11 +278,13 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 				return err
 			}
 		} else {
-			child = branch.Get(key)
-			if child == nil {
+			found := branch.Get(key)
+			if len(found) == 0 {
 				if child, err = branch.New(key); err != nil {
 					return err
 				}
+			} else {
+				child = found[0]
 			}
 		}
 
