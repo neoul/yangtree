@@ -26,6 +26,8 @@ type DataNode interface {
 	Remove(value ...string) error
 
 	// New() creates a cild using a key and values
+	// key is the element of xpath combined with xpath predicates.
+	// For example, /interfaces/interface[name=VALUE]
 	New(key string, value ...string) (DataNode, error)
 
 	Get(key string) []DataNode       // Get children having the key
@@ -169,18 +171,20 @@ func deleteNode(parent DataNode, child DataNode) error {
 }
 
 // indexNode() returns the index of a child related to the key
-func indexNode(parent *DataBranch, key string, searchInOrder bool) (i, max int) {
+func indexNode(parent *DataBranch, key string, prefixKey bool) (i, max int) {
 	length := len(parent.children)
-	if searchInOrder {
-		i = SearchInOrder(length,
-			func(j int) bool {
-				return key <= parent.children[j].Key()
-			})
-	} else {
-		i = sort.Search(length,
-			func(j int) bool {
-				return key <= parent.children[j].Key()
-			})
+	i = sort.Search(length,
+		func(j int) bool {
+			return key <= parent.children[j].Key()
+		})
+	if prefixKey {
+		max = i
+		for ; max < length; max++ {
+			if !strings.HasPrefix(parent.children[max].Key(), key) {
+				break
+			}
+		}
+		return
 	}
 	max = i
 	for ; max < length; max++ {
@@ -336,7 +340,7 @@ func (branch *DataBranch) Get(key string) []DataNode {
 			&PathNode{Name: "...", Select: PathSelectAllMatched}})
 	default:
 		i, max := indexNode(branch, key, false)
-		if i < max && max <= len(branch.children) {
+		if i < max {
 			return branch.children[i:max]
 		}
 	}
@@ -355,16 +359,9 @@ func (branch *DataBranch) Lookup(prefix string) []DataNode {
 		return findNode(branch, []*PathNode{
 			&PathNode{Name: "...", Select: PathSelectAllMatched}})
 	default:
-		i, _ := indexNode(branch, prefix, false)
-		j := i
-		max := branch.Len()
-		for ; j < max; j++ {
-			if !strings.HasPrefix(branch.children[j].Key(), prefix) {
-				break
-			}
-		}
-		if i < j && j <= max {
-			return branch.children[i:j]
+		i, max := indexNode(branch, prefix, true)
+		if i < max {
+			return branch.children[i:max]
 		}
 	}
 	return nil
@@ -575,7 +572,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 	}
 	for i := range value {
 		length := len(leaflist.value)
-		iindex := sort.Search(length,
+		index := sort.Search(length,
 			func(j int) bool {
 				return ValueToString(leaflist.value[j]) >= value[i]
 			})
@@ -584,8 +581,8 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 			return err
 		}
 		leaflist.value = append(leaflist.value, nil)
-		copy(leaflist.value[iindex+1:], leaflist.value[iindex:])
-		leaflist.value[iindex] = v
+		copy(leaflist.value[index+1:], leaflist.value[index:])
+		leaflist.value[index] = v
 	}
 	return nil
 }
@@ -596,12 +593,12 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 	}
 	for i := range value {
 		length := len(leaflist.value)
-		iindex := sort.Search(length,
+		index := sort.Search(length,
 			func(j int) bool {
 				return ValueToString(leaflist.value[j]) >= value[i]
 			})
-		if iindex < length && ValueToString(leaflist.value[iindex]) == value[i] {
-			leaflist.value = append(leaflist.value[:iindex], leaflist.value[:iindex+1]...)
+		if index < length && ValueToString(leaflist.value[index]) == value[i] {
+			leaflist.value = append(leaflist.value[:index], leaflist.value[:index+1]...)
 		}
 	}
 	// remove itself if there is no value inserted.
@@ -618,25 +615,13 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 
 func (leaflist *DataLeafList) Insert(child DataNode) error {
 	return fmt.Errorf("yangtree: insert not supported for %s", leaflist)
-	// return leaflist.Set()
 }
 
 func (leaflist *DataLeafList) Delete(child DataNode) error {
 	return fmt.Errorf("yangtree: delete not supported for %s", leaflist)
-	// return leaflist.Remove(key)
 }
 
-// Get finds the key from its value.
-// [FIXME] Should it be supported?
 func (leaflist *DataLeafList) Get(key string) []DataNode {
-	// length := len(leaflist.value)
-	// iindex := sort.Search(length,
-	// 	func(j int) bool {
-	// 		return ValueToString(leaflist.value[j]) >= key
-	// 	})
-	// if iindex < length && ValueToString(leaflist.value[iindex]) == key {
-	// 	return leaflist
-	// }
 	return nil
 }
 
@@ -660,16 +645,13 @@ func (leaflist *DataLeafList) Len() int {
 
 // Get finds the key from its value.
 // [FIXME] Should it be supported?
-func (leaflist *DataLeafList) FindValue(value string) DataNode {
+func (leaflist *DataLeafList) Exist(value string) bool {
 	length := len(leaflist.value)
-	iindex := sort.Search(length,
+	i := sort.Search(length,
 		func(j int) bool {
 			return ValueToString(leaflist.value[j]) >= value
 		})
-	if iindex < length && ValueToString(leaflist.value[iindex]) == value {
-		return leaflist
-	}
-	return nil
+	return i < length && ValueToString(leaflist.value[i]) == value
 }
 
 func (leaflist *DataLeafList) Key() string {
@@ -959,6 +941,7 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 		}
 		return children
 	case PathSelectAllMatched:
+		children = append(children, findNode(root, pathnode[1:])...)
 		i, max := 0, root.Len()
 		for ; i < max; i++ {
 			children = append(children, findNode(root.Child(i), pathnode[1:])...)
@@ -973,8 +956,10 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 	// [FIXME]
 	if LeafListValueAsKey {
 		if leaflist, ok := root.(*DataLeafList); ok {
-			leaflist.FindValue(pathnode[0].Name)
-			return []DataNode{root}
+			if leaflist.Exist(pathnode[0].Name) {
+				return []DataNode{root}
+			}
+			return nil
 		}
 	}
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
@@ -985,7 +970,8 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 	if err != nil {
 		return nil
 	}
-	i, max := root.Index(key)
+	branch := root.(*DataBranch)
+	i, max := indexNode(branch, key, true)
 	switch {
 	case IsDuplicatedList(cschema):
 		// [FIXME]

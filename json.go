@@ -302,9 +302,9 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 		switch jdata := jval.(type) {
 		case map[string]interface{}:
 			for k, v := range jdata {
-				cschema, err := FindSchema(n.schema, k)
-				if err != nil {
-					return err
+				cschema := GetSchema(n.schema, k)
+				if cschema == nil {
+					return fmt.Errorf("yangtree: schema.%s not found from schema.%s", k, n.schema.Name)
 				}
 				switch {
 				case IsList(cschema):
@@ -323,6 +323,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 						}
 					}
 				default:
+					var err error
 					var child DataNode
 					i, _ := n.Index(k)
 					if i < len(n.children) && n.children[i].Key() == k {

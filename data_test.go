@@ -231,6 +231,22 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
+				path:  "/sample/multiple-key-list[str=second][integer=1]/str",
+				value: []string{"second"},
+			},
+			wantInsertErr: false,
+		},
+		{
+			name: "test-item",
+			args: args{
+				path:  "/sample/multiple-key-list[str=second][integer=2]/str",
+				value: []string{"second"},
+			},
+			wantInsertErr: false,
+		},
+		{
+			name: "test-item",
+			args: args{
 				path:  "/sample:sample/container-val",
 				value: nil,
 			},
@@ -320,23 +336,27 @@ func TestDataNode(t *testing.T) {
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 
 	path := []string{
-		"/sample/multiple-key-list[str=first][integer=*]/ok",
-		"/sample/single-key-list[list-key=AAA]/list-key",
-		"/sample/single-key-list[list-key=AAA]",
-		"/sample/single-key-list[list-key=*]",
-		"/sample/single-key-list/*",
-		"/sample/*",
-		"/sample/...",
-		"/sample/.../enum-val",
-		"/sample/*/*/",
+		// "/sample/multiple-key-list[str=first][integer=*]/ok",
+		// "/sample/single-key-list[list-key=AAA]/list-key",
+		// "/sample/single-key-list[list-key=AAA]",
+		// "/sample/single-key-list[list-key=*]",
+		// "/sample/single-key-list/*",
+		// "/sample/*",
+		// "/sample/...",
+		// "/sample/.../enum-val",
+		// "/sample/*/*/",
+		// "/sample//non-key-list",
+		"/sample/multiple-key-list[str=first][integer=*]",
+		"/sample/multiple-key-list",
 	}
 	for i := range path {
 		node, err := Find(RootData, path[i])
 		if err != nil {
 			t.Errorf("Find() path %v error = %v", path[i], err)
 		}
+		t.Logf("Find(%s)", path[i])
 		for j := range node {
-			t.Log("Find", i, path[i], "::::", node[j].Path(), node[j])
+			t.Logf(" - %s, %s (%p)", node[j].Path(), node[j], node[j])
 			// j, _ := MarshalJSON(node[j], true)
 			// t.Log("Find", i, "", path[i], string(j))
 		}
