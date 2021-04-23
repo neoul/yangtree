@@ -300,6 +300,14 @@ func TestDataNode(t *testing.T) {
 			},
 			wantInsertErr: false,
 		},
+		{
+			name: "non-key-list",
+			args: args{
+				path:  "/sample:sample/non-key-list",
+				value: []string{`{"uintval": "11", "strval": "XYZ"}`},
+			},
+			wantInsertErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+".Set", func(t *testing.T) {

@@ -75,8 +75,8 @@ func isValid(node DataNode) bool {
 	return true
 }
 
-// _update() updates the first matched node or replaces it to the child if replace is true.
-func _update(parent *DataBranch, child DataNode) error {
+// updateNode() updates the first matched node or replaces it to the child if replace is true.
+func updateNode(parent *DataBranch, child DataNode) error {
 	if !isValid(child) {
 		return fmt.Errorf("yangtree: invalid child node")
 	}
@@ -111,7 +111,7 @@ func _update(parent *DataBranch, child DataNode) error {
 				return fmt.Errorf("yangtree: unable to update type mismatched node")
 			}
 			for j := range node.children {
-				if err := _update(d, node.children[j]); err != nil {
+				if err := updateNode(d, node.children[j]); err != nil {
 					return err
 				}
 			}
@@ -131,7 +131,7 @@ func _update(parent *DataBranch, child DataNode) error {
 	return nil
 }
 
-func _delete(parent DataNode, child DataNode) error {
+func deleteNode(parent DataNode, child DataNode) error {
 	if isValid(child) {
 		return fmt.Errorf("yangtree: invalid child node")
 	}
@@ -165,8 +165,8 @@ func _delete(parent DataNode, child DataNode) error {
 	return fmt.Errorf("yangtree: %s not found on delete", child)
 }
 
-// _index() returns the index of a child related to the key
-func _index(parent *DataBranch, key string, searchInOrder bool) (i, max int) {
+// indexNode() returns the index of a child related to the key
+func indexNode(parent *DataBranch, key string, searchInOrder bool) (i, max int) {
 	length := len(parent.children)
 	if searchInOrder {
 		i = SearchInOrder(length,
@@ -500,7 +500,7 @@ func (branch *DataBranch) Insert(child DataNode) error {
 }
 
 func (branch *DataBranch) Delete(child DataNode) error {
-	return _delete(branch, child)
+	return deleteNode(branch, child)
 }
 
 func (branch *DataBranch) Get(key string) []DataNode {
@@ -509,7 +509,7 @@ func (branch *DataBranch) Get(key string) []DataNode {
 	} else if key == "." {
 		return []DataNode{branch}
 	}
-	i, max := _index(branch, key, false)
+	i, max := indexNode(branch, key, false)
 	if i < max && max <= len(branch.children) {
 		return branch.children[i:max]
 	}
@@ -524,7 +524,7 @@ func (branch *DataBranch) Child(index int) DataNode {
 }
 
 func (branch *DataBranch) Index(key string) (int, int) {
-	return _index(branch, key, false)
+	return indexNode(branch, key, false)
 }
 
 func (branch *DataBranch) Len() int {
@@ -1040,108 +1040,177 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	return newdata, nil
 }
 
+func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
+	if len(pathnode) == 0 {
+		return root.Set(value...)
+	}
+	switch pathnode[0].Select {
+	case PathSelectSelf:
+		return setValue(root, pathnode[1:], value...)
+	case PathSelectParent:
+		if root.Parent() == nil {
+			return fmt.Errorf("yangtree: the parent of %s is not present in the path", root)
+		}
+		root = root.Parent()
+		return setValue(root, pathnode[1:], value...)
+	case PathSelectFromRoot:
+		for root.Parent() != nil {
+			root = root.Parent()
+		}
+	case PathSelectAllChildren:
+		i, max := 0, root.Len()
+		for ; i < max; i++ {
+			if err := setValue(root.Child(i), pathnode[1:], value...); err != nil {
+				return err
+			}
+		}
+		return nil
+	case PathSelectAllMatched:
+		i, max := 0, root.Len()
+		for ; i < max; i++ {
+			if err := setValue(root.Child(i), pathnode[1:], value...); err != nil {
+				return err
+			}
+			if err := setValue(root.Child(i), pathnode, value...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if pathnode[0].Name == "" {
+		return root.Set(value...)
+	}
+	if LeafListValueAsKey {
+		if root.Schema().IsLeafList() {
+			value = append(value, pathnode[0].Name)
+			return root.Set(value...)
+		}
+	}
+	cschema := GetSchema(root.Schema(), pathnode[0].Name)
+	if cschema == nil {
+		return fmt.Errorf("yangtree: schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
+	}
+	key, err := KeyGen(cschema, pathnode[0].Predicates)
+	if err != nil {
+		return err
+	}
+	i, max := root.Index(key)
+	switch {
+	case IsDuplicatedList(cschema):
+		i = max // always created
+	}
+	if i == max {
+		child, err := root.New(key)
+		if err != nil {
+			return err
+		}
+		err = setValue(child, pathnode[1:], value...)
+		if err != nil {
+			child.Remove()
+		}
+		return err
+	}
+	for ; i < max; i++ {
+		if err := setValue(root.Child(i), pathnode[1:], value...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Set sets a value or values to the target DataNode in the path.
+// If the target DataNode is a branch node, the value must be json or json_ietf bytes.
+// If the target data node is a leaf or a leaf-list node, the value should be string.
 func Set(root DataNode, path string, value ...string) error {
 	if !isValid(root) {
 		return fmt.Errorf("yangtree: invalid root node")
 	}
-	var err error
-	var pos int
-	var elem string
-	var attrs map[string]string
-	var created, found DataNode
-	pathlen := len(path)
-Loop:
-	for pos < pathlen {
-		_, elem, attrs, pos, err = ParseXPath(&path, pos, pathlen)
-		if err != nil {
-			return err
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return err
+	}
+	return setValue(root, pathnode, value...)
+}
+
+func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
+	if len(pathnode) == 0 {
+		return root.Remove(value...)
+	}
+	switch pathnode[0].Select {
+	case PathSelectSelf:
+		return deleteValue(root, pathnode[1:], value...)
+	case PathSelectParent:
+		if root.Parent() == nil {
+			return fmt.Errorf("yangtree: the parent of %s is not present in the path", root)
 		}
-		if elem == "" {
-			if pos >= pathlen {
-				break Loop
-			}
-			return fmt.Errorf("yangtree: invalid path %s", path)
+		root = root.Parent()
+		return deleteValue(root, pathnode[1:], value...)
+	case PathSelectFromRoot:
+		for root.Parent() != nil {
+			root = root.Parent()
 		}
-		if LeafListValueAsKey {
-			if root.Schema().IsLeafList() {
-				value = append(value, elem)
-				break Loop
-			}
-		}
-		cschema := GetSchema(root.Schema(), elem)
-		if cschema == nil {
-			return fmt.Errorf("yangtree: schema.%s not found", elem)
-		}
-		key, testmore := GenerateKey(cschema, attrs)
-		if testmore != 0 {
-			return fmt.Errorf("yangtree: invalid key attribute in '%s'", path)
-		}
-		i, _ := root.Index(key)
-		found = root.Child(i)
-		if found == nil || found.Key() != key {
-			found, err = root.New(key)
-			if err != nil {
+	case PathSelectAllChildren:
+		i, max := 0, root.Len()
+		for ; i < max; i++ {
+			if err := deleteValue(root.Child(i), pathnode[1:], value...); err != nil {
 				return err
 			}
-			if created == nil {
-				created = found
+		}
+		return nil
+	case PathSelectAllMatched:
+		i, max := 0, root.Len()
+		for ; i < max; i++ {
+			if err := deleteValue(root.Child(i), pathnode[1:], value...); err != nil {
+				return err
+			}
+			if err := deleteValue(root.Child(i), pathnode, value...); err != nil {
+				return err
 			}
 		}
-		root = found
+		return nil
 	}
 
-	err = root.Set(value...)
-	if err != nil {
-		if created != nil {
-			created.Remove()
+	if pathnode[0].Name == "" {
+		return root.Remove(value...)
+	}
+	if LeafListValueAsKey {
+		if root.Schema().IsLeafList() {
+			value = append(value, pathnode[0].Name)
+			return root.Remove(value...)
 		}
+	}
+	cschema := GetSchema(root.Schema(), pathnode[0].Name)
+	if cschema == nil {
+		return fmt.Errorf("yangtree: schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
+	}
+	key, err := KeyGen(cschema, pathnode[0].Predicates)
+	if err != nil {
 		return err
+	}
+	i, max := root.Index(key)
+	switch {
+	case IsDuplicatedList(cschema):
+		// always remove the first node
+		if i < max {
+			max = i + 1
+		}
+	}
+	for ; i < max; i++ {
+		if err := deleteValue(root.Child(i), pathnode[1:], value...); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func Delete(root DataNode, path string, value ...string) error {
-	if root == nil {
-		return fmt.Errorf("yangtree: data node is null")
+	if !isValid(root) {
+		return fmt.Errorf("yangtree: invalid root node")
 	}
-	var err error
-	var pos int
-	var elem string
-	var attrs map[string]string
-	var found DataNode
-	pathlen := len(path)
-Loop:
-	for pos < pathlen {
-		_, elem, attrs, pos, err = ParseXPath(&path, pos, pathlen)
-		if err != nil {
-			return err
-		}
-		if elem == "" {
-			if pos >= pathlen {
-				break Loop
-			}
-			return fmt.Errorf("yangtree: invalid path %s", path)
-		}
-		if LeafListValueAsKey {
-			if root.Schema().IsLeafList() {
-				value = append(value, elem)
-				break Loop
-			}
-		}
-		cschema := GetSchema(root.Schema(), elem)
-		if cschema == nil {
-			return fmt.Errorf("yangtree: schema.%s not found", elem)
-		}
-		key, testmore := GenerateKey(cschema, attrs)
-		if testmore != 0 {
-			return fmt.Errorf("yangtree: invalid key attribute in '%s'", path)
-		}
-		i, _ := root.Index(key)
-		found = root.Child(i)
-		if found == nil {
-			return fmt.Errorf("yangtree: data node '%s' not found", path)
-		}
-		root = found
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return err
 	}
-	return root.Remove(value...)
+	return deleteValue(root, pathnode, value...)
 }

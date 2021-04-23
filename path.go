@@ -1,6 +1,12 @@
 package yangtree
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"strings"
+
+	"github.com/openconfig/goyang/pkg/yang"
+)
 
 type PathSelect int
 type PathPredicates int
@@ -9,12 +15,14 @@ const (
 	PathSelectChild       PathSelect = iota // path will select children by name
 	PathSelectSelf                          // if the path starts with `.`
 	PathSelectFromRoot                      // if the path starts with `/`
-	PathSelectAllMatched                    // if the path starts with `//`
+	PathSelectAllMatched                    // if the path starts with `//` or `...`
 	PathSelectParent                        // if the path starts with `..`
 	PathSelectAllChildren                   // Wildcard '*'
 
-	PathPredicateNone    PathPredicates = iota
-	PathPredicateNumeric                // p[1] (p[position()=1]), p[last()] (p[position()=last()])
+	PathPredicateNone         PathPredicates = iota
+	PathPredicatePosition                    // position()
+	PathPredicatePositionLast                // position()
+	PathPredicateNumeric                     // p[1] (p[position()=1]), p[last()] (p[position()=last()])
 	PathPredicateCondition
 	PathPredicateEl
 )
@@ -40,7 +48,20 @@ var (
 		"descendant-or-self::node()": PathSelectAllMatched,
 		"child::node()":              PathSelectChild,
 	}
+	// predicatesKeyword *gtrie.Trie
 )
+
+func init() {
+	// predicatesKeyword = gtrie.New()
+	// keywords := []struct {
+	// 	keyword   string
+	// 	predicate PathPredicates
+	// }{
+	// 	{keyword: "position()", predicate: PathPredicatePosition},
+	// 	{keyword: "last()", predicate: PathPredicatePositionLast},
+	// 	{keyword: "count(", predicate: PathPredicatePositionLast},
+	// }
+}
 
 func updatePathSelect(pathnode *PathNode) *PathNode {
 	if s, ok := pathNodeKeyword[pathnode.Name]; ok {
@@ -80,10 +101,10 @@ func ParsePath(path *string) ([]*PathNode, error) {
 					if begin < end {
 						pathnode.Name = (*path)[begin:end]
 					}
-					begin = end + 1
-					node = append(node, updatePathSelect(pathnode))
-					pathnode = &PathNode{}
 				}
+				begin = end + 1
+				node = append(node, updatePathSelect(pathnode))
+				pathnode = &PathNode{}
 			}
 		case '[':
 			if (*path)[end-1] != '\\' {
@@ -99,8 +120,10 @@ func ParsePath(path *string) ([]*PathNode, error) {
 			if (*path)[end-1] != '\\' {
 				insideBrackets--
 				if insideBrackets <= 0 {
+					// if end < 2 || (*path)[end-2:end+1] != "=*]" { // * wildcard inside predicates
 					pathnode.Predicates = append(pathnode.Predicates, (*path)[begin:end])
 					begin = end + 1
+					// }
 				}
 			}
 		case '=':
@@ -124,13 +147,48 @@ func ParsePath(path *string) ([]*PathNode, error) {
 		return nil, fmt.Errorf("yangtree: invalid path format '%s'", *path)
 	}
 
-	if (*path)[end-1] == '/' {
-		pathnode.Select = PathSelectAllMatched
-	} else {
-		if begin < end {
-			pathnode.Name = (*path)[begin:end]
-		}
+	if begin < end {
+		pathnode.Name = (*path)[begin:end]
 	}
 	node = append(node, updatePathSelect(pathnode))
 	return node, nil
+}
+
+func KeyGen(schema *yang.Entry, predicates []string) (string, error) {
+	switch {
+	case IsUniqueList(schema):
+		keyname := strings.Split(schema.Key, " ")
+		p := map[string]*PathNode{}
+		for j := range predicates {
+			pathnode, err := ParsePath(&predicates[j])
+			if err != nil {
+				return "", err
+			}
+			for _, n := range pathnode {
+				p[n.Name] = n
+			}
+		}
+		var key bytes.Buffer
+		key.WriteString(schema.Name)
+	Loop:
+		for i := range keyname {
+			pathnode, ok := p[keyname[i]]
+			if !ok {
+				break Loop
+			}
+			switch pathnode.Value {
+			case "*":
+				break Loop
+			default:
+				key.WriteString("[")
+				key.WriteString(keyname[i])
+				key.WriteString("=")
+				key.WriteString(pathnode.Value)
+				key.WriteString("]")
+			}
+		}
+		return key.String(), nil
+	default:
+		return schema.Name, nil
+	}
 }
