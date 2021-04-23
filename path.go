@@ -154,6 +154,20 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	return node, nil
 }
 
+func PredicatesMap(predicates []string) (map[string]string, error) {
+	p := map[string]string{}
+	for j := range predicates {
+		pathnode, err := ParsePath(&predicates[j])
+		if err != nil {
+			return nil, err
+		}
+		for _, n := range pathnode {
+			p[n.Name] = n.Value
+		}
+	}
+	return p, nil
+}
+
 func KeyGen(schema *yang.Entry, predicates []string) (string, error) {
 	switch {
 	case IsUniqueList(schema):

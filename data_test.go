@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"reflect"
 	"testing"
 )
 
@@ -96,7 +95,7 @@ func TestChildDataNodeListing(t *testing.T) {
 	for i := range input {
 		Set(RootData, input[i])
 	}
-	// n, _ := RootData.Retrieve("/sample")
+	// Find(RootData, "/sample")
 }
 
 func TestDataNode(t *testing.T) {
@@ -331,14 +330,14 @@ func TestDataNode(t *testing.T) {
 		"/sample/*/*/",
 	}
 	for i := range path {
-		node, err := RootData.Retrieve(path[i])
+		node, err := Find(RootData, path[i])
 		if err != nil {
-			t.Errorf("Retrieve() path %v error = %v", path[i], err)
+			t.Errorf("Find() path %v error = %v", path[i], err)
 		}
 		for j := range node {
-			t.Log("Retrieve", i, path[i], "::::", node[j].Path(), node[j])
+			t.Log("Find", i, path[i], "::::", node[j].Path(), node[j])
 			// j, _ := MarshalJSON(node[j], true)
-			// t.Log("Retrieve", i, "", path[i], string(j))
+			// t.Log("Find", i, "", path[i], string(j))
 		}
 	}
 	// node := RootData.Find("/sample")
@@ -370,48 +369,4 @@ func TestDataNode(t *testing.T) {
 	}
 	t.Log(string(jsonietf))
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
-}
-
-func TestParseXPath(t *testing.T) {
-
-	tests := []struct {
-		path  string
-		elems []string
-		attrs map[string]string
-	}{
-		{path: "/interfaces/interface[name=1/1]", elems: []string{"interfaces", "interface"}, attrs: map[string]string{"name": "1/1"}},
-		{path: "/abc:interfaces/id[name=1/1]/xyz=10", elems: []string{"abc", "interfaces", "id", "xyz"}, attrs: map[string]string{"name": "1/1"}},
-		// {path: "//", elems: nil},
-		// {path: "/[?=what]", result: nil},
-	}
-	for _, tt := range tests {
-		t.Run("ParseXPath", func(t *testing.T) {
-			var pos int
-			var err error
-			var prefix, elem string
-			var attrs map[string]string
-			var result []string
-			rattrs := map[string]string{}
-			for pos < len(tt.path) {
-				prefix, elem, attrs, pos, err = ParseXPath(&tt.path, pos, len(tt.path))
-				if err != nil {
-					t.Error(err)
-					break
-				}
-				if prefix != "" {
-					result = append(result, prefix)
-				}
-				if elem != "" {
-					result = append(result, elem)
-				}
-				for k, v := range attrs {
-					rattrs[k] = v
-				}
-			}
-
-			if !reflect.DeepEqual(result, tt.elems) && !reflect.DeepEqual(rattrs, tt.attrs) {
-				t.Errorf("not equal with got = %v %v, expect = %v %v", result, rattrs, tt.elems, tt.attrs)
-			}
-		})
-	}
 }
