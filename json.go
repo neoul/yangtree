@@ -246,7 +246,7 @@ func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kva
 		child = found[0]
 	}
 	// Update DataNode
-	return child.unmarshalJSON(jval)
+	return unmarshalJSON(child, jval)
 }
 
 func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
@@ -289,80 +289,81 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 		}
 
 		// Update DataNode
-		if err := child.unmarshalJSON(jentry); err != nil {
+		if err := unmarshalJSON(child, jentry); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (branch *DataBranch) unmarshalJSON(jval interface{}) error {
-	switch jdata := jval.(type) {
-	case map[string]interface{}:
-		for k, v := range jdata {
-			cschema, err := FindSchema(branch.schema, k)
-			if err != nil {
-				return err
+func unmarshalJSON(node DataNode, jval interface{}) error {
+	switch n := node.(type) {
+	case *DataBranch:
+		switch jdata := jval.(type) {
+		case map[string]interface{}:
+			for k, v := range jdata {
+				cschema, err := FindSchema(n.schema, k)
+				if err != nil {
+					return err
+				}
+				switch {
+				case IsList(cschema):
+					if rfc7951StyleList, ok := v.([]interface{}); ok {
+						if err := n.unmarshalListRFC7951(cschema, ListKeyname(cschema), rfc7951StyleList); err != nil {
+							return err
+						}
+					} else {
+						if IsDuplicatedList(cschema) {
+							return fmt.Errorf("yangtree: non-key list '%s' must have the array format of RFC7951", cschema.Name)
+						}
+						kname := ListKeyname(cschema)
+						kval := make([]string, 0, len(kname))
+						if err := n.unmarshalList(cschema, kname, kval, v); err != nil {
+							return err
+						}
+					}
+				default:
+					var child DataNode
+					i, _ := n.Index(k)
+					if i < len(n.children) && n.children[i].Key() == k {
+						child = n.children[i]
+					} else {
+						if child, err = n.New(k); err != nil {
+							return err
+						}
+					}
+					if err := unmarshalJSON(child, v); err != nil {
+						return err
+					}
+				}
 			}
-			switch {
-			case IsList(cschema):
-				if rfc7951StyleList, ok := v.([]interface{}); ok {
-					if err := branch.unmarshalListRFC7951(cschema, ListKeyname(cschema), rfc7951StyleList); err != nil {
-						return err
-					}
-				} else {
-					if IsDuplicatedList(cschema) {
-						return fmt.Errorf("yangtree: non-key list '%s' must have the array format of RFC7951", cschema.Name)
-					}
-					kname := ListKeyname(cschema)
-					kval := make([]string, 0, len(kname))
-					if err := branch.unmarshalList(cschema, kname, kval, v); err != nil {
-						return err
-					}
+			return nil
+		default:
+			return fmt.Errorf("unexpected json '%v' inserted for %s", jdata, n)
+		}
+	case *DataLeafList:
+		if islice, ok := jval.([]interface{}); ok {
+			for i := range islice {
+				valstr, err := JSONValueToString(islice[i])
+				if err != nil {
+					return err
 				}
-			default:
-				var child DataNode
-				i, _ := branch.Index(k)
-				if i < len(branch.children) && branch.children[i].Key() == k {
-					child = branch.children[i]
-				} else {
-					if child, err = branch.New(k); err != nil {
-						return err
-					}
-				}
-				if err := child.unmarshalJSON(v); err != nil {
+				if err = n.Set(valstr); err != nil {
 					return err
 				}
 			}
+			return nil
 		}
+		return fmt.Errorf("unexpected json type '%T' for %s", jval, n)
+	case *DataLeaf:
+		valstr, err := JSONValueToString(jval)
+		if err != nil {
+			return err
+		}
+		return n.Set(valstr)
 	default:
-		return fmt.Errorf("unexpected json '%v' inserted for %s", jdata, branch)
+		return fmt.Errorf("yangtree: invalid data node type '%T'", node)
 	}
-	return nil
-}
-
-func (leaf *DataLeaf) unmarshalJSON(jval interface{}) error {
-	valstr, err := JSONValueToString(jval)
-	if err != nil {
-		return err
-	}
-	return leaf.Set(valstr)
-}
-
-func (leaflist *DataLeafList) unmarshalJSON(jval interface{}) error {
-	if islice, ok := jval.([]interface{}); ok {
-		for i := range islice {
-			valstr, err := JSONValueToString(islice[i])
-			if err != nil {
-				return err
-			}
-			if err = leaflist.Set(valstr); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return fmt.Errorf("unexpected json type '%T' for %s", jval, leaflist)
 }
 
 func (branch *DataBranch) UnmarshalJSON(jsonbyte []byte) error {
@@ -371,7 +372,7 @@ func (branch *DataBranch) UnmarshalJSON(jsonbyte []byte) error {
 	if err != nil {
 		return err
 	}
-	return branch.unmarshalJSON(jval)
+	return unmarshalJSON(branch, jval)
 }
 
 func (leaf *DataLeaf) UnmarshalJSON(jsonbyte []byte) error {
@@ -380,7 +381,7 @@ func (leaf *DataLeaf) UnmarshalJSON(jsonbyte []byte) error {
 	if err != nil {
 		return err
 	}
-	return leaf.unmarshalJSON(jval)
+	return unmarshalJSON(leaf, jval)
 }
 
 func (leaflist *DataLeafList) UnmarshalJSON(jsonbyte []byte) error {
@@ -389,7 +390,7 @@ func (leaflist *DataLeafList) UnmarshalJSON(jsonbyte []byte) error {
 	if err != nil {
 		return err
 	}
-	return leaflist.unmarshalJSON(jval)
+	return unmarshalJSON(leaflist, jval)
 }
 
 // rfc7951DataNode is used to print the qname of the namespace boundary nodes for rfc7951.

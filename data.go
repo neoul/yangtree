@@ -43,10 +43,6 @@ type DataNode interface {
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
 
 	UnmarshalJSON([]byte) error // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
-
-	// internal interfaces
-	unmarshalJSON(jtree interface{}) error
-	setParent(parent DataNode, key string)
 }
 
 func SearchInOrder(n int, f func(int) bool) int {
@@ -67,6 +63,18 @@ func isValid(node DataNode) bool {
 		return false
 	}
 	return true
+}
+
+func setParent(node DataNode, parent *DataBranch, key string) {
+	switch c := node.(type) {
+	case *DataBranch:
+		c.parent = parent
+		c.key = key
+	case *DataLeaf:
+		c.parent = parent
+	case *DataLeafList:
+		c.parent = parent
+	}
 }
 
 // updateNode() updates the first matched node or replaces it to the child if replace is true.
@@ -121,7 +129,7 @@ func updateNode(parent *DataBranch, child DataNode) error {
 	parent.children = append(parent.children, nil)
 	copy(parent.children[i+1:], parent.children[i:])
 	parent.children[i] = child
-	child.setParent(parent, key)
+	setParent(child, parent, key)
 	return nil
 }
 
@@ -152,7 +160,7 @@ func deleteNode(parent DataNode, child DataNode) error {
 		if p.children[i] == child {
 			c := p.children[i]
 			p.children = append(p.children[:i], p.children[:i+1]...)
-			c.setParent(nil, "")
+			setParent(c, nil, "")
 			return nil
 		}
 	}
@@ -280,11 +288,6 @@ type DataBranch struct {
 func (branch *DataBranch) IsYangDataNode()     {}
 func (branch *DataBranch) Schema() *yang.Entry { return branch.schema }
 func (branch *DataBranch) Parent() DataNode    { return branch.parent }
-func (branch *DataBranch) setParent(parent DataNode, key string) {
-	branch.parent = parent
-	branch.key = key
-}
-
 func (branch *DataBranch) Value() interface{} {
 	return nil
 }
@@ -381,9 +384,9 @@ func (branch *DataBranch) Insert(child DataNode) error {
 	// replace the data node if it is exists or add the child.
 	if i < length && branch.children[i].Key() == key &&
 		!IsDuplicatedList(branch.children[i].Schema()) {
-		branch.children[i].setParent(nil, "")
+		setParent(branch.children[i], nil, "")
 		branch.children[i] = child
-		child.setParent(branch, key)
+		setParent(child, branch, key)
 		return nil
 	} else {
 		for ; i < length; i++ {
@@ -395,7 +398,7 @@ func (branch *DataBranch) Insert(child DataNode) error {
 	branch.children = append(branch.children, nil)
 	copy(branch.children[i+1:], branch.children[i:])
 	branch.children[i] = child
-	child.setParent(branch, key)
+	setParent(child, branch, key)
 	return nil
 }
 
@@ -463,11 +466,9 @@ type DataLeaf struct {
 	value  interface{}
 }
 
-func (leaf *DataLeaf) IsYangDataNode()                       {}
-func (leaf *DataLeaf) Schema() *yang.Entry                   { return leaf.schema }
-func (leaf *DataLeaf) setParent(parent DataNode, key string) { leaf.parent = parent }
-
-func (leaf *DataLeaf) Parent() DataNode { return leaf.parent }
+func (leaf *DataLeaf) IsYangDataNode()     {}
+func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
+func (leaf *DataLeaf) Parent() DataNode    { return leaf.parent }
 func (leaf *DataLeaf) String() string {
 	if leaf == nil {
 		return "leaf.null"
@@ -573,8 +574,6 @@ func (leaflist *DataLeafList) Schema() *yang.Entry {
 	}
 	return leaflist.schema
 }
-func (leaflist *DataLeafList) setParent(parent DataNode, key string) { leaflist.parent = parent }
-
 func (leaflist *DataLeafList) Parent() DataNode {
 	if leaflist == nil {
 		return nil
