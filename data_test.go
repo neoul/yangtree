@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -340,10 +341,10 @@ func TestDataNode(t *testing.T) {
 			// t.Log("Find", i, "", path[i], string(j))
 		}
 	}
-	// node := RootData.Find("/sample")
-	// // j, _ := node.MarshalJSON()
-	// j, _ := MarshalJSONIndent(node, "", " ", false)
-	// t.Log(string(j))
+
+	nodes := RootData.Get("sample")
+	fmt.Println(nodes[0].Get("single-key-list[list-key=AAA]"))
+	fmt.Println(nodes[0].Lookup("s"))
 
 	jj, err := MarshalJSONIndent(RootData, "", " ", false)
 	if err != nil {

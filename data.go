@@ -28,7 +28,8 @@ type DataNode interface {
 	// New() creates a cild using a key and values
 	New(key string, value ...string) (DataNode, error)
 
-	Get(key string) []DataNode // Get children having the key
+	Get(key string) []DataNode       // Get children having the key
+	Lookup(prefix string) []DataNode // Get all children that starts with prefix
 
 	Len() int                    // Len() returns the length of children
 	Index(key string) (int, int) // Index() finds all children and returns the indexes of them.
@@ -190,94 +191,6 @@ func indexNode(parent *DataBranch, key string, searchInOrder bool) (i, max int) 
 	return
 }
 
-func GenerateKey(schema *yang.Entry, attrs map[string]string) (string, int) {
-	switch {
-	case IsUniqueList(schema):
-		keyname := strings.Split(schema.Key, " ")
-		key := make([]string, 0, len(keyname)+1)
-		key = append(key, schema.Name)
-		for i := range keyname {
-			if a, ok := attrs[keyname[i]]; ok {
-				key = append(key, "["+keyname[i]+"="+a+"]")
-			} else {
-				break
-			}
-		}
-		return strings.Join(key, ""), len(attrs) - len(keyname)
-	default:
-		return schema.Name, 0
-	}
-}
-
-func parsePath(path *string, pos, length int) (prefix, pathelem string, end int, testAll bool, err error) {
-	begin := pos
-	end = pos
-	// insideBrackets is counted up when at least one '[' has been found.
-	// It is counted down when a closing ']' has been found.
-	insideBrackets := 0
-	beginBracket := 0
-	switch (*path)[end] {
-	case '/':
-		begin++
-	case '=': // ignore data string in path
-		end = length
-		return
-	case '[', ']':
-		end = length
-		err = fmt.Errorf("yangtree: path '%s' starts with bracket", *path)
-		return
-	}
-	end++
-	for end < length {
-		switch (*path)[end] {
-		case '/':
-			if insideBrackets <= 0 {
-				if pathelem == "" {
-					pathelem = (*path)[begin:end]
-				}
-				end++
-				return
-			}
-		case '[':
-			if (*path)[end-1] != '\\' {
-				if insideBrackets <= 0 {
-					beginBracket = end
-				}
-				insideBrackets++
-			}
-		case ']':
-			if (*path)[end-1] != '\\' {
-				insideBrackets--
-			}
-		case '*':
-			if insideBrackets == 1 {
-				if end+1 < length && (*path)[end-1:end+2] == "=*]" { // * wildcard inside key value
-					pathelem = (*path)[begin:beginBracket]
-					testAll = true
-				}
-			}
-		case '=':
-			if insideBrackets <= 0 {
-				if pathelem == "" {
-					pathelem = (*path)[begin:end]
-				}
-				end = length
-				return
-			}
-		case ':':
-			if insideBrackets <= 0 {
-				prefix = (*path)[begin:end]
-				begin = end + 1
-			}
-		}
-		end++
-	}
-	if pathelem == "" {
-		pathelem = (*path)[begin:end]
-	}
-	return
-}
-
 type DataBranch struct {
 	schema   *yang.Entry
 	parent   DataNode
@@ -293,7 +206,11 @@ func (branch *DataBranch) Value() interface{} {
 }
 
 func (branch *DataBranch) ValueString() string {
-	return ""
+	b, err := branch.MarshalJSON()
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 func (branch *DataBranch) Path() string {
@@ -311,9 +228,9 @@ func (branch *DataBranch) Path() string {
 
 func (branch *DataBranch) String() string {
 	if branch == nil {
-		return "branch.null"
+		return "branch.nil"
 	}
-	return "branch." + branch.schema.Name
+	return "branch." + branch.Key()
 }
 
 func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
@@ -407,14 +324,48 @@ func (branch *DataBranch) Delete(child DataNode) error {
 }
 
 func (branch *DataBranch) Get(key string) []DataNode {
-	if key == ".." {
-		return []DataNode{branch.parent}
-	} else if key == "." {
+	switch key {
+	case ".":
 		return []DataNode{branch}
+	case "..":
+		return []DataNode{branch.parent}
+	case "*":
+		return branch.children
+	case "...":
+		return findNode(branch, []*PathNode{
+			&PathNode{Name: "...", Select: PathSelectAllMatched}})
+	default:
+		i, max := indexNode(branch, key, false)
+		if i < max && max <= len(branch.children) {
+			return branch.children[i:max]
+		}
 	}
-	i, max := indexNode(branch, key, false)
-	if i < max && max <= len(branch.children) {
-		return branch.children[i:max]
+	return nil
+}
+
+func (branch *DataBranch) Lookup(prefix string) []DataNode {
+	switch prefix {
+	case ".":
+		return []DataNode{branch}
+	case "..":
+		return []DataNode{branch.parent}
+	case "*":
+		return branch.children
+	case "...":
+		return findNode(branch, []*PathNode{
+			&PathNode{Name: "...", Select: PathSelectAllMatched}})
+	default:
+		i, _ := indexNode(branch, prefix, false)
+		j := i
+		max := branch.Len()
+		for ; j < max; j++ {
+			if !strings.HasPrefix(branch.children[j].Key(), prefix) {
+				break
+			}
+		}
+		if i < j && j <= max {
+			return branch.children[i:j]
+		}
 	}
 	return nil
 }
@@ -471,7 +422,7 @@ func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
 func (leaf *DataLeaf) Parent() DataNode    { return leaf.parent }
 func (leaf *DataLeaf) String() string {
 	if leaf == nil {
-		return "leaf.null"
+		return "leaf.nil"
 	}
 	return "leaf." + leaf.schema.Name
 }
@@ -540,6 +491,10 @@ func (leaf *DataLeaf) Get(key string) []DataNode {
 	return nil
 }
 
+func (leaf *DataLeaf) Lookup(prefix string) []DataNode {
+	return nil
+}
+
 func (leaf *DataLeaf) Child(index int) DataNode {
 	return nil
 }
@@ -582,7 +537,7 @@ func (leaflist *DataLeafList) Parent() DataNode {
 }
 func (leaflist *DataLeafList) String() string {
 	if leaflist == nil {
-		return "leaf-list.null"
+		return "leaf-list.nil"
 	}
 	return "leaf-list." + leaflist.schema.Name
 }
@@ -682,6 +637,10 @@ func (leaflist *DataLeafList) Get(key string) []DataNode {
 	// if iindex < length && ValueToString(leaflist.value[iindex]) == key {
 	// 	return leaflist
 	// }
+	return nil
+}
+
+func (leaflist *DataLeafList) Lookup(prefix string) []DataNode {
 	return nil
 }
 
