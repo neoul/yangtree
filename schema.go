@@ -339,7 +339,7 @@ func GetQName(entry *yang.Entry) (string, bool) {
 	return "", false
 }
 
-// func KeyGen(entry *yang.Entry, attr map[string]string) (string, bool, error) {
+// func keyGen(entry *yang.Entry, attr map[string]string) (string, bool, error) {
 // 	for k := range attr {
 // 		if entry.Dir[k] == nil {
 // 			return "", false, fmt.Errorf("yangtree: unknown attribute %v", k)

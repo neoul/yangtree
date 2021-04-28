@@ -3,13 +3,14 @@ package yangtree
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 
+	"github.com/antonmedv/expr"
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
 type PathSelect int
-type PathPredicates int
 
 const (
 	PathSelectChild       PathSelect = iota // path will select children by name
@@ -18,13 +19,6 @@ const (
 	PathSelectAllMatched                    // if the path starts with `//` or `...`
 	PathSelectParent                        // if the path starts with `..`
 	PathSelectAllChildren                   // Wildcard '*'
-
-	PathPredicateNone         PathPredicates = iota
-	PathPredicatePosition                    // position()
-	PathPredicatePositionLast                // position()
-	PathPredicateNumeric                     // p[1] (p[position()=1]), p[last()] (p[position()=last()])
-	PathPredicateCondition
-	PathPredicateEl
 )
 
 // Predicate order is significant
@@ -35,6 +29,10 @@ type PathNode struct {
 	Value      string
 	Select     PathSelect
 	Predicates []string
+}
+
+type PathPredicateEnv struct {
+	Expression string
 }
 
 var (
@@ -48,20 +46,12 @@ var (
 		"descendant-or-self::node()": PathSelectAllMatched,
 		"child::node()":              PathSelectChild,
 	}
-	// predicatesKeyword *gtrie.Trie
+	predicateFunc map[string]*PathPredicateEnv = map[string]*PathPredicateEnv{
+		"position": &PathPredicateEnv{Expression: "position()"},
+		"last":     &PathPredicateEnv{Expression: "last()"},
+		"count":    &PathPredicateEnv{Expression: "count()"},
+	}
 )
-
-func init() {
-	// predicatesKeyword = gtrie.New()
-	// keywords := []struct {
-	// 	keyword   string
-	// 	predicate PathPredicates
-	// }{
-	// 	{keyword: "position()", predicate: PathPredicatePosition},
-	// 	{keyword: "last()", predicate: PathPredicatePositionLast},
-	// 	{keyword: "count(", predicate: PathPredicatePositionLast},
-	// }
-}
 
 func updatePathSelect(pathnode *PathNode) *PathNode {
 	if s, ok := pathNodeKeyword[pathnode.Name]; ok {
@@ -168,41 +158,271 @@ func PredicatesMap(predicates []string) (map[string]string, error) {
 	return p, nil
 }
 
-func KeyGen(schema *yang.Entry, predicates []string) (string, error) {
+func keyGen(schema *yang.Entry, pathnode *PathNode) (string, int) {
+	numP := len(pathnode.Predicates)
 	switch {
-	case IsUniqueList(schema):
-		keyname := strings.Split(schema.Key, " ")
-		p := map[string]*PathNode{}
-		for j := range predicates {
-			pathnode, err := ParsePath(&predicates[j])
-			if err != nil {
-				return "", err
-			}
-			for _, n := range pathnode {
-				p[n.Name] = n
-			}
-		}
+	case IsUniqueList(schema) && numP > 0:
 		var key bytes.Buffer
 		key.WriteString(schema.Name)
-	Loop:
-		for i := range keyname {
-			pathnode, ok := p[keyname[i]]
-			if !ok {
-				break Loop
-			}
-			switch pathnode.Value {
-			case "*":
-				break Loop
-			default:
-				key.WriteString("[")
-				key.WriteString(keyname[i])
-				key.WriteString("=")
-				key.WriteString(pathnode.Value)
-				key.WriteString("]")
+		keyname := strings.Split(schema.Key, " ")
+		keylen := len(keyname)
+		remainedP := numP
+		if numP < keylen {
+			keylen = numP
+		}
+		for i := 0; i < keylen; i++ {
+			if strings.HasPrefix(pathnode.Predicates[i], keyname[i]+"=") {
+				rvalue := pathnode.Predicates[i][len(keyname[i]+"="):]
+				remainedP--
+				switch rvalue {
+				case "*":
+					return key.String(), remainedP
+				default:
+					key.WriteString("[")
+					key.WriteString(keyname[i])
+					key.WriteString("=")
+					key.WriteString(rvalue)
+					key.WriteString("]")
+				}
+			} else {
+				return key.String(), remainedP
 			}
 		}
-		return key.String(), nil
+		return key.String(), remainedP
 	default:
-		return schema.Name, nil
+		return schema.Name, numP
 	}
+}
+
+func tokenizePredicate(token []string, s *string, pos int) ([]string, int, error) {
+	var err error
+	length := len((*s))
+	if token == nil {
+		token = make([]string, 0, 6)
+	}
+	var w bytes.Buffer
+	isConst := false
+	for ; pos < length; pos++ {
+		if (*s)[pos] == '\'' {
+			if isConst {
+				token = append(token, w.String())
+				w.Reset()
+				isConst = false
+			} else {
+				isConst = true
+			}
+			continue
+		}
+		if isConst {
+			w.WriteByte((*s)[pos])
+			continue
+		}
+		switch (*s)[pos] {
+		case '@':
+			return nil, 0, fmt.Errorf("yangtree: xml attribute '%s' not supported", *s)
+		case ' ':
+		case '=':
+			if w.Len() > 0 {
+				token = append(token, w.String())
+				w.Reset()
+			}
+			token = append(token, (*s)[pos:pos+1])
+		case '(':
+			if w.Len() > 0 {
+				token = append(token, w.String())
+				w.Reset()
+			}
+			token = append(token, (*s)[pos:pos+1])
+			token, pos, err = tokenizePredicate(token, s, pos+1)
+			if err != nil {
+				return nil, 0, err
+			}
+			if (*s)[pos] != ')' {
+				return nil, 0, fmt.Errorf("yangtree: not terminated parenthesis in '%s'", *s)
+			}
+		case ')':
+			if w.Len() > 0 {
+				token = append(token, w.String())
+				w.Reset()
+			}
+			token = append(token, (*s)[pos:pos+1])
+			return token, pos, nil
+		case '!', '<', '>':
+			if pos+1 == length {
+				return nil, 0, fmt.Errorf("yangtree: invalid predicate syntax '%s'", (*s))
+			}
+			switch (*s)[pos : pos+2] {
+			case "<=", ">=", "!=":
+				if w.Len() > 0 {
+					token = append(token, w.String())
+					w.Reset()
+				}
+				token = append(token, (*s)[pos:pos+2])
+				pos++
+			default:
+				return nil, 0, fmt.Errorf("yangtree: invalid predicate syntax '%s'", (*s))
+			}
+		default:
+			w.WriteByte((*s)[pos])
+		}
+	}
+	if isConst {
+		return nil, 0, fmt.Errorf("yangtree: missing quotation in %s", *s)
+	}
+	if w.Len() > 0 {
+		token = append(token, w.String())
+		w.Reset()
+	}
+	if len(token) == 0 {
+		return nil, 0, fmt.Errorf("yangtree: empty predicate'")
+	}
+	return token, pos, nil
+}
+
+func getExpression(expression *bytes.Buffer, token []string, pos int) (int, error) {
+	var err error
+	lvalue := true
+	length := len(token)
+	if length == 1 {
+		if _, err := strconv.Atoi(token[0]); err == nil {
+			expression.WriteString("position()==")
+			expression.WriteString(token[0])
+			return 0, nil
+		}
+	}
+	for ; pos < length; pos++ {
+		switch token[pos] {
+		case "(":
+			expression.WriteString("(")
+			pos, err = getExpression(expression, token, pos+1)
+			if err != nil {
+				return pos, err
+			}
+			if token[pos] != ")" {
+				return pos, fmt.Errorf("yangtree: not terminated parenthesis in '%s'", strings.Join(token, ""))
+			}
+			expression.WriteString(")")
+		case "or":
+			expression.WriteString("||")
+		case "and":
+			expression.WriteString("&&")
+		case ")":
+			return pos, nil
+		case "=":
+			expression.WriteString("==")
+		case ">=", "<=", "!=":
+			expression.WriteString(token[pos])
+		default:
+			if _, ok := predicateFunc[token[pos]]; ok {
+				if pos+1 < length {
+					if token[pos+1] == "(" {
+						expression.WriteString(token[pos])
+						break
+					}
+				}
+			}
+
+			if lvalue {
+				expression.WriteString(`value(node(), "`)
+				expression.WriteString(token[pos])
+				expression.WriteString(`")`)
+				lvalue = false
+			} else {
+				expression.WriteString(`"`)
+				expression.WriteString(token[pos])
+				expression.WriteString(`"`)
+				lvalue = true
+			}
+		}
+	}
+	return pos, nil
+}
+
+func predicateValue(parent DataNode, name string) string {
+	nodes := parent.Get(name)
+	if len(nodes) > 0 {
+		return nodes[0].ValueString()
+	}
+	return ""
+}
+
+func predicateResult(value interface{}) bool {
+	switch v := value.(type) {
+	case string:
+		if v != "" {
+			return true
+		} else {
+			return false
+		}
+	case bool:
+		return v
+	case int:
+		if v == 0 {
+			return false
+		} else {
+			return true
+		}
+	}
+	return false
+}
+
+// GetByPredicates parses the input xpath and return a single element with its attrs.
+func GetByPredicates(root DataNode, pathnode *PathNode) ([]DataNode, error) {
+	cschema := GetSchema(root.Schema(), pathnode.Name)
+	if cschema == nil {
+		return nil, fmt.Errorf("yangtree: schema.%s not found from schema.%s",
+			pathnode.Name, root.Schema().Name)
+	}
+	branch, ok := root.(*DataBranch)
+	if !ok {
+		return nil, fmt.Errorf("yangtree: unable to get children from %s", root)
+	}
+	var pos, first, last int
+	key, numPreidicates := keyGen(cschema, pathnode)
+	first, last = indexNode(branch, key, true)
+	if numPreidicates > 0 {
+		var node DataNode
+		var expression bytes.Buffer
+		children := branch.children[first:last]
+		env := map[string]interface{}{
+			"node":     func() DataNode { return node },
+			"position": func() int { return pos + 1 },
+			"first":    func() int { return first + 1 },
+			"last":     func() int { return last },
+			"count":    func() int { return last - first },
+			"result":   predicateResult,
+			"value":    predicateValue,
+		}
+		for i := range pathnode.Predicates {
+			token, _, err := tokenizePredicate(nil, &(pathnode.Predicates[i]), 0)
+			if err != nil {
+				return nil, err
+			}
+			expression.WriteString("result(")
+			if _, err := getExpression(&expression, token, 0); err != nil {
+				return nil, err
+			}
+			expression.WriteString(")")
+			program, err := expr.Compile(expression.String(), expr.Env(env))
+			if err != nil {
+				return nil, fmt.Errorf("yangtree: predicate expression (%s) compile error  %v", expression.String(), err)
+			}
+			first, last = 0, len(children)
+			newchildren := make([]DataNode, 0, last)
+			for pos = 0; pos < last; pos++ {
+				node = children[pos]
+				ok, err := expr.Run(program, env)
+				if err != nil {
+					return nil, fmt.Errorf("yangtree: predicate expression (%s) running error  %v", expression.String(), err)
+				}
+				if ok.(bool) {
+					newchildren = append(newchildren, node)
+				}
+			}
+			children = newchildren
+			expression.Reset()
+		}
+		return children, nil
+	}
+	return branch.children[first:last], nil
 }

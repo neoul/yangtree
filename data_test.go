@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -84,7 +83,32 @@ func TestChildDataNodeListing(t *testing.T) {
 		"/sample/single-key-list[list-key=A1]/uint32-range",
 		"/sample/single-key-list[list-key=A12]/uint32-range",
 		"/sample/single-key-list[list-key=A123]/uint32-range",
+		"/sample/single-key-list[list-key=A122]/uint32-range",
 		"/sample/single-key-list[list-key=A1234]/uint32-range",
+		"/sample/single-key-list[list-key=A24]/uint32-range",
+		"/sample/single-key-list[list-key=A5]/empty-node",
+		"/sample/single-key-list[list-key=A3]/int8-range",
+		"/sample/single-key-list[list-key=A4]/decimal-range",
+
+		"/sample/single-key-list[list-key=A6]/uint64-node",
+		"/sample/single-key-list[list-key=A0]/uint64-node",
+		"/sample/multiple-key-list[str=first][integer=1]/ok",
+	}
+	for i := range input {
+		Set(RootData, input[i])
+	}
+	// sort.Strings(input)
+	// pretty.Print(input)
+
+	path := []string{
+		"/sample/*",
+		"/sample/single-key-list[list-key]",
+		"/sample/multiple-key-list[str=first]/ok",
+		"/sample/single-key-list[position()=last()]",
+		"/sample/single-key-list[2]",
+		// "/sample/single-key-list[list-key=A12]/uint32-range",
+		// "/sample/single-key-list[list-key=A123]/uint32-range",
+		// "/sample/single-key-list[list-key=A1234]/uint32-range",
 		// "/sample/single-key-list[list-key=A24]/uint32-range",
 		// "/sample/single-key-list[list-key=A3]/int8-range",
 		// "/sample/single-key-list[list-key=A4]/decimal-range",
@@ -93,10 +117,18 @@ func TestChildDataNodeListing(t *testing.T) {
 		// "/sample/single-key-list[list-key=A0]/uint64-node",
 		// "/sample/multiple-key-list[str=first][integer=1]/ok",
 	}
-	for i := range input {
-		Set(RootData, input[i])
+	for i := range path {
+		node, err := Find(RootData, path[i])
+		if err != nil {
+			t.Errorf("Find() path %v error = %v", path[i], err)
+		}
+		t.Logf("Find(%s)", path[i])
+		for j := range node {
+			t.Logf(" - %s, %s (%p)", node[j].Path(), node[j], node[j])
+			// j, _ := MarshalJSON(node[j], true)
+			// t.Log("Find", i, "", path[i], string(j))
+		}
 	}
-	// Find(RootData, "/sample")
 }
 
 func TestDataNode(t *testing.T) {
@@ -336,16 +368,16 @@ func TestDataNode(t *testing.T) {
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 
 	path := []string{
-		// "/sample/multiple-key-list[str=first][integer=*]/ok",
-		// "/sample/single-key-list[list-key=AAA]/list-key",
-		// "/sample/single-key-list[list-key=AAA]",
-		// "/sample/single-key-list[list-key=*]",
-		// "/sample/single-key-list/*",
-		// "/sample/*",
-		// "/sample/...",
-		// "/sample/.../enum-val",
-		// "/sample/*/*/",
-		// "/sample//non-key-list",
+		"/sample/multiple-key-list[str=first][integer=*]/ok",
+		"/sample/single-key-list[list-key=AAA]/list-key",
+		"/sample/single-key-list[list-key=AAA]",
+		"/sample/single-key-list[list-key=*]",
+		"/sample/single-key-list/*",
+		"/sample/*",
+		"/sample/...",
+		"/sample/.../enum-val",
+		"/sample/*/*/",
+		"/sample//non-key-list",
 		"/sample/multiple-key-list[str=first][integer=*]",
 		"/sample/multiple-key-list",
 	}
@@ -363,8 +395,8 @@ func TestDataNode(t *testing.T) {
 	}
 
 	nodes := RootData.Get("sample")
-	fmt.Println(nodes[0].Get("single-key-list[list-key=AAA]"))
-	fmt.Println(nodes[0].Lookup("s"))
+	t.Log(nodes[0].Get("single-key-list[list-key=AAA]"))
+	t.Log(nodes[0].Lookup("s"))
 
 	jj, err := MarshalJSONIndent(RootData, "", " ", false)
 	if err != nil {
