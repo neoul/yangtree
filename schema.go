@@ -422,6 +422,9 @@ func updateSchemaEntry(parent, entry *yang.Entry, current *yang.Module, modules 
 		pmeta.Dir[entry.Prefix.Name+":"+entry.Name] = entry
 		pmeta.Dir[module.Name+":"+entry.Name] = entry
 		pmeta.Dir[entry.Name] = entry
+		pmeta.Dir["."] = entry
+		pmeta.Dir[""] = entry
+		pmeta.Dir[".."] = GetPresentParentSchema(entry)
 	}
 	if err := updateSchemaMetaForType(entry, entry.Type); err != nil {
 		return err
@@ -539,18 +542,22 @@ func GetSchema(entry *yang.Entry, name string) *yang.Entry {
 		return nil
 	}
 	var child *yang.Entry
-	switch name {
-	case "", ".":
-		return entry
-	case "..":
-		child = entry.Parent
-	default:
-		// child = entry.Dir[name]
-		if meta := GetSchemaMeta(entry); meta != nil {
-			child = meta.Dir[name]
-		}
+	if meta := GetSchemaMeta(entry); meta != nil {
+		child = meta.Dir[name]
 	}
 	return child
+	// switch name {
+	// case "", ".":
+	// 	return entry
+	// case "..":
+	// 	child = entry.Parent
+	// default:
+	// 	// child = entry.Dir[name]
+	// 	if meta := GetSchemaMeta(entry); meta != nil {
+	// 		child = meta.Dir[name]
+	// 	}
+	// }
+	// return child
 }
 
 // GetPresentParentSchema is used to get the non-choice and non-case parent schema entry.
