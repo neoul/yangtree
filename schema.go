@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/openconfig/ygot/util"
 )
 
 type SchemaGlobalOption struct {
@@ -222,9 +224,6 @@ func setIdentityref(entry *yang.Entry, identityref map[string]string) error {
 }
 
 func getModule(entry *yang.Entry) *yang.Module {
-	if entry == nil || entry.Annotation == nil {
-		return nil
-	}
 	if data, ok := entry.Annotation["meta"]; ok {
 		if m, ok := data.(*SchemaMetadata); ok {
 			return m.Module
@@ -639,7 +638,9 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	return keyval, nil
 }
 
-func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
+// StringToValue converts string to the yangtree value
+// It also check the range, length and pattern of the schema.
+func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
 	switch typ.Kind {
 	case yang.Ystring, yang.Ybinary:
 		if len(typ.Range) > 0 {
@@ -653,7 +654,25 @@ func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interfa
 			if inrange {
 				return length.String(), nil
 			}
-			return nil, fmt.Errorf("out-of-range %v", typ.Range)
+			return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
+		}
+
+		// Check that the value satisfies any regex patterns.
+		patterns, isPOSIX := util.SanitizedPattern(typ)
+		for _, p := range patterns {
+			var r *regexp.Regexp
+			var err error
+			if isPOSIX {
+				r, err = regexp.CompilePOSIX(p)
+			} else {
+				r, err = regexp.Compile(p)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("pattern error: %v", err)
+			}
+			if !r.MatchString(value) {
+				return nil, fmt.Errorf("%q does not match regular expression pattern %q for schema %s", value, r, schema.Name)
+			}
 		}
 		return value, nil
 	case yang.Ybool:
@@ -663,7 +682,7 @@ func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interfa
 		} else if v == "false" {
 			return false, nil
 		} else {
-			return false, nil
+			return false, fmt.Errorf("'%v' is not boolean", value)
 		}
 	case yang.Yempty:
 		return nil, nil
@@ -680,7 +699,7 @@ func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interfa
 				}
 			}
 			if !inrange {
-				return nil, fmt.Errorf("out-of-range %v", typ.Range)
+				return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
 			}
 		}
 		n, err := number.Int()
@@ -707,12 +726,12 @@ func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interfa
 		}
 		return number, nil
 	case yang.Ybits, yang.Yenum:
-		emap := getEnum(entry)
+		emap := getEnum(schema)
 		if _, ok := emap[value]; ok {
 			return value, nil
 		}
 	case yang.Yidentityref:
-		imap := getIdentityref(entry)
+		imap := getIdentityref(schema)
 		if _, ok := imap[value]; ok {
 			return value, nil
 		}
@@ -735,11 +754,11 @@ func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interfa
 			if inrange {
 				return number, nil
 			}
-			return nil, fmt.Errorf("out-of-range %v", typ.Range)
+			return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := StringToValue(entry, typ.Type[i], value)
+			v, err := StringToValue(schema, typ.Type[i], value)
 			if err == nil {
 				return v, nil
 			}
@@ -747,7 +766,7 @@ func StringToValue(entry *yang.Entry, typ *yang.YangType, value string) (interfa
 	case yang.Ynone:
 		break
 	}
-	return nil, fmt.Errorf("invalid type '%v' for '%s' (%v)", value, entry.Name, typ.Kind)
+	return nil, fmt.Errorf("invalid value '%v' for '%s'", value, schema.Name)
 }
 
 func ValueToString(value interface{}) string {

@@ -1,11 +1,12 @@
 package yangtree
 
 import (
+	"fmt"
 	"testing"
 )
 
 func TestNew(t *testing.T) {
-	RootSchema, err := Load([]string{"data"}, nil, nil)
+	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestChildDataNodeListing(t *testing.T) {
-	RootSchema, err := Load([]string{"data"}, nil, nil)
+	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestChildDataNodeListing(t *testing.T) {
 }
 
 func TestDataNode(t *testing.T) {
-	RootSchema, err := Load([]string{"data"}, nil, nil)
+	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +272,7 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
-				path:  "/sample/multiple-key-list[str=second][integer=2]/str",
+				path:  "/sample/multiple-key-list[sample:str=second][integer=2]/str",
 				value: []string{"second"},
 			},
 			wantInsertErr: false,
@@ -369,7 +370,7 @@ func TestDataNode(t *testing.T) {
 
 	path := []string{
 		"/sample/multiple-key-list[str=first][integer=*]/ok",
-		"/sample/single-key-list[list-key=AAA]/list-key",
+		"/sample/single-key-list[sample:list-key=AAA]/list-key",
 		"/sample/single-key-list[list-key=AAA]",
 		"/sample/single-key-list[list-key=*]",
 		"/sample/single-key-list/*",
@@ -422,4 +423,85 @@ func TestDataNode(t *testing.T) {
 	}
 	t.Log(string(jsonietf))
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+}
+
+func TestComplexModel(t *testing.T) {
+	rootschema, err := Load(
+		[]string{
+			"data/modules/choice-case-example.yang",
+			"data/modules/pattern.yang",
+			"data/modules/openconfig-simple-target.yang",
+			"data/modules/openconfig-simple-augment.yang",
+		}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootdata, err := New(rootschema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	simpleChoiceCase, err := rootdata.New("simple-choice-case")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = simpleChoiceCase.New("a", "a.value")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = simpleChoiceCase.New("b", "b.value")
+	if err != nil {
+		t.Error(err)
+	}
+	choiceCaseAnonymousCase, err := rootdata.New("choice-case-anonymous-case")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = choiceCaseAnonymousCase.New("foo/a", "a.value")
+	if err == nil {
+		t.Error("choice and case should not be present in the tree.")
+	}
+	_, err = choiceCaseAnonymousCase.New("a", "a.value")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = choiceCaseAnonymousCase.New("b", "b.value")
+	if err != nil {
+		t.Error(err)
+	}
+	choiceCaseWithLeafref, err := rootdata.New("choice-case-with-leafref")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = choiceCaseWithLeafref.New("referenced", "referenced.value")
+	if err != nil {
+		t.Error(err)
+	}
+	node, err := choiceCaseWithLeafref.New("ptr", "ok?")
+	if err != nil {
+		t.Error(err)
+	}
+	if err = Validate(node); err == nil {
+		t.Error("leafref value must be present in the tree.")
+	}
+	node, err = choiceCaseWithLeafref.New("ptr", "referenced.value")
+	if err != nil {
+		t.Error(err)
+	}
+	if err = Validate(node); err != nil {
+		t.Error(err)
+	}
+
+	if _, err = rootdata.New("pattern-type", "x"); err == nil {
+		t.Error(err)
+	}
+	if _, err = rootdata.New("pattern-type", "abc"); err != nil {
+		t.Error(err)
+	}
+
+	j, err := rootdata.MarshalJSON()
+	if err != nil {
+		t.Error(err)
+	}
+
+	fmt.Println(string(j))
 }

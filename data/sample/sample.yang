@@ -1,5 +1,5 @@
 module sample {
-  prefix "net";
+  prefix "simple";
   namespace "urn:network";
   // meta
   organization "sample model";

@@ -28,6 +28,7 @@ type DataNode interface {
 	// New() creates a cild using a key and values
 	// key is the element of xpath combined with xpath predicates.
 	// For example, /interfaces/interface[name=VALUE]
+	// It also check the validation of the creating child data node for the range, length and pattern.
 	New(key string, value ...string) (DataNode, error)
 
 	Exist(key string) bool
@@ -49,6 +50,8 @@ type DataNode interface {
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
 
 	UnmarshalJSON([]byte) error // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
+
+	Find(path string) ([]DataNode, error)
 }
 
 func LoopInOrder(n int, f func(int) bool) int {
@@ -437,6 +440,18 @@ func (branch *DataBranch) Key() string {
 	}
 }
 
+// Find data nodes using the path
+func (branch *DataBranch) Find(path string) ([]DataNode, error) {
+	if !isValid(branch) {
+		return nil, fmt.Errorf("yangtree: invalid branch node")
+	}
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return nil, err
+	}
+	return findNode(branch, pathnode), nil
+}
+
 type DataLeaf struct {
 	schema *yang.Entry
 	parent DataNode
@@ -542,6 +557,18 @@ func (leaf *DataLeaf) Key() string {
 		return ""
 	}
 	return leaf.schema.Name
+}
+
+// Find data nodes using the path
+func (leaf *DataLeaf) Find(path string) ([]DataNode, error) {
+	if !isValid(leaf) {
+		return nil, fmt.Errorf("yangtree: invalid leaf node")
+	}
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return nil, err
+	}
+	return findNode(leaf, pathnode), nil
 }
 
 // DataLeafList (leaf-list data node)
@@ -696,6 +723,18 @@ func (leaflist *DataLeafList) Key() string {
 		return ""
 	}
 	return leaflist.schema.Name
+}
+
+// Find data nodes using the path
+func (leaflist *DataLeafList) Find(path string) ([]DataNode, error) {
+	if !isValid(leaflist) {
+		return nil, fmt.Errorf("yangtree: invalid leaflist node")
+	}
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return nil, err
+	}
+	return findNode(leaflist, pathnode), nil
 }
 
 func newChild(parent *DataBranch, pathnode *PathNode, value ...string) (DataNode, error) {
@@ -993,7 +1032,7 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 			return nil
 		}
 	}
-	node, err := GetByPredicates(root, pathnode[0])
+	node, err := getByPredicates(root, pathnode[0])
 	if err != nil {
 		return nil
 	}
@@ -1003,7 +1042,7 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 	return children
 }
 
-// Find data nodes using simple path
+// Find data nodes using the path
 func Find(root DataNode, path string) ([]DataNode, error) {
 	if !isValid(root) {
 		return nil, fmt.Errorf("yangtree: invalid root node")
@@ -1012,5 +1051,6 @@ func Find(root DataNode, path string) ([]DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
+	// pretty.Print(pathnode)
 	return findNode(root, pathnode), nil
 }

@@ -170,10 +170,19 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, int) {
 		if numP < keylen {
 			keylen = numP
 		}
+
 		for i := 0; i < keylen; i++ {
-			if strings.HasPrefix(pathnode.Predicates[i], keyname[i]+"=") {
-				rvalue := pathnode.Predicates[i][len(keyname[i]+"="):]
+			d := strings.IndexAny(pathnode.Predicates[i], "=")
+			if d < 0 {
+				return key.String(), remainedP
+			}
+			name := pathnode.Predicates[i][:d]
+			if strings.HasSuffix(name, keyname[i]) {
 				remainedP--
+				if cschema := GetSchema(schema, name); cschema == nil {
+					return key.String(), remainedP
+				}
+				rvalue := pathnode.Predicates[i][d+1:]
 				switch rvalue {
 				case "*":
 					return key.String(), remainedP
@@ -338,7 +347,7 @@ func getExpression(expression *bytes.Buffer, token []string, pos int) (int, erro
 	return pos, nil
 }
 
-func predicateValue(parent DataNode, name string) string {
+func predicateFuncValue(parent DataNode, name string) string {
 	nodes := parent.Get(name)
 	if len(nodes) > 0 {
 		return nodes[0].ValueString()
@@ -346,7 +355,7 @@ func predicateValue(parent DataNode, name string) string {
 	return ""
 }
 
-func predicateResult(value interface{}) bool {
+func predicateFuncResult(value interface{}) bool {
 	switch v := value.(type) {
 	case string:
 		if v != "" {
@@ -366,8 +375,8 @@ func predicateResult(value interface{}) bool {
 	return false
 }
 
-// GetByPredicates parses the input xpath and return a single element with its attrs.
-func GetByPredicates(root DataNode, pathnode *PathNode) ([]DataNode, error) {
+// getByPredicates parses the input xpath and return a single element with its attrs.
+func getByPredicates(root DataNode, pathnode *PathNode) ([]DataNode, error) {
 	cschema := GetSchema(root.Schema(), pathnode.Name)
 	if cschema == nil {
 		return nil, fmt.Errorf("yangtree: schema.%s not found from schema.%s",
@@ -378,9 +387,9 @@ func GetByPredicates(root DataNode, pathnode *PathNode) ([]DataNode, error) {
 		return nil, fmt.Errorf("yangtree: unable to get children from %s", root)
 	}
 	var pos, first, last int
-	key, numPreidicates := keyGen(cschema, pathnode)
+	key, remainedPredicates := keyGen(cschema, pathnode)
 	first, last = indexNode(branch, key, true)
-	if numPreidicates > 0 {
+	if remainedPredicates > 0 {
 		var node DataNode
 		var expression bytes.Buffer
 		children := branch.children[first:last]
@@ -390,8 +399,8 @@ func GetByPredicates(root DataNode, pathnode *PathNode) ([]DataNode, error) {
 			"first":    func() int { return first + 1 },
 			"last":     func() int { return last },
 			"count":    func() int { return last - first },
-			"result":   predicateResult,
-			"value":    predicateValue,
+			"result":   predicateFuncResult,
+			"value":    predicateFuncValue,
 		}
 		for i := range pathnode.Predicates {
 			token, _, err := tokenizePredicate(nil, &(pathnode.Predicates[i]), 0)

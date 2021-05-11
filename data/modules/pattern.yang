@@ -1,0 +1,11 @@
+module pattern {
+  prefix "p";
+  namespace "urn:p";
+
+  typedef ptype {
+    type string {
+      pattern "a.*";
+    }
+  }
+  leaf pattern-type { type ptype; }
+}

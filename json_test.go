@@ -9,7 +9,7 @@ import (
 )
 
 func TestDataBranch_JSON(t *testing.T) {
-	RootSchema, err := Load([]string{"data"}, nil, nil)
+	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestDataBranch_JSON(t *testing.T) {
 }
 
 func TestDataBranch_JSON_IETF(t *testing.T) {
-	RootSchema, err := Load([]string{"data"}, nil, nil)
+	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
