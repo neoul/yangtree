@@ -742,13 +742,21 @@ func newChild(parent *DataBranch, pathnode *PathNode, value ...string) (DataNode
 	if cschema == nil {
 		return nil, fmt.Errorf("yangtree: schema.%s not fond from schema.%s", pathnode.Name, parent.schema.Name)
 	}
-	m, err := PredicatesMap(pathnode.Predicates)
+	m, err := PredicatesToValues(cschema, pathnode)
 	if err != nil {
 		return nil, err
 	}
+
 	child, err := New(cschema, value...)
 	if err != nil {
 		return nil, err
+	}
+	if !cschema.IsDir() {
+		if v, ok := m["."]; ok {
+			if err := child.Set(v); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if IsUniqueList(cschema) {
 		keyname := strings.Split(cschema.Key, " ")
@@ -868,13 +876,33 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	if cschema == nil {
 		return fmt.Errorf("yangtree: schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
 	}
-	key, _ := keyGen(cschema, pathnode[0])
-	i, max := root.Index(key)
+	branch, ok := root.(*DataBranch)
+	if !ok {
+		return fmt.Errorf("yangtree: unable to get children from %s", root)
+	}
+	var first, last int
+	key, remainedPredicates := keyGen(cschema, pathnode[0])
+	if remainedPredicates > 0 {
+		node, err := findByPredicates(branch, pathnode[0], first, last)
+		if err != nil {
+			return err
+		}
+		if len(node) != 0 {
+			for i := range node {
+				if err := setValue(node[i], pathnode[1:], value...); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+
+	first, last = indexNode(branch, key, true)
 	switch {
 	case IsDuplicatedList(cschema):
-		i = max // always created
+		first = last
 	}
-	if i == max {
+	if first == last {
 		child, err := newChild(root.(*DataBranch), pathnode[0])
 		if err != nil {
 			return err
@@ -885,8 +913,8 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		}
 		return err
 	}
-	for ; i < max; i++ {
-		if err := setValue(root.Child(i), pathnode[1:], value...); err != nil {
+	for ; first < last; first++ {
+		if err := setValue(root.Child(first), pathnode[1:], value...); err != nil {
 			return err
 		}
 	}
@@ -990,7 +1018,7 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 	if len(pathnode) == 0 {
 		return []DataNode{root}
 	}
-	var children []DataNode
+	var node, children []DataNode
 	switch pathnode[0].Select {
 	case PathSelectSelf:
 		return findNode(root, pathnode[1:])
@@ -1032,9 +1060,21 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 			return nil
 		}
 	}
-	node, err := getByPredicates(root, pathnode[0])
-	if err != nil {
+	cschema := GetSchema(root.Schema(), pathnode[0].Name)
+	if cschema == nil {
 		return nil
+	}
+	branch, ok := root.(*DataBranch)
+	if !ok {
+		return nil
+	}
+	var first, last int
+	key, remainedPredicates := keyGen(cschema, pathnode[0])
+	first, last = indexNode(branch, key, true)
+	if remainedPredicates > 0 {
+		node, _ = findByPredicates(branch, pathnode[0], first, last)
+	} else {
+		node = branch.children[first:last]
 	}
 	for i := range node {
 		children = append(children, findNode(node[i], pathnode[1:])...)

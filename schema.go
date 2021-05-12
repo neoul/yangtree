@@ -338,36 +338,6 @@ func GetQName(entry *yang.Entry) (string, bool) {
 	return "", false
 }
 
-// func keyGen(entry *yang.Entry, attr map[string]string) (string, bool, error) {
-// 	for k := range attr {
-// 		if entry.Dir[k] == nil {
-// 			return "", false, fmt.Errorf("yangtree: unknown attribute %v", k)
-// 		}
-// 	}
-// 	m, ok := entry.Annotation["meta"]
-// 	if !ok {
-// 		return "", false, fmt.Errorf("no metadata found")
-// 	}
-// 	if !entry.IsList() {
-// 		return entry.Name, false, nil
-// 	}
-// 	key := entry.Name
-// 	testAll := false
-// 	meta := m.(*SchemaMetadata)
-// 	if len(meta.KeyName) == 0 {
-// 		testAll = true
-// 	}
-// 	for i := range meta.KeyName {
-// 		if v, ok := attr[meta.KeyName[i]]; ok {
-// 			key = key + "[" + meta.KeyName[i] + "=" + v + "]"
-// 		} else {
-// 			testAll = true
-// 			break
-// 		}
-// 	}
-// 	return key, testAll, nil
-// }
-
 func updateSchemaEntry(parent, entry *yang.Entry, current *yang.Module, modules *yang.Modules) error {
 	if entry.Annotation == nil {
 		entry.Annotation = map[string]interface{}{}

@@ -144,16 +144,25 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	return node, nil
 }
 
-func PredicatesMap(predicates []string) (map[string]string, error) {
+func PredicatesToValues(schema *yang.Entry, pathnode *PathNode) (map[string]string, error) {
 	p := map[string]string{}
-	for j := range predicates {
-		pathnode, err := ParsePath(&predicates[j])
-		if err != nil {
-			return nil, err
+	// if len(pathnode.Predicates) == 1 {
+	// 	if _, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
+	// 		return nil, nil
+	// 	}
+	// }
+
+	for j := range pathnode.Predicates {
+		d := strings.IndexAny(pathnode.Predicates[j], "=")
+		if d < 0 {
+			return nil, fmt.Errorf("predicate %q is not value predicate", pathnode.Predicates[j])
 		}
-		for _, n := range pathnode {
-			p[n.Name] = n.Value
+		name := pathnode.Predicates[j][:d]
+		cschema := GetSchema(schema, name)
+		if cschema == nil {
+			return nil, fmt.Errorf("schema.%s not found from schema.%s", name, schema.Name)
 		}
+		p[cschema.Name] = pathnode.Predicates[j][d+1:]
 	}
 	return p, nil
 }
@@ -375,63 +384,48 @@ func predicateFuncResult(value interface{}) bool {
 	return false
 }
 
-// getByPredicates parses the input xpath and return a single element with its attrs.
-func getByPredicates(root DataNode, pathnode *PathNode) ([]DataNode, error) {
-	cschema := GetSchema(root.Schema(), pathnode.Name)
-	if cschema == nil {
-		return nil, fmt.Errorf("yangtree: schema.%s not found from schema.%s",
-			pathnode.Name, root.Schema().Name)
+func findByPredicates(branch *DataBranch, pathnode *PathNode, first, last int) ([]DataNode, error) {
+	var pos int
+	var node DataNode
+	var expression bytes.Buffer
+	children := branch.children[first:last]
+	env := map[string]interface{}{
+		"node":     func() DataNode { return node },
+		"position": func() int { return pos + 1 },
+		"first":    func() int { return first + 1 },
+		"last":     func() int { return last },
+		"count":    func() int { return last - first },
+		"result":   predicateFuncResult,
+		"value":    predicateFuncValue,
 	}
-	branch, ok := root.(*DataBranch)
-	if !ok {
-		return nil, fmt.Errorf("yangtree: unable to get children from %s", root)
-	}
-	var pos, first, last int
-	key, remainedPredicates := keyGen(cschema, pathnode)
-	first, last = indexNode(branch, key, true)
-	if remainedPredicates > 0 {
-		var node DataNode
-		var expression bytes.Buffer
-		children := branch.children[first:last]
-		env := map[string]interface{}{
-			"node":     func() DataNode { return node },
-			"position": func() int { return pos + 1 },
-			"first":    func() int { return first + 1 },
-			"last":     func() int { return last },
-			"count":    func() int { return last - first },
-			"result":   predicateFuncResult,
-			"value":    predicateFuncValue,
+	for i := range pathnode.Predicates {
+		token, _, err := tokenizePredicate(nil, &(pathnode.Predicates[i]), 0)
+		if err != nil {
+			return nil, err
 		}
-		for i := range pathnode.Predicates {
-			token, _, err := tokenizePredicate(nil, &(pathnode.Predicates[i]), 0)
-			if err != nil {
-				return nil, err
-			}
-			expression.WriteString("result(")
-			if _, err := getExpression(&expression, token, 0); err != nil {
-				return nil, err
-			}
-			expression.WriteString(")")
-			program, err := expr.Compile(expression.String(), expr.Env(env))
-			if err != nil {
-				return nil, fmt.Errorf("yangtree: predicate expression (%s) compile error  %v", expression.String(), err)
-			}
-			first, last = 0, len(children)
-			newchildren := make([]DataNode, 0, last)
-			for pos = 0; pos < last; pos++ {
-				node = children[pos]
-				ok, err := expr.Run(program, env)
-				if err != nil {
-					return nil, fmt.Errorf("yangtree: predicate expression (%s) running error  %v", expression.String(), err)
-				}
-				if ok.(bool) {
-					newchildren = append(newchildren, node)
-				}
-			}
-			children = newchildren
-			expression.Reset()
+		expression.WriteString("result(")
+		if _, err := getExpression(&expression, token, 0); err != nil {
+			return nil, err
 		}
-		return children, nil
+		expression.WriteString(")")
+		program, err := expr.Compile(expression.String(), expr.Env(env))
+		if err != nil {
+			return nil, fmt.Errorf("yangtree: predicate expression (%s) compile error  %v", expression.String(), err)
+		}
+		first, last = 0, len(children)
+		newchildren := make([]DataNode, 0, last)
+		for pos = 0; pos < last; pos++ {
+			node = children[pos]
+			ok, err := expr.Run(program, env)
+			if err != nil {
+				return nil, fmt.Errorf("yangtree: predicate expression (%s) running error  %v", expression.String(), err)
+			}
+			if ok.(bool) {
+				newchildren = append(newchildren, node)
+			}
+		}
+		children = newchildren
+		expression.Reset()
 	}
-	return branch.children[first:last], nil
+	return children, nil
 }
