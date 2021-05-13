@@ -165,13 +165,10 @@ func (branch *DataBranch) Path() string {
 	if branch == nil {
 		return ""
 	}
-	if branch.key == "" {
-		return ""
-	}
 	if branch.parent != nil {
-		return branch.parent.Path() + "/" + branch.key
+		return branch.parent.Path() + "/" + branch.Key()
 	}
-	return "/" + branch.key
+	return "/" + branch.Key()
 }
 
 func (branch *DataBranch) String() string {
@@ -182,9 +179,6 @@ func (branch *DataBranch) String() string {
 }
 
 func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
-	if !isValid(branch) {
-		return nil, fmt.Errorf("null branch node")
-	}
 	pathnode, err := ParsePath(&key)
 	if err != nil {
 		return nil, err
@@ -204,9 +198,6 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 }
 
 func (branch *DataBranch) Set(value ...string) error {
-	if !isValid(branch) {
-		return fmt.Errorf("null branch node")
-	}
 	for i := range value {
 		err := branch.UnmarshalJSON([]byte(value[i]))
 		if err != nil {
@@ -217,9 +208,6 @@ func (branch *DataBranch) Set(value ...string) error {
 }
 
 func (branch *DataBranch) Remove(value ...string) error {
-	if branch == nil {
-		return nil
-	}
 	if branch.parent == nil {
 		return nil
 	}
@@ -247,9 +235,6 @@ func (branch *DataBranch) Remove(value ...string) error {
 func (branch *DataBranch) Insert(child DataNode) error {
 	if !isValid(child) {
 		return fmt.Errorf("invalid child node")
-	}
-	if !isValid(branch) {
-		return fmt.Errorf("invalid parent node")
 	}
 	if child.Parent() != nil {
 		return fmt.Errorf("the node is already appended to a parent")
@@ -285,9 +270,6 @@ func (branch *DataBranch) Insert(child DataNode) error {
 }
 
 func (branch *DataBranch) Delete(child DataNode) error {
-	if isValid(branch) {
-		return fmt.Errorf("invalid branch node")
-	}
 	if isValid(child) {
 		return fmt.Errorf("invalid child node")
 	}
@@ -381,9 +363,6 @@ func (branch *DataBranch) Len() int {
 }
 
 func (branch *DataBranch) Key() string {
-	if !isValid(branch) {
-		return ""
-	}
 	if branch.parent != nil {
 		if branch.key == "" {
 			return branch.schema.Name
@@ -411,9 +390,6 @@ func (branch *DataBranch) Key() string {
 
 // Find data nodes using the path
 func (branch *DataBranch) Find(path string) ([]DataNode, error) {
-	if !isValid(branch) {
-		return nil, fmt.Errorf("invalid branch node")
-	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -522,17 +498,11 @@ func (leaf *DataLeaf) Len() int {
 }
 
 func (leaf *DataLeaf) Key() string {
-	if !isValid(leaf) {
-		return ""
-	}
 	return leaf.schema.Name
 }
 
 // Find data nodes using the path
 func (leaf *DataLeaf) Find(path string) ([]DataNode, error) {
-	if !isValid(leaf) {
-		return nil, fmt.Errorf("invalid leaf node")
-	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -591,9 +561,6 @@ func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error)
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
-	if !isValid(leaflist) {
-		return fmt.Errorf("null leaflist node")
-	}
 	if len(value) == 1 {
 		if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
 			return leaflist.UnmarshalJSON([]byte(value[0]))
@@ -620,9 +587,6 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 }
 
 func (leaflist *DataLeafList) Remove(value ...string) error {
-	if !isValid(leaflist) {
-		return fmt.Errorf("null leaflist node")
-	}
 	for i := range value {
 		length := len(leaflist.value)
 		index := sort.Search(length,
@@ -689,17 +653,11 @@ func (leaflist *DataLeafList) Exist(key string) bool {
 }
 
 func (leaflist *DataLeafList) Key() string {
-	if !isValid(leaflist) {
-		return ""
-	}
 	return leaflist.schema.Name
 }
 
 // Find data nodes using the path
 func (leaflist *DataLeafList) Find(path string) ([]DataNode, error) {
-	if !isValid(leaflist) {
-		return nil, fmt.Errorf("null leaflist node")
-	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
