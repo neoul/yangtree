@@ -196,7 +196,24 @@ func (leaflist *DataLeafList) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if leaflist == nil {
 		return nil, nil
 	}
-	// [FIXME] - need json encoding for each entry of leaflist
+	prefix := false
+	if rfc7951 != rfc7951Disabled {
+		prefix = true
+	}
+	var b bytes.Buffer
+	b.WriteString("[")
+	length := len(leaflist.value)
+	for i := 0; i < length; i++ {
+		valbyte, err := ValueToJSONValue(leaflist.schema, leaflist.schema.Type, leaflist.value[i], prefix)
+		if err != nil {
+			return nil, err
+		}
+		b.Write(valbyte)
+		if i < length-1 {
+			b.WriteString(",")
+		}
+	}
+	b.WriteString("]")
 	return json.Marshal(leaflist.value)
 }
 
@@ -355,7 +372,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 			}
 			return nil
 		}
-		return fmt.Errorf("unexpected json type '%T' for %s", jval, n)
+		return fmt.Errorf("unexpected json value %q for %s", jval, n)
 	case *DataLeaf:
 		valstr, err := JSONValueToString(jval)
 		if err != nil {
@@ -363,7 +380,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 		}
 		return n.Set(valstr)
 	default:
-		return fmt.Errorf("invalid data node type '%T'", node)
+		return fmt.Errorf("unknown data node type '%T'", node)
 	}
 }
 

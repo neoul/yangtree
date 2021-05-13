@@ -561,11 +561,11 @@ func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error)
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
-	if len(value) == 1 {
-		if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
-			return leaflist.UnmarshalJSON([]byte(value[0]))
-		}
-	}
+	// if len(value) == 1 {
+	// 	if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
+	// 		return leaflist.UnmarshalJSON([]byte(value[0]))
+	// 	}
+	// }
 	for i := range value {
 		length := len(leaflist.value)
 		index := sort.Search(length,
