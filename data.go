@@ -78,102 +78,14 @@ func setParent(node DataNode, parent *DataBranch, key string) {
 	switch c := node.(type) {
 	case *DataBranch:
 		c.parent = parent
-		c.key = key
+		if IsUniqueList(c.schema) {
+			c.key = key
+		}
 	case *DataLeaf:
 		c.parent = parent
 	case *DataLeafList:
 		c.parent = parent
 	}
-}
-
-// // updateNode() updates the first matched node or replaces it to the child if replace is true.
-// func updateNode(parent *DataBranch, child DataNode) error {
-// 	if !isValid(child) {
-// 		return fmt.Errorf("yangtree: invalid child node")
-// 	}
-// 	if !isValid(parent) {
-// 		return fmt.Errorf("yangtree: invalid parent node")
-// 	}
-// 	if child.Parent() != nil {
-// 		return fmt.Errorf("yangtree: the node is already appended to a parent")
-// 	}
-// 	if parent.schema != GetPresentParentSchema(child.Schema()) {
-// 		return fmt.Errorf("yangtree: '%s' is not a child of %s", child, parent)
-// 	}
-// 	length := len(parent.children)
-// 	key := child.Key()
-// 	i := sort.Search(length,
-// 		func(j int) bool {
-// 			return key <= parent.children[j].Key()
-// 		})
-// 	// it just upates the first matched node.
-// 	// if not matched, it inserts the child to the proper location.
-// 	if i < length && parent.children[i].Key() == key && !IsDuplicatedList(parent.children[i].Schema()) {
-// 		dest := parent.children[i]
-// 		if dest.Schema() != child.Schema() {
-// 			return fmt.Errorf("yangtree: unable to update different schema data")
-// 		}
-// 		switch node := child.(type) {
-// 		case *DataLeaf, *DataLeafList:
-// 			return dest.Set(child.ValueString())
-// 		case *DataBranch:
-// 			d, ok := dest.(*DataBranch)
-// 			if !ok {
-// 				return fmt.Errorf("yangtree: unable to update type mismatched node")
-// 			}
-// 			for j := range node.children {
-// 				if err := updateNode(d, node.children[j]); err != nil {
-// 					return err
-// 				}
-// 			}
-// 		}
-// 		return nil
-// 	} else {
-// 		for ; i < length; i++ {
-// 			if parent.children[i].Key() > key {
-// 				break
-// 			}
-// 		}
-// 	}
-// 	parent.children = append(parent.children, nil)
-// 	copy(parent.children[i+1:], parent.children[i:])
-// 	parent.children[i] = child
-// 	setParent(child, parent, key)
-// 	return nil
-// }
-
-func deleteNode(parent DataNode, child DataNode) error {
-	if isValid(child) {
-		return fmt.Errorf("yangtree: invalid child node")
-	}
-	if isValid(parent) {
-		return fmt.Errorf("yangtree: invalid parent node")
-	}
-	if child.Parent() == nil {
-		return fmt.Errorf("yangtree: '%s' is already removed from a parent", child)
-	}
-	p, ok := parent.(*DataBranch)
-	if !ok {
-		return fmt.Errorf("yangtree: unable to remove a child a non-branch node")
-	}
-	if p.schema != GetPresentParentSchema(child.Schema()) {
-		return fmt.Errorf("yangtree: '%s' is not a child of %s", child, p)
-	}
-	length := len(p.children)
-	key := child.Key()
-	i := sort.Search(length,
-		func(j int) bool {
-			return key <= p.children[j].Key()
-		})
-	if i < length {
-		if p.children[i] == child {
-			c := p.children[i]
-			p.children = append(p.children[:i], p.children[:i+1]...)
-			setParent(c, nil, "")
-			return nil
-		}
-	}
-	return fmt.Errorf("yangtree: %s not found on delete", child)
 }
 
 // indexRange() returns the index of a child related to the key
@@ -363,7 +275,35 @@ func (branch *DataBranch) Insert(child DataNode) error {
 }
 
 func (branch *DataBranch) Delete(child DataNode) error {
-	return deleteNode(branch, child)
+	if isValid(branch) {
+		return fmt.Errorf("yangtree: invalid branch node")
+	}
+	if isValid(child) {
+		return fmt.Errorf("yangtree: invalid child node")
+	}
+
+	if child.Parent() == nil {
+		return fmt.Errorf("yangtree: '%s' is already removed from a branch", child)
+	}
+
+	if branch.schema != GetPresentParentSchema(child.Schema()) {
+		return fmt.Errorf("yangtree: '%s' is not a child of %s", child, branch)
+	}
+	length := len(branch.children)
+	key := child.Key()
+	i := sort.Search(length,
+		func(j int) bool {
+			return key <= branch.children[j].Key()
+		})
+	if i < length {
+		if branch.children[i] == child {
+			c := branch.children[i]
+			branch.children = append(branch.children[:i], branch.children[:i+1]...)
+			setParent(c, nil, "")
+			return nil
+		}
+	}
+	return fmt.Errorf("yangtree: %s not found on delete", child)
 }
 
 func (branch *DataBranch) Exist(key string) bool {
@@ -453,6 +393,9 @@ func (branch *DataBranch) Key() string {
 		return ""
 	}
 	if branch.parent != nil {
+		if branch.key == "" {
+			return branch.schema.Name
+		}
 		return branch.key
 	}
 	switch {
