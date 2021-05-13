@@ -187,7 +187,7 @@ func getEnum(entry *yang.Entry) map[string]int64 {
 
 func setEnum(entry *yang.Entry, enum map[string]int64) error {
 	if entry == nil || entry.Annotation == nil {
-		return fmt.Errorf("yangtree: nil entry or annotation for setting enum")
+		return fmt.Errorf("nil entry or annotation for setting enum")
 	}
 	if data, ok := entry.Annotation["meta"]; ok {
 		if m, ok := data.(*SchemaMetadata); ok {
@@ -195,7 +195,7 @@ func setEnum(entry *yang.Entry, enum map[string]int64) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("yangtree: no schema meta data for setting enum")
+	return fmt.Errorf("no schema meta data for setting enum")
 }
 
 func getIdentityref(entry *yang.Entry) map[string]string {
@@ -212,7 +212,7 @@ func getIdentityref(entry *yang.Entry) map[string]string {
 
 func setIdentityref(entry *yang.Entry, identityref map[string]string) error {
 	if entry == nil || entry.Annotation == nil {
-		return fmt.Errorf("yangtree: nil entry or annotation for setting identityref")
+		return fmt.Errorf("nil entry or annotation for setting identityref")
 	}
 	if data, ok := entry.Annotation["meta"]; ok {
 		if m, ok := data.(*SchemaMetadata); ok {
@@ -220,7 +220,7 @@ func setIdentityref(entry *yang.Entry, identityref map[string]string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("yangtree: no schema meta data for setting identityref")
+	return fmt.Errorf("no schema meta data for setting identityref")
 }
 
 func getModule(entry *yang.Entry) *yang.Module {
@@ -375,7 +375,7 @@ func updateSchemaEntry(parent, entry *yang.Entry, current *yang.Module, modules 
 				}
 			}
 			if parent == nil {
-				return fmt.Errorf("yangtree: updating schema tree failed")
+				return fmt.Errorf("updating schema tree failed")
 			}
 		}
 		if parent.Annotation == nil {
@@ -421,9 +421,9 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 	}
 	if errors := ms.Process(); len(errors) > 0 {
 		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "yangtree: yang loading error: %v\n", e)
+			fmt.Fprintf(os.Stderr, "yang loading error: %v\n", e)
 		}
-		return nil, fmt.Errorf("yangtree: yang loading failed with %d errors", len(errors))
+		return nil, fmt.Errorf("yang loading failed with %d errors", len(errors))
 	}
 	// Keep track of the top level modules we read in.
 	// Those are the only modules we want to print below.
@@ -455,7 +455,7 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 				if same, ok := root.Dir[entry.Name]; ok {
 					mo := getModule(same)
 					return nil, fmt.Errorf(
-						"yangtree: multiple top-level nodes are defined in %s and %s",
+						"multiple top-level nodes are defined in %s and %s",
 						mentry.Name, mo.Name)
 				}
 				entry.Parent = root
@@ -544,7 +544,7 @@ func GetPresentParentSchema(entry *yang.Entry) *yang.Entry {
 func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	length := len(keystr)
 	if length <= 0 {
-		return nil, fmt.Errorf("yangtree: extractkeys from empty keystr")
+		return nil, fmt.Errorf("extractkeys from empty keystr")
 	}
 	index := 0
 	begin := 0
@@ -561,7 +561,7 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 		begin = 1
 		insideBrackets++
 	case ']', '=':
-		return nil, fmt.Errorf("yangtree: extractkeys keystr '%s' starts with invalid char", keystr)
+		return nil, fmt.Errorf("extractkeys keystr '%s' starts with invalid char", keystr)
 	}
 	end++
 	// fmt.Println(keys, keystr)
@@ -594,11 +594,11 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 			end++
 		case '=':
 			if insideBrackets <= 0 {
-				return nil, fmt.Errorf("yangtree: invalid key format '%s'", keystr[begin:end])
+				return nil, fmt.Errorf("invalid key format '%s'", keystr[begin:end])
 			} else if insideBrackets == 1 {
 				if begin < end {
 					if keys[index] != keystr[begin:end] {
-						return nil, fmt.Errorf("yangtree: invalid key '%s'", keystr[begin:end])
+						return nil, fmt.Errorf("invalid key '%s'", keystr[begin:end])
 					}
 					index++
 					begin = end + 1
@@ -610,7 +610,7 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 		}
 	}
 	if len(keys) != index {
-		return nil, fmt.Errorf("yangtree: invalid key '%s'", keystr)
+		return nil, fmt.Errorf("invalid key '%s'", keystr)
 	}
 	return keyval, nil
 }

@@ -78,7 +78,7 @@ func ParsePath(path *string) ([]*PathNode, error) {
 		pathnode.Value = (*path)[end+1:]
 		return append(node, pathnode), nil
 	case '[', ']':
-		return nil, fmt.Errorf("yangtree: path '%s' starts with bracket", *path)
+		return nil, fmt.Errorf("path '%s' starts with bracket", *path)
 	}
 	end++
 	for end < length {
@@ -134,7 +134,7 @@ func ParsePath(path *string) ([]*PathNode, error) {
 		end++
 	}
 	if insideBrackets > 0 {
-		return nil, fmt.Errorf("yangtree: invalid path format '%s'", *path)
+		return nil, fmt.Errorf("invalid path format '%s'", *path)
 	}
 
 	if begin < end {
@@ -299,7 +299,7 @@ func tokenizePredicate(token []string, s *string, pos int) ([]string, int, error
 		}
 		switch (*s)[pos] {
 		case '@':
-			return nil, 0, fmt.Errorf("yangtree: xml attribute '%s' not supported", *s)
+			return nil, 0, fmt.Errorf("xml attribute '%s' not supported", *s)
 		case ' ':
 		case '=':
 			if w.Len() > 0 {
@@ -318,7 +318,7 @@ func tokenizePredicate(token []string, s *string, pos int) ([]string, int, error
 				return nil, 0, err
 			}
 			if (*s)[pos] != ')' {
-				return nil, 0, fmt.Errorf("yangtree: not terminated parenthesis in '%s'", *s)
+				return nil, 0, fmt.Errorf("not terminated parenthesis in '%s'", *s)
 			}
 		case ')':
 			if w.Len() > 0 {
@@ -329,7 +329,7 @@ func tokenizePredicate(token []string, s *string, pos int) ([]string, int, error
 			return token, pos, nil
 		case '!', '<', '>':
 			if pos+1 == length {
-				return nil, 0, fmt.Errorf("yangtree: invalid predicate syntax '%s'", (*s))
+				return nil, 0, fmt.Errorf("invalid predicate syntax '%s'", (*s))
 			}
 			switch (*s)[pos : pos+2] {
 			case "<=", ">=", "!=":
@@ -340,21 +340,21 @@ func tokenizePredicate(token []string, s *string, pos int) ([]string, int, error
 				token = append(token, (*s)[pos:pos+2])
 				pos++
 			default:
-				return nil, 0, fmt.Errorf("yangtree: invalid predicate syntax '%s'", (*s))
+				return nil, 0, fmt.Errorf("invalid predicate syntax '%s'", (*s))
 			}
 		default:
 			w.WriteByte((*s)[pos])
 		}
 	}
 	if isConst {
-		return nil, 0, fmt.Errorf("yangtree: missing quotation in %s", *s)
+		return nil, 0, fmt.Errorf("missing quotation in %s", *s)
 	}
 	if w.Len() > 0 {
 		token = append(token, w.String())
 		w.Reset()
 	}
 	if len(token) == 0 {
-		return nil, 0, fmt.Errorf("yangtree: empty predicate'")
+		return nil, 0, fmt.Errorf("empty predicate'")
 	}
 	return token, pos, nil
 }

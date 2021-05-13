@@ -253,7 +253,7 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 	for i := range listentry {
 		jentry, ok := listentry[i].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("yangtree: unexpected json type '%T' for %s", listentry[i], cschema.Name)
+			return fmt.Errorf("unexpected json type '%T' for %s", listentry[i], cschema.Name)
 		}
 		// check existent DataNode
 		var err error
@@ -304,7 +304,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 			for k, v := range jdata {
 				cschema := GetSchema(n.schema, k)
 				if cschema == nil {
-					return fmt.Errorf("yangtree: schema.%s not found from schema.%s", k, n.schema.Name)
+					return fmt.Errorf("schema.%s not found from schema.%s", k, n.schema.Name)
 				}
 				switch {
 				case IsList(cschema):
@@ -314,7 +314,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 						}
 					} else {
 						if IsDuplicatedList(cschema) {
-							return fmt.Errorf("yangtree: non-key list '%s' must have the array format of RFC7951", cschema.Name)
+							return fmt.Errorf("non-key list '%s' must have the array format of RFC7951", cschema.Name)
 						}
 						kname := ListKeyname(cschema)
 						kval := make([]string, 0, len(kname))
@@ -363,7 +363,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 		}
 		return n.Set(valstr)
 	default:
-		return fmt.Errorf("yangtree: invalid data node type '%T'", node)
+		return fmt.Errorf("invalid data node type '%T'", node)
 	}
 }
 

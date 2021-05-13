@@ -183,14 +183,14 @@ func (branch *DataBranch) String() string {
 
 func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 	if !isValid(branch) {
-		return nil, fmt.Errorf("yangtree: invalid branch node")
+		return nil, fmt.Errorf("invalid branch node")
 	}
 	pathnode, err := ParsePath(&key)
 	if err != nil {
 		return nil, err
 	}
 	if len(pathnode) == 0 {
-		return nil, fmt.Errorf("yangtree: invalid key inserted for new")
+		return nil, fmt.Errorf("invalid key inserted for new")
 	}
 	cschema := GetSchema(branch.schema, pathnode[0].Name)
 	if cschema == nil {
@@ -236,16 +236,16 @@ func (branch *DataBranch) Remove(value ...string) error {
 
 func (branch *DataBranch) Insert(child DataNode) error {
 	if !isValid(child) {
-		return fmt.Errorf("yangtree: invalid child node")
+		return fmt.Errorf("invalid child node")
 	}
 	if !isValid(branch) {
-		return fmt.Errorf("yangtree: invalid parent node")
+		return fmt.Errorf("invalid parent node")
 	}
 	if child.Parent() != nil {
-		return fmt.Errorf("yangtree: the node is already appended to a parent")
+		return fmt.Errorf("the node is already appended to a parent")
 	}
 	if branch.Schema() != GetPresentParentSchema(child.Schema()) {
-		return fmt.Errorf("yangtree: '%s' is not a child of %s", child, branch)
+		return fmt.Errorf("'%s' is not a child of %s", child, branch)
 	}
 	length := len(branch.children)
 	key := child.Key()
@@ -276,18 +276,18 @@ func (branch *DataBranch) Insert(child DataNode) error {
 
 func (branch *DataBranch) Delete(child DataNode) error {
 	if isValid(branch) {
-		return fmt.Errorf("yangtree: invalid branch node")
+		return fmt.Errorf("invalid branch node")
 	}
 	if isValid(child) {
-		return fmt.Errorf("yangtree: invalid child node")
+		return fmt.Errorf("invalid child node")
 	}
 
 	if child.Parent() == nil {
-		return fmt.Errorf("yangtree: '%s' is already removed from a branch", child)
+		return fmt.Errorf("'%s' is already removed from a branch", child)
 	}
 
 	if branch.schema != GetPresentParentSchema(child.Schema()) {
-		return fmt.Errorf("yangtree: '%s' is not a child of %s", child, branch)
+		return fmt.Errorf("'%s' is not a child of %s", child, branch)
 	}
 	length := len(branch.children)
 	key := child.Key()
@@ -303,7 +303,7 @@ func (branch *DataBranch) Delete(child DataNode) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("yangtree: %s not found on delete", child)
+	return fmt.Errorf("%s not found on delete", child)
 }
 
 func (branch *DataBranch) Exist(key string) bool {
@@ -420,7 +420,7 @@ func (branch *DataBranch) Key() string {
 // Find data nodes using the path
 func (branch *DataBranch) Find(path string) ([]DataNode, error) {
 	if !isValid(branch) {
-		return nil, fmt.Errorf("yangtree: invalid branch node")
+		return nil, fmt.Errorf("invalid branch node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -464,7 +464,7 @@ func (leaf *DataLeaf) ValueString() string {
 }
 
 func (leaf *DataLeaf) New(key string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("yangtree: insert not supported for %s", leaf)
+	return nil, fmt.Errorf("insert not supported for %s", leaf)
 }
 
 func (leaf *DataLeaf) Set(value ...string) error {
@@ -498,11 +498,11 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 }
 
 func (leaf *DataLeaf) Insert(child DataNode) error {
-	return fmt.Errorf("yangtree: insert not supported for %s", leaf)
+	return fmt.Errorf("insert not supported for %s", leaf)
 }
 
 func (leaf *DataLeaf) Delete(child DataNode) error {
-	return fmt.Errorf("yangtree: delete not supported for %s", leaf)
+	return fmt.Errorf("delete not supported for %s", leaf)
 }
 
 func (leaf *DataLeaf) Exist(key string) bool {
@@ -539,7 +539,7 @@ func (leaf *DataLeaf) Key() string {
 // Find data nodes using the path
 func (leaf *DataLeaf) Find(path string) ([]DataNode, error) {
 	if !isValid(leaf) {
-		return nil, fmt.Errorf("yangtree: invalid leaf node")
+		return nil, fmt.Errorf("invalid leaf node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -595,12 +595,12 @@ func (leaflist *DataLeafList) ValueString() string {
 }
 
 func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("yangtree: insert not supported for %s", leaflist)
+	return nil, fmt.Errorf("insert not supported for %s", leaflist)
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
 	if leaflist == nil {
-		return fmt.Errorf("yangtree: %s found on set", leaflist)
+		return fmt.Errorf("%s found on set", leaflist)
 	}
 	if len(value) == 1 {
 		if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
@@ -627,7 +627,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 
 func (leaflist *DataLeafList) Remove(value ...string) error {
 	if leaflist == nil {
-		return fmt.Errorf("yangtree: %s found on remove", leaflist)
+		return fmt.Errorf("%s found on remove", leaflist)
 	}
 	for i := range value {
 		length := len(leaflist.value)
@@ -652,11 +652,11 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 }
 
 func (leaflist *DataLeafList) Insert(child DataNode) error {
-	return fmt.Errorf("yangtree: insert not supported for %s", leaflist)
+	return fmt.Errorf("insert not supported for %s", leaflist)
 }
 
 func (leaflist *DataLeafList) Delete(child DataNode) error {
-	return fmt.Errorf("yangtree: delete not supported for %s", leaflist)
+	return fmt.Errorf("delete not supported for %s", leaflist)
 }
 
 func (leaflist *DataLeafList) Get(key string) []DataNode {
@@ -705,7 +705,7 @@ func (leaflist *DataLeafList) Key() string {
 // Find data nodes using the path
 func (leaflist *DataLeafList) Find(path string) ([]DataNode, error) {
 	if !isValid(leaflist) {
-		return nil, fmt.Errorf("yangtree: invalid leaflist node")
+		return nil, fmt.Errorf("invalid leaflist node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -765,7 +765,7 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 
 func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
-		return nil, fmt.Errorf("yangtree: schema.nil inserted for new")
+		return nil, fmt.Errorf("schema.nil inserted for new")
 	}
 	var err error
 	var newdata DataNode
@@ -817,7 +817,7 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return setValue(root, pathnode[1:], value...)
 	case PathSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("yangtree: the parent of %s is not present in the path", root)
+			return fmt.Errorf("the parent of %s is not present in the path", root)
 		}
 		root = root.Parent()
 		return setValue(root, pathnode[1:], value...)
@@ -908,7 +908,7 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 // If the target data node is a leaf or a leaf-list node, the value should be string.
 func Set(root DataNode, path string, value ...string) error {
 	if !isValid(root) {
-		return fmt.Errorf("yangtree: invalid root node")
+		return fmt.Errorf("invalid root node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -926,7 +926,7 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return deleteValue(root, pathnode[1:], value...)
 	case PathSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("yangtree: the parent of %s is not present in the path", root)
+			return fmt.Errorf("the parent of %s is not present in the path", root)
 		}
 		root = root.Parent()
 		return deleteValue(root, pathnode[1:], value...)
@@ -1002,7 +1002,7 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 
 func Delete(root DataNode, path string, value ...string) error {
 	if !isValid(root) {
-		return fmt.Errorf("yangtree: invalid root node")
+		return fmt.Errorf("invalid root node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -1082,7 +1082,7 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 // Find data nodes using the path
 func Find(root DataNode, path string) ([]DataNode, error) {
 	if !isValid(root) {
-		return nil, fmt.Errorf("yangtree: invalid root node")
+		return nil, fmt.Errorf("invalid root node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
