@@ -212,6 +212,68 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, int) {
 	}
 }
 
+func keyGenForSet(schema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
+	p := map[string]interface{}{}
+	if len(pathnode.Predicates) == 1 {
+		if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
+			if index <= 0 {
+				return "", nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
+			}
+			p["@index"] = index - 1
+			return pathnode.Name, p, nil
+		}
+	}
+	meta := GetSchemaMeta(schema)
+	for i := range pathnode.Predicates {
+		var name, value string
+		d := strings.IndexAny(pathnode.Predicates[i], "=")
+		if d < 0 {
+			name = pathnode.Predicates[i]
+			value = ""
+		} else {
+			name = pathnode.Predicates[i][:d]
+			value = pathnode.Predicates[i][d+1:]
+			if name == "." {
+				p["."] = value
+				continue
+			}
+		}
+		cschema, ok := meta.Dir[name]
+		if !ok {
+			return "", nil, fmt.Errorf("complex or invalid path predicate %q not supported", pathnode.Predicates[i])
+		}
+		p[cschema.Name] = value
+	}
+
+	switch {
+	case IsUniqueList(schema):
+		var key bytes.Buffer
+		key.WriteString(schema.Name)
+		keyname := strings.Split(schema.Key, " ")
+	LOOP:
+		for i := range keyname {
+			v, ok := p[keyname[i]]
+			if !ok {
+				p["@prefix"] = true
+				break LOOP
+			}
+			// delete(p, keyname[i])
+			value := v.(string)
+			// if value == "" || value == "*" {
+			// 	p["@present"] = true
+			// 	break LOOP
+			// }
+			key.WriteString("[")
+			key.WriteString(keyname[i])
+			key.WriteString("=")
+			key.WriteString(value)
+			key.WriteString("]")
+		}
+		return key.String(), p, nil
+	}
+	return pathnode.Name, p, nil
+}
+
 func tokenizePredicate(token []string, s *string, pos int) ([]string, int, error) {
 	var err error
 	length := len((*s))
@@ -317,7 +379,7 @@ func getExpression(expression *bytes.Buffer, token []string, pos int) (int, erro
 				return pos, err
 			}
 			if token[pos] != ")" {
-				return pos, fmt.Errorf("yangtree: not terminated parenthesis in '%s'", strings.Join(token, ""))
+				return pos, fmt.Errorf("not terminated parenthesis in '%s'", strings.Join(token, ""))
 			}
 			expression.WriteString(")")
 		case "or":
@@ -339,7 +401,6 @@ func getExpression(expression *bytes.Buffer, token []string, pos int) (int, erro
 					}
 				}
 			}
-
 			if lvalue {
 				expression.WriteString(`value(node(), "`)
 				expression.WriteString(token[pos])
@@ -410,7 +471,7 @@ func findByPredicates(branch *DataBranch, pathnode *PathNode, first, last int) (
 		expression.WriteString(")")
 		program, err := expr.Compile(expression.String(), expr.Env(env))
 		if err != nil {
-			return nil, fmt.Errorf("yangtree: predicate expression (%s) compile error  %v", expression.String(), err)
+			return nil, fmt.Errorf("predicate expression %q compile error  %v", expression.String(), err)
 		}
 		first, last = 0, len(children)
 		newchildren := make([]DataNode, 0, last)
@@ -418,7 +479,7 @@ func findByPredicates(branch *DataBranch, pathnode *PathNode, first, last int) (
 			node = children[pos]
 			ok, err := expr.Run(program, env)
 			if err != nil {
-				return nil, fmt.Errorf("yangtree: predicate expression (%s) running error  %v", expression.String(), err)
+				return nil, fmt.Errorf("predicate expression %q running error  %v", expression.String(), err)
 			}
 			if ok.(bool) {
 				newchildren = append(newchildren, node)

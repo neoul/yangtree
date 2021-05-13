@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -83,8 +82,9 @@ func TestChildDataNodeListing(t *testing.T) {
 	input := []string{
 		"/sample/single-key-list[list-key=A1]/uint32-range",
 		"/sample/single-key-list[list-key=A12]/uint32-range",
-		"/sample/single-key-list[list-key=A123]/uint32-range",
+
 		"/sample/single-key-list[list-key=A122]/uint32-range",
+		"/sample/single-key-list[list-key=A123]/uint32-range",
 		"/sample/single-key-list[list-key=A1234]/uint32-range",
 		"/sample/single-key-list[list-key=A24]/uint32-range",
 		"/sample/single-key-list[list-key=A5]/empty-node",
@@ -237,11 +237,19 @@ func TestDataNode(t *testing.T) {
 			},
 			wantInsertErr: false,
 		},
+		// {
+		// 	name: "uint64-node",
+		// 	args: args{
+		// 		path:  "/sample/single-key-list[list-key=AAA]/uint64-node",
+		// 		value: []string{"1234567890"},
+		// 	},
+		// 	wantInsertErr: false,
+		// },
 		{
-			name: "uint64-node",
+			name: "uint64-node-with-predicates",
 			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/uint64-node",
-				value: []string{"1234567890"},
+				path:  "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]",
+				value: nil,
 			},
 			wantInsertErr: false,
 		},
@@ -345,7 +353,7 @@ func TestDataNode(t *testing.T) {
 			name: "non-key-list",
 			args: args{
 				path:  "/sample:sample/non-key-list",
-				value: []string{`{"uintval": "10", "strval": "XYZ"}`},
+				value: []string{`{"uintval": "11", "strval": "XYZ"}`},
 			},
 			wantInsertErr: false,
 		},
@@ -353,7 +361,15 @@ func TestDataNode(t *testing.T) {
 			name: "non-key-list",
 			args: args{
 				path:  "/sample:sample/non-key-list",
-				value: []string{`{"uintval": "11", "strval": "XYZ"}`},
+				value: []string{`{"uintval": "12", "strval": "XYZ"}`},
+			},
+			wantInsertErr: false,
+		},
+		{
+			name: "non-key-list",
+			args: args{
+				path:  "/sample:sample/non-key-list[uintval=13][strval=ABC]",
+				value: nil,
 			},
 			wantInsertErr: false,
 		},
@@ -381,6 +397,7 @@ func TestDataNode(t *testing.T) {
 		"/sample//non-key-list",
 		"/sample/multiple-key-list[str=first][integer=*]",
 		"/sample/multiple-key-list",
+		"/sample/non-key-list[2]",
 	}
 	for i := range path {
 		node, err := Find(RootData, path[i])
@@ -389,15 +406,15 @@ func TestDataNode(t *testing.T) {
 		}
 		t.Logf("Find(%s)", path[i])
 		for j := range node {
-			t.Logf(" - %s, %s (%p)", node[j].Path(), node[j], node[j])
-			// j, _ := MarshalJSON(node[j], true)
-			// t.Log("Find", i, "", path[i], string(j))
+			// t.Logf(" - %s, %s (%p)", node[j].Path(), node[j], node[j])
+			jj, _ := MarshalJSON(node[j], true)
+			t.Log("Find", i, "", node[j].Path(), string(jj))
 		}
 	}
 
-	nodes := RootData.Get("sample")
-	t.Log(nodes[0].Get("single-key-list[list-key=AAA]"))
-	t.Log(nodes[0].Lookup("s"))
+	// nodes := RootData.Get("sample")
+	// t.Log(nodes[0].Get("single-key-list[list-key=AAA]"))
+	// t.Log(nodes[0].Lookup("s"))
 
 	jj, err := MarshalJSONIndent(RootData, "", " ", false)
 	if err != nil {
@@ -503,5 +520,5 @@ func TestComplexModel(t *testing.T) {
 		t.Error(err)
 	}
 
-	fmt.Println(string(j))
+	t.Log(string(j))
 }
