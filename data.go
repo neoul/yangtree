@@ -183,7 +183,7 @@ func (branch *DataBranch) String() string {
 
 func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 	if !isValid(branch) {
-		return nil, fmt.Errorf("invalid branch node")
+		return nil, fmt.Errorf("null branch node")
 	}
 	pathnode, err := ParsePath(&key)
 	if err != nil {
@@ -204,6 +204,9 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 }
 
 func (branch *DataBranch) Set(value ...string) error {
+	if !isValid(branch) {
+		return fmt.Errorf("null branch node")
+	}
 	for i := range value {
 		err := branch.UnmarshalJSON([]byte(value[i]))
 		if err != nil {
@@ -220,17 +223,24 @@ func (branch *DataBranch) Remove(value ...string) error {
 	if branch.parent == nil {
 		return nil
 	}
-	switch p := branch.parent.(type) {
-	case *DataBranch:
-		// [FIXME] need the performance improvement
-		for i := range p.children {
-			if p.children[i] == branch {
-				p.children = append(p.children[:i], p.children[i+1:]...)
+	parent := branch.parent.(*DataBranch)
+	length := len(parent.children)
+	key := branch.Key()
+	i := sort.Search(length,
+		func(j int) bool {
+			return key <= parent.children[j].Key()
+		})
+	if branch == parent.children[i] {
+		parent.children = append(parent.children[:i], parent.children[i+1:]...)
+	} else {
+		for i := range parent.children {
+			if parent.children[i] == branch {
+				parent.children = append(parent.children[:i], parent.children[i+1:]...)
 				break
 			}
 		}
-		branch.parent = nil
 	}
+	branch.parent = nil
 	return nil
 }
 
@@ -364,24 +374,6 @@ func (branch *DataBranch) Child(index int) DataNode {
 
 func (branch *DataBranch) Index(key string) (int, int) {
 	return indexRange(branch, key, false)
-}
-
-func (branch *DataBranch) Min(key string) int {
-	length := len(branch.children)
-	i := sort.Search(length,
-		func(j int) bool {
-			return key <= branch.children[j].Key()
-		})
-	return i
-}
-
-func (branch *DataBranch) Max(key string) int {
-	length := len(branch.children)
-	i := sort.Search(length,
-		func(j int) bool {
-			return key <= branch.children[j].Key()
-		})
-	return i
 }
 
 func (branch *DataBranch) Len() int {
@@ -599,21 +591,23 @@ func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error)
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
-	if leaflist == nil {
-		return fmt.Errorf("%s found on set", leaflist)
+	if !isValid(leaflist) {
+		return fmt.Errorf("null leaflist node")
 	}
 	if len(value) == 1 {
 		if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
 			return leaflist.UnmarshalJSON([]byte(value[0]))
 		}
 	}
-	// [FIXME]
 	for i := range value {
 		length := len(leaflist.value)
 		index := sort.Search(length,
 			func(j int) bool {
 				return ValueToString(leaflist.value[j]) >= value[i]
 			})
+		if index < length && ValueToString(leaflist.value[index]) == value[i] {
+			continue
+		}
 		v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
 		if err != nil {
 			return err
@@ -626,8 +620,8 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 }
 
 func (leaflist *DataLeafList) Remove(value ...string) error {
-	if leaflist == nil {
-		return fmt.Errorf("%s found on remove", leaflist)
+	if !isValid(leaflist) {
+		return fmt.Errorf("null leaflist node")
 	}
 	for i := range value {
 		length := len(leaflist.value)
@@ -682,15 +676,14 @@ func (leaflist *DataLeafList) Len() int {
 }
 
 // Get finds the key from its value.
-// [FIXME] Should it be supported?
-func (leaflist *DataLeafList) Exist(value string) bool {
+func (leaflist *DataLeafList) Exist(key string) bool {
 	if LeafListValueAsKey {
 		length := len(leaflist.value)
 		i := sort.Search(length,
 			func(j int) bool {
-				return ValueToString(leaflist.value[j]) >= value
+				return ValueToString(leaflist.value[j]) >= key
 			})
-		return i < length && ValueToString(leaflist.value[i]) == value
+		return i < length && ValueToString(leaflist.value[i]) == key
 	}
 	return false
 }
@@ -705,7 +698,7 @@ func (leaflist *DataLeafList) Key() string {
 // Find data nodes using the path
 func (leaflist *DataLeafList) Find(path string) ([]DataNode, error) {
 	if !isValid(leaflist) {
-		return nil, fmt.Errorf("invalid leaflist node")
+		return nil, fmt.Errorf("null leaflist node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
