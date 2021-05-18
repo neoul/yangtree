@@ -8,6 +8,11 @@ yangtree is a Go utilities that can be used to:
 - Provide the retrieval of the config, state data nodes separately.
 - Supports the data node access and control using XPath.
 
+## To be implemented
+
+- NewWithDefault(), Clone(), Merge(), Replace(), Update()
+- config, state retrieval
+
 ## XPath syntax
 - XPATH: https://tools.ietf.org/html/rfc7950#section-6.4.1
 - Path: https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-path-conventions.md

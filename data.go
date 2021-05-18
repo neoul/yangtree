@@ -1248,3 +1248,22 @@ func FindValue(root DataNode, path string) ([]interface{}, error) {
 	vlist := findValue(root, pathnode)
 	return vlist, nil
 }
+
+func Clone(src DataNode) (DataNode, error) {
+	return nil, nil
+}
+
+func Merge(dest, src DataNode) error {
+	return nil
+}
+
+func Update(dest, src DataNode) error {
+	return nil
+}
+
+func Replace(dest, src DataNode) error {
+	return nil
+}
+
+func Remove() {
+}

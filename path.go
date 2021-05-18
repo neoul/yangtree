@@ -87,6 +87,9 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	node := make([]*PathNode, 0, 8)
 	pathnode := &PathNode{}
 	length := len(*path)
+	if length == 0 {
+		return nil, nil
+	}
 	begin := 0
 	end := begin
 	// insideBrackets is counted up when at least one '[' has been found.
