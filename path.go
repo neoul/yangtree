@@ -47,6 +47,32 @@ var (
 		"child::":                    NodeSelectChild,
 		// ...
 	}
+
+	opToGoExpr map[string]string = map[string]string{
+		"or":  "||",
+		"and": "&&",
+		"mod": "%",
+		"div": "/",
+		"=":   "==",
+		">=":  ">=",
+		"<=":  "<=",
+		"!=":  "!=",
+		"<":   "<",
+		">":   ">",
+		",":   ",",
+	}
+
+	funcXPath map[string]interface{} = map[string]interface{}{
+		"count": funcXPathCount,
+
+		// // boolean functions
+		// "not":   "not",
+		// "true":  "True",
+		// "false": "False",
+		// "sum":   "sum",
+
+		// "string": "nodestring",
+	}
 )
 
 func updateNodeSelect(pathnode *PathNode) *PathNode {
@@ -356,15 +382,13 @@ func convertToGoExpr(goExpr *strings.Builder, env map[string]interface{}, token 
 			if o := opToGoExpr[token[i]]; o != "" {
 				goExpr.WriteString(o)
 				break
-			} else if f, ok := funcXPath[token[i]]; ok {
-				if i < length-1 {
-					if token[i+1] == "(" {
-						if f != nil {
-							env[token[i]] = f
-						}
-						goExpr.WriteString(token[i])
-						break
+			} else if i < length-1 {
+				if token[i+1] == "(" {
+					if f, ok := funcXPath[token[i]]; ok {
+						env[token[i]] = f
 					}
+					goExpr.WriteString(token[i])
+					break
 				}
 			}
 			if strings.HasPrefix(token[i], "\"") &&
@@ -379,7 +403,7 @@ func convertToGoExpr(goExpr *strings.Builder, env map[string]interface{}, token 
 			} else if _, err := strconv.ParseUint(token[i], 10, 64); err == nil {
 				goExpr.WriteString(token[i])
 			} else {
-				goExpr.WriteString("findvalue(node(),")
+				goExpr.WriteString("findvalue(node,")
 				goExpr.WriteString("\"" + token[i] + "\"")
 				goExpr.WriteString(")")
 			}
@@ -401,8 +425,8 @@ func funcXPathCount(n interface{}) int {
 	return 0
 }
 
-func funcFindValue(node DataNode, path string) interface{} {
-	r, err := node.Find(path)
+func funcXPathFindValue(node DataNode, path string) interface{} {
+	r, err := FindValue(node, path)
 	if err != nil {
 		return nil
 	}
@@ -410,32 +434,9 @@ func funcFindValue(node DataNode, path string) interface{} {
 	case 0:
 		return nil
 	case 1:
-		return r[0].Value()
+		return r[0]
 	default:
-		v := []interface{}{}
-		for j := range r {
-			v = append(v, r[j].Value())
-		}
-		return v
-	}
-}
-
-func funcGetValue(node DataNode) interface{} {
-	r, err := node.Find(".")
-	if err != nil {
-		return nil
-	}
-	switch len(r) {
-	case 0:
-		return nil
-	case 1:
-		return r[0].Value()
-	default:
-		v := []interface{}{}
-		for j := range r {
-			v = append(v, r[j].Value())
-		}
-		return v
+		return r
 	}
 }
 
@@ -462,45 +463,15 @@ func funcXPathResult(value interface{}) bool {
 	return false
 }
 
-var (
-	opToGoExpr map[string]string = map[string]string{
-		"or":  "||",
-		"and": "&&",
-		"mod": "%",
-		"div": "/",
-		"=":   "==",
-		">=":  ">=",
-		"<=":  "<=",
-		"!=":  "!=",
-		"<":   "<",
-		">":   ">",
-		",":   ",",
-	}
-
-	funcXPath map[string]interface{} = map[string]interface{}{
-		"count":   funcXPathCount,
-		"current": nil,
-
-		// // boolean functions
-		// "not":   "not",
-		// "true":  "True",
-		// "false": "False",
-		// "sum":   "sum",
-
-		// "string": "nodestring",
-	}
-)
-
 func findByPredicates(current []DataNode, predicates []string) ([]DataNode, error) {
 	var first, last, pos int
 	var node DataNode
 	var e strings.Builder
-	curnode := func() DataNode { return node }
 	env := map[string]interface{}{
 		"result":    funcXPathResult,
-		"findvalue": funcFindValue,
-		"node":      curnode,
-		"current":   funcGetValue,
+		"findvalue": funcXPathFindValue,
+		"node":      node,
+		"current":   func() interface{} { return node.Value() },
 		"position":  func() int { return pos + 1 },
 		"first":     func() int { return first + 1 },
 		"last":      func() int { return last },
@@ -527,13 +498,6 @@ func findByPredicates(current []DataNode, predicates []string) ([]DataNode, erro
 			return nil, err
 		}
 		e.WriteString(")")
-		// fmt.Println(e.String())
-
-		// program, err := expr.Compile(e.String(), expr.Env(env))
-		// if err != nil {
-		// 	return nil, fmt.Errorf("%q expr compile error: %v", e.String(), err)
-		// }
-
 		newchildren := make([]DataNode, 0, last)
 		for pos = first; pos < last; pos++ {
 			node = current[pos]
@@ -557,15 +521,11 @@ func evaluatePathExpr(node DataNode, exprstr string) (bool, error) {
 		return false, err
 	}
 	var e strings.Builder
-	curnode := func() DataNode { return node }
-	curvalue := func() interface{} {
-		return node.Value()
-	}
 	env := map[string]interface{}{
 		"result":    funcXPathResult,
-		"findvalue": funcFindValue,
-		"node":      curnode,
-		"current":   curvalue,
+		"findvalue": funcXPathFindValue,
+		"node":      node,
+		"current":   func() interface{} { return node.Value() },
 	}
 	_, err = convertToGoExpr(&e, env, token, 0)
 	if err != nil {

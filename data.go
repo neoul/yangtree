@@ -1107,14 +1107,14 @@ func Find(root DataNode, path string) ([]DataNode, error) {
 	return findNode(root, pathnode), nil
 }
 
-func findValue(root DataNode, pathnode []*PathNode) []string {
+func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	if len(pathnode) == 0 {
 		if root.IsBranch() {
 			return nil
 		}
-		return []string{root.ValueString()}
+		return []interface{}{root.Value()}
 	}
-	var childvalues []string
+	var childvalues []interface{}
 	var node []DataNode
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
@@ -1154,13 +1154,13 @@ func findValue(root DataNode, pathnode []*PathNode) []string {
 		if root.IsBranch() {
 			return nil
 		}
-		return []string{root.ValueString()}
+		return []interface{}{root.Value()}
 	}
 	// [FIXME]
 	if LeafListValueAsKey {
 		if leaflist, ok := root.(*DataLeafList); ok {
 			if leaflist.Exist(pathnode[0].Name) {
-				return []string{pathnode[0].Name}
+				return []interface{}{pathnode[0].Name}
 			}
 			return nil
 		}
@@ -1205,7 +1205,11 @@ func findValue(root DataNode, pathnode []*PathNode) []string {
 			leaflist := node[i].(*DataLeafList)
 			if v, ok := pmap["."]; ok {
 				if leaflist.Exist(v.(string)) {
-					childvalues = append(childvalues, v.(string))
+					value, err := StringToValue(leaflist.schema, leaflist.schema.Type, v.(string))
+					if err != nil {
+						return nil
+					}
+					childvalues = append(childvalues, value)
 				}
 				return childvalues
 			}
@@ -1224,5 +1228,23 @@ func FindValueString(root DataNode, path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return findValue(root, pathnode), nil
+	vlist := findValue(root, pathnode)
+	slist := make([]string, 0, len(vlist))
+	for i := range vlist {
+		slist = append(slist, ValueToString(vlist[i]))
+	}
+	return slist, nil
+}
+
+// Find data nodes using the path
+func FindValue(root DataNode, path string) ([]interface{}, error) {
+	if !isValid(root) {
+		return nil, fmt.Errorf("invalid root node")
+	}
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return nil, err
+	}
+	vlist := findValue(root, pathnode)
+	return vlist, nil
 }

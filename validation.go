@@ -31,7 +31,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 		if err != nil {
 			errors = append(errors, err)
 		} else if !condition {
-			errors = append(errors, fmt.Errorf("when %q condition failed", whenstr))
+			errors = append(errors, fmt.Errorf("when %q statement failed", whenstr))
 		}
 	}
 	mustlist := GetMust(node.Schema())
@@ -46,13 +46,10 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 					errors = append(errors, err)
 				}
 			} else if !condition {
-				errors = append(errors, fmt.Errorf("must %q condition failed", whenstr))
+				errors = append(errors, fmt.Errorf("must %q statement failed", mustXPath))
 			}
 		}
 	}
-	// if len(mustlist) > 0 {
-	// 	fmt.Println(mustlist[0].Source.Arg())
-	// }
 	switch n := node.(type) {
 	case *DataBranch:
 		// check the validation of the children
