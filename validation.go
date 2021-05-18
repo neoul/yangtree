@@ -10,37 +10,94 @@ import (
 	"github.com/openconfig/ygot/util"
 )
 
-func Validate(node DataNode) error {
-	return validateDataNode(node, node.Schema().Type)
-}
-
-func validateDataNode(node DataNode, typ *yang.YangType) error {
-	switch typ.Kind {
-	// case yang.Ystring, yang.Ybinary:
-	// case yang.Ybool:
-	// case yang.Yempty:
-	// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
-	// case yang.Ybits, yang.Yenum:
-	// case yang.Yidentityref:
-	// case yang.Ydecimal64:
-	// case yang.Yunion:
-	// case yang.Ynone:
-	case yang.YinstanceIdentifier:
-	case yang.Yleafref:
-		ref, err := node.Find(typ.Path)
+func Validate(node DataNode) []error {
+	checkAll := true
+	for n := node; n != nil; n = n.Parent() {
+		err := validateDataNode(node, node.Schema().Type, checkAll)
 		if err != nil {
 			return err
 		}
-		nodeValue := node.ValueString()
-		for i := range ref {
-			if ref[i].ValueString() == nodeValue {
-				return nil
-			}
-		}
-		return fmt.Errorf("invalid leafref '%v'", nodeValue)
-	default:
+		checkAll = false
 	}
 	return nil
+}
+
+func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error {
+	var errors []error
+	// when, must statements must be test for the validation.
+	whenstr, ok := node.Schema().GetWhenXPath()
+	if ok {
+		condition, err := evaluatePathExpr(node, whenstr)
+		if err != nil {
+			errors = append(errors, err)
+		} else if !condition {
+			errors = append(errors, fmt.Errorf("when %q condition failed", whenstr))
+		}
+	}
+	mustlist := GetMust(node.Schema())
+	for i := range mustlist {
+		mustXPath, ok := mustlist[i].Source.Arg()
+		if ok {
+			condition, err := evaluatePathExpr(node, mustXPath)
+			if err != nil {
+				if mustlist[i].ErrorMessage.Name != "" {
+					errors = append(errors, fmt.Errorf(mustlist[i].ErrorMessage.Name))
+				} else {
+					errors = append(errors, err)
+				}
+			} else if !condition {
+				errors = append(errors, fmt.Errorf("must %q condition failed", whenstr))
+			}
+		}
+	}
+	// if len(mustlist) > 0 {
+	// 	fmt.Println(mustlist[0].Source.Arg())
+	// }
+	switch n := node.(type) {
+	case *DataBranch:
+		// check the validation of the children
+		if checkAll {
+			for i := range n.children {
+				err := validateDataNode(n.children[i], n.children[i].Schema().Type, checkAll)
+				errors = append(errors, err...)
+			}
+		}
+		return errors
+	default:
+		switch typ.Kind {
+		// case yang.Ystring, yang.Ybinary:
+		// case yang.Ybool:
+		// case yang.Yempty:
+		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
+		// case yang.Ybits, yang.Yenum:
+		// case yang.Yidentityref:
+		// case yang.Ydecimal64:
+		// case yang.Yunion:
+		// case yang.Ynone:
+		case yang.YinstanceIdentifier:
+			ref, err := node.Find(node.ValueString())
+			if err != nil {
+				return append(errors, err)
+			}
+			if len(ref) == 0 {
+				return append(errors, fmt.Errorf("data instance not present to %q", node.Path()))
+			}
+		case yang.Yleafref:
+			ref, err := node.Find(typ.Path)
+			if err != nil {
+				return append(errors, err)
+			}
+			nodeValue := node.ValueString()
+			for i := range ref {
+				if ref[i].ValueString() == nodeValue {
+					return nil
+				}
+			}
+			return append(errors, fmt.Errorf("invalid leafref '%v'", nodeValue))
+		default:
+		}
+	}
+	return errors
 }
 
 // Refer to:

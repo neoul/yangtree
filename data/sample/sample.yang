@@ -60,9 +60,26 @@ module sample {
         type string;
       }
 
+      leaf test-instance-identifier {
+        type instance-identifier;
+        when "../enum-val='enum2'" {
+          description
+            "When statement test";
+        }
+      }
+
       leaf test-default {
         type int8;
         default 1;
+      }
+
+      leaf test-must {
+        type int32;
+        must "current() = count(../leaf-list-val)" {
+          description
+            "must statement test";
+          error-message "test-must must be the number of ../leaf-list-val";
+        }
       }
 
       choice test-choice {     // This example is illegal YANG

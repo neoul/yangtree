@@ -679,6 +679,9 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 				return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
 			}
 		}
+		if typ.Kind == yang.Yuint64 {
+			return number.Value, nil
+		}
 		n, err := number.Int()
 		if err != nil {
 			return nil, err
@@ -740,6 +743,8 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 				return v, nil
 			}
 		}
+	case yang.YinstanceIdentifier:
+		return value, nil
 	case yang.Ynone:
 		break
 	}
@@ -866,4 +871,34 @@ func JSONValueToString(jval interface{}) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("unexpected jsonval '%v (%T)'", jval, jval)
+}
+
+// GetMust returns the when XPath statement of e if able.
+func GetMust(schema *yang.Entry) []*yang.Must {
+	switch n := schema.Node.(type) {
+	case *yang.Container:
+		return n.Must
+	case *yang.Leaf:
+		return n.Must
+	case *yang.LeafList:
+		return n.Must
+	case *yang.List:
+		return n.Must
+	// case *yang.Choice:
+	// case *yang.Case:
+	// case *yang.Augment:
+	// case *yang.Action:
+	// case *yang.Grouping:
+	// case *yang.Argument:
+	// case *yang.BelongsTo:
+	// case *yang.Deviation:
+	// case *yang.Bit:
+	// case *yang.Deviate:
+	// 	return n.Must
+	case *yang.AnyXML:
+		return n.Must
+	case *yang.AnyData:
+		return n.Must
+	}
+	return nil
 }

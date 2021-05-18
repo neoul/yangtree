@@ -15,6 +15,9 @@ var (
 
 type DataNode interface {
 	IsYangDataNode()
+	IsBranch() bool
+	IsLeaf() bool
+	IsLeafList() bool
 	Key() string
 	Schema() *yang.Entry
 	Parent() DataNode
@@ -147,11 +150,12 @@ type DataBranch struct {
 }
 
 func (branch *DataBranch) IsYangDataNode()     {}
+func (branch *DataBranch) IsBranch() bool      { return true }
+func (branch *DataBranch) IsLeaf() bool        { return false }
+func (branch *DataBranch) IsLeafList() bool    { return false }
 func (branch *DataBranch) Schema() *yang.Entry { return branch.schema }
 func (branch *DataBranch) Parent() DataNode    { return branch.parent }
-func (branch *DataBranch) Value() interface{} {
-	return nil
-}
+func (branch *DataBranch) Value() interface{}  { return nil }
 
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
@@ -190,7 +194,7 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 	if cschema == nil {
 		return nil, fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, branch.schema.Name)
 	}
-	key, pmap, err := keyGenForSet(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0])
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +321,7 @@ func (branch *DataBranch) Get(key string) []DataNode {
 		return branch.children
 	case "...":
 		return findNode(branch, []*PathNode{
-			&PathNode{Name: "...", Select: PathSelectAllMatched}})
+			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
 		i, max := indexRange(branch, key, false)
 		if i < max {
@@ -337,7 +341,7 @@ func (branch *DataBranch) Lookup(prefix string) []DataNode {
 		return branch.children
 	case "...":
 		return findNode(branch, []*PathNode{
-			&PathNode{Name: "...", Select: PathSelectAllMatched}})
+			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
 		i, max := indexRange(branch, prefix, true)
 		if i < max {
@@ -397,6 +401,14 @@ func (branch *DataBranch) Find(path string) ([]DataNode, error) {
 	return findNode(branch, pathnode), nil
 }
 
+// func (branch *DataBranch) FindValue(path string) ([]interface{}, error) {
+// 	pathnode, err := ParsePath(&path)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return findNode(branch, pathnode), nil
+// }
+
 type DataLeaf struct {
 	schema *yang.Entry
 	parent DataNode
@@ -404,6 +416,9 @@ type DataLeaf struct {
 }
 
 func (leaf *DataLeaf) IsYangDataNode()     {}
+func (leaf *DataLeaf) IsBranch() bool      { return false }
+func (leaf *DataLeaf) IsLeaf() bool        { return true }
+func (leaf *DataLeaf) IsLeafList() bool    { return false }
 func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
 func (leaf *DataLeaf) Parent() DataNode    { return leaf.parent }
 func (leaf *DataLeaf) String() string {
@@ -494,7 +509,13 @@ func (leaf *DataLeaf) Index(key string) (int, int) {
 }
 
 func (leaf *DataLeaf) Len() int {
-	return 0
+	if leaf.schema.Type.Kind == yang.Yempty {
+		return 1
+	}
+	if leaf.value == nil {
+		return 0
+	}
+	return 1
 }
 
 func (leaf *DataLeaf) Key() string {
@@ -518,7 +539,10 @@ type DataLeafList struct {
 	value  []interface{}
 }
 
-func (leaflist *DataLeafList) IsYangDataNode() {}
+func (leaflist *DataLeafList) IsYangDataNode()  {}
+func (leaflist *DataLeafList) IsBranch() bool   { return false }
+func (leaflist *DataLeafList) IsLeaf() bool     { return false }
+func (leaflist *DataLeafList) IsLeafList() bool { return true }
 func (leaflist *DataLeafList) Schema() *yang.Entry {
 	if leaflist == nil {
 		return nil
@@ -553,7 +577,11 @@ func (leaflist *DataLeafList) Value() interface{} {
 }
 
 func (leaflist *DataLeafList) ValueString() string {
-	return ValueToString(leaflist.value)
+	var s strings.Builder
+	for i := range leaflist.value {
+		s.WriteString(ValueToString(leaflist.value[i]))
+	}
+	return s.String()
 }
 
 func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error) {
@@ -594,7 +622,7 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 				return ValueToString(leaflist.value[j]) >= value[i]
 			})
 		if index < length && ValueToString(leaflist.value[index]) == value[i] {
-			leaflist.value = append(leaflist.value[:index], leaflist.value[:index+1]...)
+			leaflist.value = append(leaflist.value[:index], leaflist.value[index+1:]...)
 		}
 	}
 	// remove itself if there is no value inserted.
@@ -636,7 +664,7 @@ func (leaflist *DataLeafList) Index(key string) (int, int) {
 
 // [FIXME] Should it be supported?
 func (leaflist *DataLeafList) Len() int {
-	return 0
+	return len(leaflist.value)
 }
 
 // Get finds the key from its value.
@@ -764,32 +792,38 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return root.Set(value...)
 	}
 	switch pathnode[0].Select {
-	case PathSelectSelf:
+	case NodeSelectSelf:
 		return setValue(root, pathnode[1:], value...)
-	case PathSelectParent:
+	case NodeSelectParent:
 		if root.Parent() == nil {
 			return fmt.Errorf("the parent of %s is not present in the path", root)
 		}
 		root = root.Parent()
 		return setValue(root, pathnode[1:], value...)
-	case PathSelectFromRoot:
+	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
 		}
-	case PathSelectAllChildren:
-		i, max := 0, root.Len()
-		for ; i < max; i++ {
-			if err := setValue(root.Child(i), pathnode[1:], value...); err != nil {
+	case NodeSelectAllChildren:
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return fmt.Errorf("select children from non-branch node %q", root)
+		}
+		for i := 0; i < len(branch.children); i++ {
+			if err := setValue(branch.Child(i), pathnode[1:], value...); err != nil {
 				return err
 			}
 		}
 		return nil
-	case PathSelectAllMatched:
-		i, max := 0, root.Len()
-		for ; i < max; i++ {
-			if err := setValue(root.Child(i), pathnode[1:], value...); err != nil {
-				return err
-			}
+	case NodeSelectAll:
+		if err := setValue(root, pathnode[1:], value...); err != nil {
+			return err
+		}
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return fmt.Errorf("select children from non-branch node %q", root)
+		}
+		for i := 0; i < len(branch.children); i++ {
 			if err := setValue(root.Child(i), pathnode, value...); err != nil {
 				return err
 			}
@@ -816,7 +850,7 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	}
 
 	var first, last int
-	key, pmap, err := keyGenForSet(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0])
 	if err != nil {
 		return err
 	}
@@ -846,6 +880,11 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return err
 	}
 	// updates existent nodes
+	if !cschema.IsDir() { // predicate for self value ==> [.=VALUE]
+		if v, ok := pmap["."]; ok {
+			value = append(value, v.(string))
+		}
+	}
 	for ; first < last; first++ {
 		if err := setValue(root.Child(first), pathnode[1:], value...); err != nil {
 			return err
@@ -873,32 +912,38 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return root.Remove(value...)
 	}
 	switch pathnode[0].Select {
-	case PathSelectSelf:
+	case NodeSelectSelf:
 		return deleteValue(root, pathnode[1:], value...)
-	case PathSelectParent:
+	case NodeSelectParent:
 		if root.Parent() == nil {
 			return fmt.Errorf("the parent of %s is not present in the path", root)
 		}
 		root = root.Parent()
 		return deleteValue(root, pathnode[1:], value...)
-	case PathSelectFromRoot:
+	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
 		}
-	case PathSelectAllChildren:
-		i, max := 0, root.Len()
-		for ; i < max; i++ {
+	case NodeSelectAllChildren:
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return fmt.Errorf("select children from non-branch node %q", root)
+		}
+		for i := 0; i < len(branch.children); i++ {
 			if err := deleteValue(root.Child(i), pathnode[1:], value...); err != nil {
 				return err
 			}
 		}
 		return nil
-	case PathSelectAllMatched:
-		i, max := 0, root.Len()
-		for ; i < max; i++ {
-			if err := deleteValue(root.Child(i), pathnode[1:], value...); err != nil {
-				return err
-			}
+	case NodeSelectAll:
+		if err := deleteValue(root, pathnode[1:], value...); err != nil {
+			return err
+		}
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return fmt.Errorf("select children from non-branch node %q", root)
+		}
+		for i := 0; i < len(branch.children); i++ {
 			if err := deleteValue(root.Child(i), pathnode, value...); err != nil {
 				return err
 			}
@@ -924,7 +969,7 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
 	}
 	var first, last int
-	key, pmap, err := keyGenForSet(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0])
 	if err != nil {
 		return err
 	}
@@ -941,6 +986,11 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 			if first < last {
 				last = first + 1
 			}
+		}
+	}
+	if !cschema.IsDir() {
+		if v, ok := pmap["."]; ok {
+			value = append(value, v.(string))
 		}
 	}
 	for ; first < last; first++ {
@@ -968,29 +1018,34 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 	}
 	var node, children []DataNode
 	switch pathnode[0].Select {
-	case PathSelectSelf:
+	case NodeSelectSelf:
 		return findNode(root, pathnode[1:])
-	case PathSelectParent:
+	case NodeSelectParent:
 		if root.Parent() == nil {
 			return nil
 		}
 		root = root.Parent()
 		return findNode(root, pathnode[1:])
-	case PathSelectFromRoot:
+	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
 		}
-	case PathSelectAllChildren:
-		i, max := 0, root.Len()
-		for ; i < max; i++ {
+	case NodeSelectAllChildren:
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return nil
+		}
+		for i := 0; i < len(branch.children); i++ {
 			children = append(children, findNode(root.Child(i), pathnode[1:])...)
 		}
 		return children
-	case PathSelectAllMatched:
+	case NodeSelectAll:
 		children = append(children, findNode(root, pathnode[1:])...)
-		i, max := 0, root.Len()
-		for ; i < max; i++ {
-			children = append(children, findNode(root.Child(i), pathnode[1:])...)
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return nil
+		}
+		for i := 0; i < len(branch.children); i++ {
 			children = append(children, findNode(root.Child(i), pathnode)...)
 		}
 		return children
@@ -1017,11 +1072,21 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 		return nil
 	}
 	var first, last int
-	key, remainedPredicates := keyGen(cschema, pathnode[0])
-	first, last = indexRange(branch, key, true)
-	if remainedPredicates > 0 {
-		node, _ = findByPredicates(branch, pathnode[0], first, last)
+	key, pmap, err := keyGen(cschema, pathnode[0])
+	if err != nil {
+		return nil
+	}
+	_, prefixsearch := pmap["@prefix"]
+	first, last = indexRange(branch, key, prefixsearch)
+	if _, ok := pmap["@findbypredicates"]; ok {
+		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
 	} else {
+		if index, ok := pmap["@index"]; ok {
+			first, last, err = jumpToIndex(branch, first, index.(int))
+			if err != nil {
+				return nil
+			}
+		}
 		node = branch.children[first:last]
 	}
 	for i := range node {
@@ -1040,4 +1105,124 @@ func Find(root DataNode, path string) ([]DataNode, error) {
 		return nil, err
 	}
 	return findNode(root, pathnode), nil
+}
+
+func findValue(root DataNode, pathnode []*PathNode) []string {
+	if len(pathnode) == 0 {
+		if root.IsBranch() {
+			return nil
+		}
+		return []string{root.ValueString()}
+	}
+	var childvalues []string
+	var node []DataNode
+	switch pathnode[0].Select {
+	case NodeSelectSelf:
+		return findValue(root, pathnode[1:])
+	case NodeSelectParent:
+		if root.Parent() == nil {
+			return nil
+		}
+		root = root.Parent()
+		return findValue(root, pathnode[1:])
+	case NodeSelectFromRoot:
+		for root.Parent() != nil {
+			root = root.Parent()
+		}
+	case NodeSelectAllChildren:
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return nil
+		}
+		for i := 0; i < len(branch.children); i++ {
+			childvalues = append(childvalues, findValue(root.Child(i), pathnode[1:])...)
+		}
+		return childvalues
+	case NodeSelectAll:
+		childvalues = append(childvalues, findValue(root, pathnode[1:])...)
+		branch, ok := root.(*DataBranch)
+		if !ok {
+			return nil
+		}
+		for i := 0; i < len(branch.children); i++ {
+			childvalues = append(childvalues, findValue(root.Child(i), pathnode)...)
+		}
+		return childvalues
+	}
+
+	if pathnode[0].Name == "" {
+		if root.IsBranch() {
+			return nil
+		}
+		return []string{root.ValueString()}
+	}
+	// [FIXME]
+	if LeafListValueAsKey {
+		if leaflist, ok := root.(*DataLeafList); ok {
+			if leaflist.Exist(pathnode[0].Name) {
+				return []string{pathnode[0].Name}
+			}
+			return nil
+		}
+	}
+	cschema := GetSchema(root.Schema(), pathnode[0].Name)
+	if cschema == nil {
+		return nil
+	}
+	branch, ok := root.(*DataBranch)
+	if !ok {
+		return nil
+	}
+	var first, last int
+	key, pmap, err := keyGen(cschema, pathnode[0])
+	if err != nil {
+		return nil
+	}
+	_, prefixsearch := pmap["@prefix"]
+	first, last = indexRange(branch, key, prefixsearch)
+	if _, ok := pmap["@findbypredicates"]; ok {
+		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
+	} else {
+		if index, ok := pmap["@index"]; ok {
+			first, last, err = jumpToIndex(branch, first, index.(int))
+			if err != nil {
+				return nil
+			}
+		}
+		node = branch.children[first:last]
+	}
+
+	for i := range node {
+		switch {
+		case node[i].IsLeaf():
+			if v, ok := pmap["."]; ok {
+				if node[i].ValueString() == v {
+					childvalues = append(childvalues, node[i].ValueString())
+				}
+				return childvalues
+			}
+		case node[i].IsLeafList():
+			leaflist := node[i].(*DataLeafList)
+			if v, ok := pmap["."]; ok {
+				if leaflist.Exist(v.(string)) {
+					childvalues = append(childvalues, v.(string))
+				}
+				return childvalues
+			}
+		}
+		childvalues = append(childvalues, findValue(node[i], pathnode[1:])...)
+	}
+	return childvalues
+}
+
+// Find data nodes using the path
+func FindValueString(root DataNode, path string) ([]string, error) {
+	if !isValid(root) {
+		return nil, fmt.Errorf("invalid root node")
+	}
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return nil, err
+	}
+	return findValue(root, pathnode), nil
 }

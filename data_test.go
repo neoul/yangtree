@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -123,7 +124,7 @@ func TestChildDataNodeListing(t *testing.T) {
 		if err != nil {
 			t.Errorf("Find() path %v error = %v", path[i], err)
 		}
-		t.Logf("Find(%s)", path[i])
+		t.Logf("Find (%s)", path[i])
 		for j := range node {
 			t.Logf(" - %s, %s (%p)", node[j].Path(), node[j], node[j])
 			// j, _ := MarshalJSON(node[j], true)
@@ -328,6 +329,14 @@ func TestDataNode(t *testing.T) {
 		{
 			name: "test-item",
 			args: args{
+				path:  "/sample/container-val/leaf-list-val[.=leaf-list-fifth]",
+				value: nil,
+			},
+			wantInsertErr: false,
+		},
+		{
+			name: "test-item",
+			args: args{
 				path:  "/sample:sample/sample:container-val/sample:enum-val",
 				value: []string{"enum2"},
 			},
@@ -373,6 +382,22 @@ func TestDataNode(t *testing.T) {
 			},
 			wantInsertErr: false,
 		},
+		{
+			name: "test-instance-identifier",
+			args: args{
+				path:  "/sample:sample/sample:container-val/test-instance-identifier",
+				value: []string{"/sample:sample/sample:container-val/a"},
+			},
+			wantInsertErr: false,
+		},
+		{
+			name: "test-must",
+			args: args{
+				path:  "/sample:sample/sample:container-val/test-must",
+				value: []string{"5"},
+			},
+			wantInsertErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+".Set", func(t *testing.T) {
@@ -381,13 +406,17 @@ func TestDataNode(t *testing.T) {
 			}
 		})
 	}
+	if err := Validate(RootData); err != nil {
+		t.Error(err)
+	}
 
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 
 	path := []string{
+		"/sample/container-val/leaf-list-val[.=leaf-list-fourth]",
 		"/sample/multiple-key-list[str=first][integer=*]/ok",
 		"/sample/single-key-list[sample:list-key=AAA]/list-key",
-		"/sample/single-key-list[list-key=AAA]",
+		"/sample/single-key-list[list-key='AAA']",
 		"/sample/single-key-list[list-key=*]",
 		"/sample/single-key-list/*",
 		"/sample/*",
@@ -404,11 +433,31 @@ func TestDataNode(t *testing.T) {
 		if err != nil {
 			t.Errorf("Find() path %v error = %v", path[i], err)
 		}
-		t.Logf("Find(%s)", path[i])
+		t.Logf("Find %s", path[i])
 		for j := range node {
-			// t.Logf(" - %s, %s (%p)", node[j].Path(), node[j], node[j])
 			jj, _ := MarshalJSON(node[j], true)
-			t.Log("Find", i, "", node[j].Path(), string(jj))
+			t.Log(" - Find", j, "", node[j].Path(), string(jj))
+		}
+	}
+
+	path = []string{
+		"/sample/container-val/leaf-list-val[.=leaf-list-fourth]",
+	}
+	result := []interface{}{
+		[]string{"leaf-list-fourth"},
+	}
+	for i := range path {
+		value, err := FindValueString(RootData, path[i])
+		if err != nil {
+			t.Errorf("Find() path %v error = %v", path[i], err)
+		}
+		t.Logf("FindValue %s", path[i])
+		if !reflect.DeepEqual(value, result[i]) {
+			t.Error("not equal", value, result[i])
+		}
+		for j := range value {
+			v := value[j]
+			t.Log(" - Find", j, "", ValueToString(v))
 		}
 	}
 
@@ -497,14 +546,14 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err = Validate(node); err == nil {
+	if err := Validate(node); err == nil {
 		t.Error("leafref value must be present in the tree.")
 	}
 	node, err = choiceCaseWithLeafref.New("ptr", "referenced.value")
 	if err != nil {
 		t.Error(err)
 	}
-	if err = Validate(node); err != nil {
+	if err := Validate(node); err != nil {
 		t.Error(err)
 	}
 
