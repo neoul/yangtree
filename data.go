@@ -1043,7 +1043,7 @@ func findNode(root DataNode, pathnode []*PathNode) []DataNode {
 		children = append(children, findNode(root, pathnode[1:])...)
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return nil
+			return children
 		}
 		for i := 0; i < len(branch.children); i++ {
 			children = append(children, findNode(root.Child(i), pathnode)...)
@@ -1142,7 +1142,7 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 		childvalues = append(childvalues, findValue(root, pathnode[1:])...)
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return nil
+			return childvalues
 		}
 		for i := 0; i < len(branch.children); i++ {
 			childvalues = append(childvalues, findValue(root.Child(i), pathnode)...)

@@ -143,266 +143,52 @@ func TestDataNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	type args struct {
-		path  string
-		value []string
-	}
 	tests := []struct {
-		name          string
-		args          args
+		path          string
+		value         []string
 		wantInsertErr bool
 		wantDeleteErr bool
 	}{
-		{
-			name:          "test-item",
-			args:          args{path: "/sample"},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/str-val",
-				value: []string{"abc"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/empty-val",
-				value: []string{"true"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/single-key-list[list-ke=first]",
-				value: []string{"true"},
-			},
-			wantInsertErr: true,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/country-code",
-				value: []string{"KR"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/uint32-range",
-				value: []string{"100"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "range-check",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/uint32-range",
-				value: []string{"493"},
-			},
-			wantInsertErr: true,
-		},
-		{
-			name: "range-check",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/int8-range",
-				value: []string{"500"},
-			},
-			wantInsertErr: true,
-		},
-		{
-			name: "decimal-range",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/decimal-range",
-				value: []string{"1.01"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "empty-node",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/empty-node",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		// {
-		// 	name: "uint64-node",
-		// 	args: args{
-		// 		path:  "/sample/single-key-list[list-key=AAA]/uint64-node",
-		// 		value: []string{"1234567890"},
-		// 	},
-		// 	wantInsertErr: false,
-		// },
-		{
-			name: "uint64-node-with-predicates",
-			args: args{
-				path:  "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/multiple-key-list[str=first][integer=1]/ok",
-				value: []string{"true"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/multiple-key-list[str=first][integer=2]/str",
-				value: []string{"first"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/multiple-key-list[str=second][integer=1]/str",
-				value: []string{"second"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/multiple-key-list[sample:str=second][integer=2]/str",
-				value: []string{"second"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample:sample/container-val",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/container-val/leaf-list-val",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/container-val/leaf-list-val",
-				value: []string{"leaf-list-first", "leaf-list-second"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/container-val/leaf-list-val",
-				value: []string{"leaf-list-third"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/container-val/leaf-list-val/leaf-list-fourth",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample/container-val/leaf-list-val[.=leaf-list-fifth]",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample:sample/sample:container-val/sample:enum-val",
-				value: []string{"enum2"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-item",
-			args: args{
-				path:  "/sample:sample/sample:container-val/sample:test-default",
-				value: []string{"11"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-choice",
-			args: args{
-				path:  "/sample:sample/sample:container-val/a",
-				value: []string{"A"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "non-key-list",
-			args: args{
-				path:  "/sample:sample/non-key-list",
-				value: []string{`{"uintval": "11", "strval": "XYZ"}`},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "non-key-list",
-			args: args{
-				path:  "/sample:sample/non-key-list",
-				value: []string{`{"uintval": "12", "strval": "XYZ"}`},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "non-key-list",
-			args: args{
-				path:  "/sample:sample/non-key-list[uintval=13][strval=ABC]",
-				value: nil,
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-instance-identifier",
-			args: args{
-				path:  "/sample:sample/sample:container-val/test-instance-identifier",
-				value: []string{"/sample:sample/sample:container-val/a"},
-			},
-			wantInsertErr: false,
-		},
-		{
-			name: "test-must",
-			args: args{
-				path:  "/sample:sample/sample:container-val/test-must",
-				value: []string{"5"},
-			},
-			wantInsertErr: false,
-		},
+		{wantInsertErr: false, path: "/sample"},
+		{wantInsertErr: false, path: "/sample/str-val", value: []string{"abc"}},
+		{wantInsertErr: false, path: "/sample/empty-val", value: []string{"true"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/country-code", value: []string{"KR"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"100"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: []string{"1.01"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/empty-node", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint64-node[.=1234567890]", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint32-range", value: []string{"200"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=CCC]/uint32-range", value: []string{"300"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=DDD]/uint32-range", value: []string{"400"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=1]/ok", value: []string{"true"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=2]/str", value: []string{"first"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[str=second][integer=1]/str", value: []string{"second"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[sample:str=second][integer=2]/str", value: []string{"second"}},
+		{wantInsertErr: false, path: "/sample:sample/container-val", value: nil},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: nil},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: []string{"leaf-list-first", "leaf-list-second"}},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: []string{"leaf-list-third"}},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val/leaf-list-fourth", value: nil},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: nil},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:enum-val", value: []string{"enum2"}},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:test-default", value: []string{"11"}},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/a", value: []string{"A"}},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "11", "strval": "XYZ"}`}},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "12", "strval": "XYZ"}`}},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: nil},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: []string{"/sample:sample/sample:container-val/a"}},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: []string{"5"}},
+
+		{wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: []string{"true"}},
+		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"493"}},
+		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: []string{"500"}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name+".Set", func(t *testing.T) {
-			if err := Set(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantInsertErr {
-				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.args.path)
+		t.Run("Set."+tt.path, func(t *testing.T) {
+			if err := Set(RootData, tt.path, tt.value...); (err != nil) != tt.wantInsertErr {
+				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
 		})
 	}
@@ -411,36 +197,43 @@ func TestDataNode(t *testing.T) {
 	}
 
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	testfinds := []struct {
+		path        string
+		expectedNum int
+	}{
+		{expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
+		{expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
+		{expectedNum: 1, path: "/sample/single-key-list[sample:list-key=AAA]/list-key"},
+		{expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
+		{expectedNum: 4, path: "/sample/single-key-list[list-key=*]"},
+		{expectedNum: 13, path: "/sample/single-key-list/*"},
+		{expectedNum: 14, path: "/sample/*"},
+		{expectedNum: 49, path: "/sample/..."},
+		{expectedNum: 1, path: "/sample/.../enum-val"},
+		{expectedNum: 34, path: "/sample/*/*/"},
+		{expectedNum: 3, path: "/sample//non-key-list"},
+		{expectedNum: 2, path: "/sample/multiple-key-list[str=first][integer=*]"},
+		{expectedNum: 4, path: "/sample/multiple-key-list"},
+		{expectedNum: 1, path: "/sample/non-key-list[2]"},
+		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
+	}
+	for i := range testfinds {
+		node, err := Find(RootData, testfinds[i].path)
+		if err != nil {
+			t.Errorf("Find() path %v error = %v", testfinds[i].path, err)
+		}
+		t.Logf("Find %s (expected num: %d, result: %d)", testfinds[i].path, testfinds[i].expectedNum, len(node))
+		if testfinds[i].expectedNum != len(node) {
+			t.Errorf("find error for %s (expected num: %d, result: %d)", testfinds[i].path, testfinds[i].expectedNum, len(node))
+			for j := range node {
+				jj, _ := MarshalJSON(node[j], true)
+				t.Log(" - found", j+1, "", node[j].Path(), string(jj))
+			}
+		}
+
+	}
 
 	path := []string{
-		"/sample/container-val/leaf-list-val[.=leaf-list-fourth]",
-		"/sample/multiple-key-list[str=first][integer=*]/ok",
-		"/sample/single-key-list[sample:list-key=AAA]/list-key",
-		"/sample/single-key-list[list-key='AAA']",
-		"/sample/single-key-list[list-key=*]",
-		"/sample/single-key-list/*",
-		"/sample/*",
-		"/sample/...",
-		"/sample/.../enum-val",
-		"/sample/*/*/",
-		"/sample//non-key-list",
-		"/sample/multiple-key-list[str=first][integer=*]",
-		"/sample/multiple-key-list",
-		"/sample/non-key-list[2]",
-	}
-	for i := range path {
-		node, err := Find(RootData, path[i])
-		if err != nil {
-			t.Errorf("Find() path %v error = %v", path[i], err)
-		}
-		t.Logf("Find %s", path[i])
-		for j := range node {
-			jj, _ := MarshalJSON(node[j], true)
-			t.Log(" - Find", j, "", node[j].Path(), string(jj))
-		}
-	}
-
-	path = []string{
 		"/sample/container-val/leaf-list-val[.=leaf-list-fourth]",
 	}
 	result := []interface{}{
@@ -476,8 +269,8 @@ func TestDataNode(t *testing.T) {
 		if tt.wantInsertErr {
 			continue
 		}
-		t.Run(tt.name+".Delete", func(t *testing.T) {
-			if err := Delete(RootData, tt.args.path, tt.args.value...); (err != nil) != tt.wantDeleteErr {
+		t.Run("Delete."+tt.path, func(t *testing.T) {
+			if err := Delete(RootData, tt.path, tt.value...); (err != nil) != tt.wantDeleteErr {
 				t.Errorf("Delete() error = %v, wantDeleteErr %v", err, tt.wantDeleteErr)
 			}
 		})

@@ -63,15 +63,8 @@ var (
 	}
 
 	funcXPath map[string]interface{} = map[string]interface{}{
-		"count": funcXPathCount,
-
-		// // boolean functions
-		// "not":   "not",
-		// "true":  "True",
-		// "false": "False",
-		// "sum":   "sum",
-
-		// "string": "nodestring",
+		"count":   funcXPathCount,
+		"current": "node.Value",
 	}
 )
 
@@ -169,29 +162,6 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	return node, nil
 }
 
-func PredicatesToValues(schema *yang.Entry, pathnode *PathNode) (map[string]string, error) {
-	p := map[string]string{}
-	// if len(pathnode.Predicates) == 1 {
-	// 	if _, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
-	// 		return nil, nil
-	// 	}
-	// }
-
-	for j := range pathnode.Predicates {
-		d := strings.IndexAny(pathnode.Predicates[j], "=")
-		if d < 0 {
-			return nil, fmt.Errorf("predicate %q is not value predicate", pathnode.Predicates[j])
-		}
-		name := pathnode.Predicates[j][:d]
-		cschema := GetSchema(schema, name)
-		if cschema == nil {
-			return nil, fmt.Errorf("schema.%s not found from schema.%s", name, schema.Name)
-		}
-		p[cschema.Name] = pathnode.Predicates[j][d+1:]
-	}
-	return p, nil
-}
-
 func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
 	p := map[string]interface{}{}
 	numP := 0
@@ -206,29 +176,43 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 	}
 	meta := GetSchemaMeta(schema)
 	for i := range pathnode.Predicates {
-		var name, value string
-		d := strings.IndexAny(pathnode.Predicates[i], "=")
-		if d < 0 {
-			name = pathnode.Predicates[i]
-			value = ""
-		} else {
-			name = pathnode.Predicates[i][:d]
-			value = pathnode.Predicates[i][d+1:]
-			if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
-				value = strings.Trim(value, "'")
-			}
-			if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
-				value = strings.Trim(value, "\"")
-			}
-			if name == "." {
-				p["."] = value
-				continue
-			}
+		token, _, err := tokenizeXPath(nil, &(pathnode.Predicates[i]), 0)
+		if err != nil {
+			return "", nil, err
 		}
-		cschema, ok := meta.Dir[name]
+		tokenlen := len(token)
+		if tokenlen != 3 || (tokenlen == 3 && token[1] != "=") {
+			p["@findbypredicates"] = true
+			if IsUniqueList(schema) {
+				p["@prefix"] = true
+			}
+			return pathnode.Name, p, nil
+		}
+		if token[0] == "." {
+			p["."] = token[2]
+			continue
+		}
+		cschema, ok := meta.Dir[token[0]]
 		if !ok {
-			return "", nil, fmt.Errorf("complex or invalid path predicate %q not supported", pathnode.Predicates[i])
+			p["@findbypredicates"] = true
+			if IsUniqueList(schema) {
+				p["@prefix"] = true
+			}
+			return pathnode.Name, p, nil
 		}
+		value := token[2]
+		if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+			value = strings.Trim(value, "'")
+		}
+		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+			value = strings.Trim(value, "\"")
+		}
+		if v, exist := p[cschema.Name]; exist {
+			if v != value {
+				return "", nil, fmt.Errorf("invalid path predicates %q", pathnode.Predicates[i])
+			}
+		}
+
 		numP++
 		p[cschema.Name] = value
 	}
@@ -303,6 +287,11 @@ func tokenizeXPath(token []string, s *string, pos int) ([]string, int, error) {
 		case '@':
 			return nil, 0, fmt.Errorf("xml attr in %q not supported", *s)
 		case ' ', '\t', '\n', '\r':
+			e := w.String()
+			if _, ok := opToGoExpr[e]; ok {
+				token = append(token, w.String())
+				w.Reset()
+			}
 		case ',':
 			if w.Len() > 0 {
 				token = append(token, w.String())
@@ -347,7 +336,7 @@ func tokenizeXPath(token []string, s *string, pos int) ([]string, int, error) {
 				token = append(token, (*s)[pos:pos+2])
 				pos++
 			default:
-				return nil, 0, fmt.Errorf("invalid predicate syntax %q", (*s))
+				return nil, 0, fmt.Errorf("invalid syntax %q", (*s))
 			}
 		default:
 			w.WriteByte((*s)[pos])
@@ -388,6 +377,10 @@ func convertToGoExpr(goExpr *strings.Builder, env map[string]interface{}, token 
 			} else if i < length-1 {
 				if token[i+1] == "(" {
 					if f, ok := funcXPath[token[i]]; ok {
+						if fs, ok := f.(string); ok {
+							goExpr.WriteString(fs)
+							break
+						}
 						env[token[i]] = f
 					}
 					goExpr.WriteString(token[i])
@@ -468,13 +461,10 @@ func funcXPathResult(value interface{}) bool {
 
 func findByPredicates(current []DataNode, predicates []string) ([]DataNode, error) {
 	var first, last, pos int
-	var node DataNode
 	var e strings.Builder
 	env := map[string]interface{}{
 		"result":    funcXPathResult,
 		"findvalue": funcXPathFindValue,
-		"node":      node,
-		"current":   func() interface{} { return node.Value() },
 		"position":  func() int { return pos + 1 },
 		"first":     func() int { return first + 1 },
 		"last":      func() int { return last },
@@ -503,13 +493,13 @@ func findByPredicates(current []DataNode, predicates []string) ([]DataNode, erro
 		e.WriteString(")")
 		newchildren := make([]DataNode, 0, last)
 		for pos = first; pos < last; pos++ {
-			node = current[pos]
+			env["node"] = current[pos]
 			ok, err := gval.Evaluate(e.String(), env)
 			if err != nil {
 				return nil, fmt.Errorf("%q expr running error: %v", e.String(), err)
 			}
 			if ok.(bool) {
-				newchildren = append(newchildren, node)
+				newchildren = append(newchildren, current[pos])
 			}
 		}
 		current = newchildren
@@ -528,7 +518,6 @@ func evaluatePathExpr(node DataNode, exprstr string) (bool, error) {
 		"result":    funcXPathResult,
 		"findvalue": funcXPathFindValue,
 		"node":      node,
-		"current":   func() interface{} { return node.Value() },
 	}
 	_, err = convertToGoExpr(&e, env, token, 0)
 	if err != nil {
