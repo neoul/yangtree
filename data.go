@@ -54,18 +54,18 @@ type DataNode interface {
 
 	UnmarshalJSON([]byte) error // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
 
-	Find(path string, option ...FindOption) ([]DataNode, error)
+	Find(path string, option ...Option) ([]DataNode, error)
 }
 
-type FindOption interface {
-	IsFindOption()
+type Option interface {
+	IsOption()
 }
 
 type FindConfig struct{}
 type FindState struct{}
 
-func (f FindConfig) IsFindOption() {}
-func (f FindState) IsFindOption()  {}
+func (f FindConfig) IsOption() {}
+func (f FindState) IsOption()  {}
 
 func LoopInOrder(n int, f func(int) bool) int {
 	i := 0
@@ -405,7 +405,7 @@ func (branch *DataBranch) Key() string {
 }
 
 // Find data nodes using the path
-func (branch *DataBranch) Find(path string, option ...FindOption) ([]DataNode, error) {
+func (branch *DataBranch) Find(path string, option ...Option) ([]DataNode, error) {
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -527,7 +527,7 @@ func (leaf *DataLeaf) Key() string {
 }
 
 // Find data nodes using the path
-func (leaf *DataLeaf) Find(path string, option ...FindOption) ([]DataNode, error) {
+func (leaf *DataLeaf) Find(path string, option ...Option) ([]DataNode, error) {
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -689,7 +689,7 @@ func (leaflist *DataLeafList) Key() string {
 }
 
 // Find data nodes using the path
-func (leaflist *DataLeafList) Find(path string, option ...FindOption) ([]DataNode, error) {
+func (leaflist *DataLeafList) Find(path string, option ...Option) ([]DataNode, error) {
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -1016,7 +1016,7 @@ func Delete(root DataNode, path string, value ...string) error {
 	return deleteValue(root, pathnode, value...)
 }
 
-func returnFound(node DataNode, option ...FindOption) []DataNode {
+func returnFound(node DataNode, option ...Option) []DataNode {
 	if len(option) == 0 {
 		return []DataNode{node}
 	}
@@ -1045,7 +1045,7 @@ func returnFound(node DataNode, option ...FindOption) []DataNode {
 	return nil
 }
 
-func findNode(root DataNode, pathnode []*PathNode, option ...FindOption) []DataNode {
+func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode {
 	if len(pathnode) == 0 {
 		return returnFound(root, option...)
 	}
@@ -1129,7 +1129,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...FindOption) []DataN
 }
 
 // Find data nodes using the path
-func Find(root DataNode, path string, option ...FindOption) ([]DataNode, error) {
+func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
 	if !isValid(root) {
 		return nil, fmt.Errorf("invalid root node")
 	}

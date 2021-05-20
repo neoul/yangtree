@@ -185,26 +185,26 @@ func (leaf *DataLeaf) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if leaf == nil {
 		return nil, nil
 	}
-	prefix := false
+	rfc7951enabled := false
 	if rfc7951 != rfc7951Disabled {
-		prefix = true
+		rfc7951enabled = true
 	}
-	return ValueToJSONValue(leaf.schema, leaf.schema.Type, leaf.value, prefix)
+	return ValueToJSONValue(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
 }
 
 func (leaflist *DataLeafList) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
 	if leaflist == nil {
 		return nil, nil
 	}
-	prefix := false
+	rfc7951enabled := false
 	if rfc7951 != rfc7951Disabled {
-		prefix = true
+		rfc7951enabled = true
 	}
 	var b bytes.Buffer
 	b.WriteString("[")
 	length := len(leaflist.value)
 	for i := 0; i < length; i++ {
-		valbyte, err := ValueToJSONValue(leaflist.schema, leaflist.schema.Type, leaflist.value[i], prefix)
+		valbyte, err := ValueToJSONValue(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
 		if err != nil {
 			return nil, err
 		}
