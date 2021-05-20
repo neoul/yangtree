@@ -64,7 +64,7 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	j, _ := MarshalJSONIndent(RootData, "", " ", false)
+	j, _ := MarshalJSONIndent(RootData, "", " ")
 	t.Log(string(j))
 
 	cschema := GetSchema(RootSchema, "sample")
@@ -234,7 +234,7 @@ func TestDataNode(t *testing.T) {
 			}
 			t.Logf("Find %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
 			for j := range node {
-				jj, _ := MarshalJSON(node[j], true)
+				jj, _ := MarshalJSON(node[j], RFC7951Format{})
 				t.Log(" - found", j+1, "", node[j].Path(), string(jj))
 			}
 			if tt.expectedNum != len(node) {
@@ -268,7 +268,7 @@ func TestDataNode(t *testing.T) {
 	// t.Log(nodes[0].Get("single-key-list[list-key=AAA]"))
 	// t.Log(nodes[0].Lookup("s"))
 
-	jj, err := MarshalJSONIndent(RootData, "", " ", false)
+	jj, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -286,7 +286,7 @@ func TestDataNode(t *testing.T) {
 		})
 	}
 
-	jsonietf, err := MarshalJSONIndent(RootData, "", " ", true)
+	jsonietf, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
 	if err != nil {
 		t.Error(err)
 	}

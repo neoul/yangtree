@@ -539,6 +539,24 @@ func GetPresentParentSchema(entry *yang.Entry) *yang.Entry {
 	return nil
 }
 
+func IsConfig(schema *yang.Entry) bool {
+	if schema == nil {
+		return false
+	}
+	for ; schema.Parent != nil; schema = schema.Parent {
+		switch schema.Config {
+		case yang.TSTrue:
+			return true
+		case yang.TSFalse:
+			return false
+		}
+	}
+
+	// Reached the last element in the tree without explicit configuration
+	// being set.
+	return schema.Config != yang.TSFalse
+}
+
 // ExtractKeyValues extracts the list key values from keystr
 func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	length := len(keystr)
