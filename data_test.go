@@ -89,7 +89,7 @@ func TestChildDataNodeListing(t *testing.T) {
 		"/sample/single-key-list[list-key=A1234]/uint32-range",
 		"/sample/single-key-list[list-key=A24]/uint32-range",
 		"/sample/single-key-list[list-key=A5]/empty-node",
-		"/sample/single-key-list[list-key=A3]/int8-range",
+		// "/sample/single-key-list[list-key=A3]/int8-range",
 		"/sample/single-key-list[list-key=A4]/decimal-range",
 
 		"/sample/single-key-list[list-key=A6]/uint64-node",
@@ -187,7 +187,8 @@ func TestDataNode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("Set."+tt.path, func(t *testing.T) {
-			if err := Set(RootData, tt.path, tt.value...); (err != nil) != tt.wantInsertErr {
+			err := Set(RootData, tt.path, tt.value...)
+			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
 		})
@@ -198,8 +199,9 @@ func TestDataNode(t *testing.T) {
 
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 	testfinds := []struct {
-		path        string
 		expectedNum int
+		path        string
+		findState   bool
 	}{
 		{expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
 		{expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
@@ -209,6 +211,7 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 13, path: "/sample/single-key-list/*"},
 		{expectedNum: 14, path: "/sample/*"},
 		{expectedNum: 49, path: "/sample/..."},
+		{expectedNum: 4, path: "/sample/...", findState: true},
 		{expectedNum: 1, path: "/sample/.../enum-val"},
 		{expectedNum: 34, path: "/sample/*/*/"},
 		{expectedNum: 3, path: "/sample//non-key-list"},
@@ -217,20 +220,27 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 1, path: "/sample/non-key-list[2]"},
 		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
 	}
-	for i := range testfinds {
-		node, err := Find(RootData, testfinds[i].path)
-		if err != nil {
-			t.Errorf("Find() path %v error = %v", testfinds[i].path, err)
-		}
-		t.Logf("Find %s (expected num: %d, result: %d)", testfinds[i].path, testfinds[i].expectedNum, len(node))
-		if testfinds[i].expectedNum != len(node) {
-			t.Errorf("find error for %s (expected num: %d, result: %d)", testfinds[i].path, testfinds[i].expectedNum, len(node))
+	for _, tt := range testfinds {
+		t.Run("Find."+tt.path, func(t *testing.T) {
+			var err error
+			var node []DataNode
+			if tt.findState {
+				node, err = Find(RootData, tt.path, FindState{})
+			} else {
+				node, err = Find(RootData, tt.path)
+			}
+			if err != nil {
+				t.Errorf("Find() path %v error = %v", tt.path, err)
+			}
+			t.Logf("Find %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
 			for j := range node {
 				jj, _ := MarshalJSON(node[j], true)
 				t.Log(" - found", j+1, "", node[j].Path(), string(jj))
 			}
-		}
-
+			if tt.expectedNum != len(node) {
+				t.Errorf("find error for %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
+			}
+		})
 	}
 
 	path := []string{

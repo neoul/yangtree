@@ -27,7 +27,10 @@ module sample {
       key "list-key";
       leaf list-key { type string; }
       leaf country-code { type string; }
-      leaf uint32-range { type uint32 { range "1..492"; } }
+      leaf uint32-range {
+        config false;
+        type uint32 { range "1..492"; }
+      }
       leaf int8-range { type int8; }
       leaf decimal-range {
         type decimal64 {

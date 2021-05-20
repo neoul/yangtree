@@ -393,7 +393,6 @@ func updateSchemaEntry(parent, entry *yang.Entry, current *yang.Module, modules 
 		pmeta.Dir[module.Name+":"+entry.Name] = entry
 		pmeta.Dir[entry.Name] = entry
 		pmeta.Dir["."] = entry
-		pmeta.Dir[""] = entry
 		pmeta.Dir[".."] = GetPresentParentSchema(entry)
 	}
 	if err := updateSchemaMetaForType(entry, entry.Type); err != nil {
