@@ -277,7 +277,7 @@ func TestDataNode_FindState(t *testing.T) {
 		t.Error(err)
 	}
 
-	jbyte2, err := MarshalJSON(RootData, FindState{})
+	jbyte2, err := MarshalJSON(RootData, RFC7951Format{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -287,10 +287,8 @@ func TestDataNode_FindState(t *testing.T) {
 	}
 	if !reflect.DeepEqual(jdata1, jdata2) {
 		t.Errorf("unmarshaled data is not equal.")
-
+		pretty.Print(jdata1)
+		pretty.Print(jdata2)
 	}
-	pretty.Print(jdata1)
-	pretty.Print(jdata2)
-
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }
