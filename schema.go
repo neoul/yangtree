@@ -805,11 +805,11 @@ func ValueToString(value interface{}) string {
 	return fmt.Sprint(value)
 }
 
-func ValueToJSONValue(entry *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
+func ValueToJSONBytes(entry *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
 	switch typ.Kind {
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := ValueToJSONValue(entry, typ.Type[i], value, rfc7951)
+			v, err := ValueToJSONBytes(entry, typ.Type[i], value, rfc7951)
 			if err == nil {
 				return v, nil
 			}

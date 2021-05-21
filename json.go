@@ -149,7 +149,7 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 		b.WriteString("[")
 		length := len(leaflist.value)
 		for i := 0; i < length; i++ {
-			valbyte, err := ValueToJSONValue(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
+			valbyte, err := ValueToJSONBytes(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
 			if err != nil {
 				return nil, err
 			}
@@ -169,7 +169,7 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 		if jnode.rfc7951() != rfc7951Disabled {
 			rfc7951enabled = true
 		}
-		return ValueToJSONValue(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
+		return ValueToJSONBytes(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
 	}
 	return nil, nil
 }
