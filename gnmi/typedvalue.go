@@ -19,17 +19,17 @@ func ValueToTypedValue(val interface{}, enc gnmipb.Encoding) (*gnmipb.TypedValue
 		case node.IsBranch():
 			switch enc {
 			case gnmipb.Encoding_JSON:
-				jbyte, err := node.MarshalJSON()
+				jbytes, err := node.MarshalJSON()
 				if err != nil {
 					return nil, err
 				}
-				return &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonVal{JsonVal: jbyte}}, nil
+				return &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonVal{JsonVal: jbytes}}, nil
 			case gnmipb.Encoding_JSON_IETF:
-				jbyte, err := node.MarshalJSON_IETF()
+				jbytes, err := node.MarshalJSON_IETF()
 				if err != nil {
 					return nil, err
 				}
-				return &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonIetfVal{JsonIetfVal: jbyte}}, nil
+				return &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonIetfVal{JsonIetfVal: jbytes}}, nil
 			default:
 				return nil, fmt.Errorf("typed value encoding %q not supported", enc)
 			}

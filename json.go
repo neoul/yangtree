@@ -572,9 +572,9 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 	jnode := &jsonDataNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
-		case FindConfig:
+		case OptionGetConfig:
 			jnode.config = yang.TSTrue
-		case FindState:
+		case OptionGetState:
 			jnode.config = yang.TSFalse
 		case RFC7951Format:
 			jnode.rfc7951s = rfc7951Enabled
@@ -588,9 +588,9 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 	jnode := &jsonDataNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
-		case FindConfig:
+		case OptionGetConfig:
 			jnode.config = yang.TSTrue
-		case FindState:
+		case OptionGetState:
 			jnode.config = yang.TSFalse
 		case RFC7951Format:
 			jnode.rfc7951s = rfc7951Enabled

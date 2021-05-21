@@ -61,11 +61,11 @@ type Option interface {
 	IsOption()
 }
 
-type FindConfig struct{}
-type FindState struct{}
+type OptionGetConfig struct{}
+type OptionGetState struct{}
 
-func (f FindConfig) IsOption() {}
-func (f FindState) IsOption()  {}
+func (f OptionGetConfig) IsOption() {}
+func (f OptionGetState) IsOption()  {}
 
 func LoopInOrder(n int, f func(int) bool) int {
 	i := 0
@@ -1042,11 +1042,11 @@ func returnFound(node DataNode, option ...Option) []DataNode {
 	}
 	for i := range option {
 		switch option[i].(type) {
-		case FindConfig:
+		case OptionGetConfig:
 			if isconfig == yang.TSTrue {
 				return []DataNode{node}
 			}
-		case FindState:
+		case OptionGetState:
 			if isconfig == yang.TSFalse {
 				return []DataNode{node}
 			}
