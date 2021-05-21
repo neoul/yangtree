@@ -221,7 +221,7 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 	case IsUniqueList(schema):
 		var key bytes.Buffer
 		key.WriteString(schema.Name)
-		keyname := strings.Split(schema.Key, " ")
+		keyname := GetKeynames(schema)
 		usedPredicates := 0
 	LOOP:
 		for i := range keyname {

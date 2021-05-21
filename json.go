@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )
@@ -184,7 +183,7 @@ func (mjb *jsonbytes) MarshalJSON() ([]byte, error) {
 
 func marshalList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, config yang.TriState) (int, bool, error) {
 	schema := node[i].Schema()
-	keyname := strings.Split(schema.Key, " ")
+	keyname := GetKeynames(schema)
 	keynamelen := len(keyname)
 	keymap := map[string]interface{}{}
 	length := len(node)
@@ -481,14 +480,14 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 				switch {
 				case IsList(cschema):
 					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if err := n.unmarshalListRFC7951(cschema, ListKeyname(cschema), rfc7951StyleList); err != nil {
+						if err := n.unmarshalListRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
 							return err
 						}
 					} else {
 						if IsDuplicatedList(cschema) {
 							return fmt.Errorf("non-key list '%s' must have the array format of RFC7951", cschema.Name)
 						}
-						kname := ListKeyname(cschema)
+						kname := GetKeynames(cschema)
 						kval := make([]string, 0, len(kname))
 						if err := n.unmarshalList(cschema, kname, kval, v); err != nil {
 							return err

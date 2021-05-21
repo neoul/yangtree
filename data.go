@@ -291,6 +291,10 @@ func (branch *DataBranch) Delete(child DataNode) error {
 	// if child.Parent() == nil {
 	// 	return fmt.Errorf("'%s' is already removed from a branch", child)
 	// }
+	if IsKeyNode(child.Schema()) && branch.parent != nil {
+		// return fmt.Errorf("key node %q must not be deleted", child)
+		return nil
+	}
 
 	length := len(branch.children)
 	key := child.Key()
@@ -387,7 +391,7 @@ func (branch *DataBranch) Key() string {
 	}
 	switch {
 	case IsUniqueList(branch.schema):
-		keyname := strings.Split(branch.schema.Key, " ")
+		keyname := GetKeynames(branch.schema)
 		key := make([]string, 0, len(keyname)+1)
 		key = append(key, branch.schema.Name)
 		for i := range keyname {
@@ -463,6 +467,12 @@ func (leaf *DataLeaf) New(key string, value ...string) (DataNode, error) {
 }
 
 func (leaf *DataLeaf) Set(value ...string) error {
+	if IsKeyNode(leaf.schema) && leaf.parent != nil {
+		return nil
+		// ignore key update
+		// return fmt.Errorf("unable to update key node %q if used", leaf)
+	}
+
 	for i := range value {
 		v, err := StringToValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
