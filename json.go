@@ -48,11 +48,15 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 		if length == 0 {
 			return []byte("{}"), nil
 		}
+		comma := false
 		node := datanode.children
 		buffer := bytes.NewBufferString("{")
 		for i := 0; i < length; {
 			if IsList(node[i].Schema()) {
 				var err error
+				if comma {
+					buffer.WriteString(",")
+				}
 				if jnode.rfc7951() != rfc7951Disabled {
 					i, err = marshalListRFC7951(buffer, node, i, jnode.rfc7951(), jnode.config)
 				} else {
@@ -100,14 +104,15 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 					return nil, err
 				}
 			}
+			if comma {
+				buffer.WriteString(",")
+			}
 			if qname != nil {
 				buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
 			} else {
 				buffer.WriteString("\"" + cjnode.Key() + "\":" + string(jsonValue))
 			}
-			if i < length-1 {
-				buffer.WriteString(",")
-			}
+			comma = true
 			i++
 		}
 		buffer.WriteString("}")
@@ -186,9 +191,6 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, config yang.TriSt
 		return i, err
 	}
 	buffer.WriteString(string(jsonValue))
-	if i < length {
-		buffer.WriteString(",")
-	}
 	return i, nil
 }
 
@@ -216,9 +218,6 @@ func marshalDuplicatedList(buffer *bytes.Buffer, node []DataNode, i int, config 
 		return i, err
 	}
 	buffer.WriteString(string(jsonValue))
-	if i < length {
-		buffer.WriteString(",")
-	}
 	return j, nil
 }
 
@@ -254,9 +253,6 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, rfc7951 rf
 		return i, err
 	}
 	buffer.WriteString(string(jsonValue))
-	if i < length {
-		buffer.WriteString(",")
-	}
 	return j, nil
 }
 
