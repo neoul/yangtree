@@ -9,6 +9,10 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
+type RFC7951Format struct{}
+
+func (f RFC7951Format) IsOption() {}
+
 // rfc7951s (rfc7951 processing status)
 type rfc7951s int
 
@@ -20,6 +24,131 @@ const (
 	// rfc7951enabled - rfc7951 encoding enabled
 	rfc7951Enabled
 )
+
+type jsonDataNode struct {
+	DataNode
+	rfc7951s
+	config yang.TriState
+}
+
+func (jnode *jsonDataNode) rfc7951() rfc7951s {
+	if jnode == nil {
+		return rfc7951Disabled
+	}
+	return jnode.rfc7951s
+}
+
+func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
+	if jnode == nil || jnode.DataNode == nil {
+		return []byte("null"), nil
+	}
+	switch datanode := jnode.DataNode.(type) {
+	case *DataBranch:
+		length := len(datanode.children)
+		if length == 0 {
+			return []byte("{}"), nil
+		}
+		node := datanode.children
+		buffer := bytes.NewBufferString("{")
+		for i := 0; i < length; {
+			if IsList(node[i].Schema()) {
+				var err error
+				if jnode.rfc7951() != rfc7951Disabled {
+					i, err = marshalListRFC7951(buffer, node, i, jnode.rfc7951(), jnode.config)
+				} else {
+					if IsDuplicatedList(node[i].Schema()) {
+						i, err = marshalDuplicatedList(buffer, node, i, jnode.config)
+					} else {
+						i, err = marshalList(buffer, node, i, jnode.config)
+					}
+				}
+				if err != nil {
+					return nil, err
+				}
+				continue
+			}
+			var err error
+			var jsonValue []byte
+			var qname interface{} // namespace-qualified name
+			cjnode := &jsonDataNode{DataNode: node[i], config: jnode.config}
+			if cjnode.config == yang.TSTrue {
+				if !IsConfig(cjnode.Schema()) {
+					continue
+				}
+			} else if cjnode.config == yang.TSFalse {
+				// if IsConfig(cjnode.Schema()) {
+				// 	continue
+				// }
+			}
+			// if !cjnode.Schema().IsDir() { // is leaf or leaflist
+			// 	if IsConfig(cjnode.Schema()) {
+			// 		continue
+			// 	}
+			// }
+			switch jnode.rfc7951() {
+			case rfc7951InProgress, rfc7951Enabled:
+				cjnode.rfc7951s = rfc7951InProgress
+				if jsonValue, err = json.Marshal(cjnode); err != nil {
+					return nil, err
+				}
+				if qn, boundary := GetQName(cjnode.Schema()); boundary ||
+					jnode.rfc7951() == rfc7951Enabled {
+					qname = qn
+				}
+			default:
+				if jsonValue, err = json.Marshal(cjnode); err != nil {
+					return nil, err
+				}
+			}
+			if qname != nil {
+				buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
+			} else {
+				buffer.WriteString("\"" + cjnode.Key() + "\":" + string(jsonValue))
+			}
+			if i < length-1 {
+				buffer.WriteString(",")
+			}
+			i++
+		}
+		buffer.WriteString("}")
+		return buffer.Bytes(), nil
+	case *DataLeafList:
+		leaflist := datanode
+		if leaflist == nil {
+			return nil, nil
+		}
+		rfc7951enabled := false
+		if jnode.rfc7951() != rfc7951Disabled {
+			rfc7951enabled = true
+		}
+		var b bytes.Buffer
+		b.WriteString("[")
+		length := len(leaflist.value)
+		for i := 0; i < length; i++ {
+			valbyte, err := ValueToJSONValue(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
+			if err != nil {
+				return nil, err
+			}
+			b.Write(valbyte)
+			if i < length-1 {
+				b.WriteString(",")
+			}
+		}
+		b.WriteString("]")
+		return json.Marshal(leaflist.value)
+	case *DataLeaf:
+		leaf := datanode
+		if leaf == nil {
+			return nil, nil
+		}
+		rfc7951enabled := false
+		if jnode.rfc7951() != rfc7951Disabled {
+			rfc7951enabled = true
+		}
+		return ValueToJSONValue(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
+	}
+	return nil, nil
+}
 
 func marshalList(buffer *bytes.Buffer, node []DataNode, i int, config yang.TriState) (int, error) {
 	schema := node[i].Schema()
@@ -131,109 +260,34 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, rfc7951 rf
 	return j, nil
 }
 
-func (branch *DataBranch) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
-	if branch == nil {
-		return []byte("null"), nil
-	}
-	length := len(branch.children)
-	if length == 0 {
-		return []byte("{}"), nil
-	}
-	node := branch.children
-	buffer := bytes.NewBufferString("{")
-	for i := 0; i < length; {
-		if IsList(node[i].Schema()) {
-			var err error
-			if rfc7951 != rfc7951Disabled {
-				i, err = marshalListRFC7951(buffer, node, i, rfc7951, yang.TSUnset)
-			} else {
-				if IsDuplicatedList(node[i].Schema()) {
-					i, err = marshalDuplicatedList(buffer, node, i, yang.TSUnset)
-				} else {
-					i, err = marshalList(buffer, node, i, yang.TSUnset)
-				}
-			}
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
-		var err error
-		var jsonValue []byte
-		var qname interface{} // namespace-qualified name required
-		switch rfc7951 {
-		case rfc7951InProgress, rfc7951Enabled:
-			if jsonValue, err = json.Marshal(rfc7951DataNode{node[i]}); err != nil {
-				return nil, err
-			}
-			if qn, boundary := GetQName(node[i].Schema()); boundary || rfc7951 == rfc7951Enabled {
-				qname = qn
-			}
-		default:
-			if jsonValue, err = json.Marshal(node[i]); err != nil {
-				return nil, err
-			}
-		}
-		if qname != nil {
-			buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
-		} else {
-			buffer.WriteString("\"" + node[i].Key() + "\":" + string(jsonValue))
-		}
-		if i < length-1 {
-			buffer.WriteString(",")
-		}
-		i++
-	}
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
-
-func (leaf *DataLeaf) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
-	if leaf == nil {
-		return nil, nil
-	}
-	rfc7951enabled := false
-	if rfc7951 != rfc7951Disabled {
-		rfc7951enabled = true
-	}
-	return ValueToJSONValue(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
-}
-
-func (leaflist *DataLeafList) marshalJSON(rfc7951 rfc7951s) ([]byte, error) {
-	if leaflist == nil {
-		return nil, nil
-	}
-	rfc7951enabled := false
-	if rfc7951 != rfc7951Disabled {
-		rfc7951enabled = true
-	}
-	var b bytes.Buffer
-	b.WriteString("[")
-	length := len(leaflist.value)
-	for i := 0; i < length; i++ {
-		valbyte, err := ValueToJSONValue(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
-		if err != nil {
-			return nil, err
-		}
-		b.Write(valbyte)
-		if i < length-1 {
-			b.WriteString(",")
-		}
-	}
-	b.WriteString("]")
-	return json.Marshal(leaflist.value)
-}
-
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {
-	return branch.marshalJSON(rfc7951Disabled)
+	jnode := &jsonDataNode{DataNode: branch, rfc7951s: rfc7951Disabled}
+	return jnode.MarshalJSON()
 }
 
 func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
-	return leaf.marshalJSON(rfc7951Disabled)
+	jnode := &jsonDataNode{DataNode: leaf, rfc7951s: rfc7951Disabled}
+	return jnode.MarshalJSON()
 }
 
 func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
-	return leaflist.marshalJSON(rfc7951Disabled)
+	jnode := &jsonDataNode{DataNode: leaflist, rfc7951s: rfc7951Disabled}
+	return jnode.MarshalJSON()
+}
+
+func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
+	jnode := &jsonDataNode{DataNode: branch, rfc7951s: rfc7951Enabled}
+	return jnode.MarshalJSON()
+}
+
+func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
+	jnode := &jsonDataNode{DataNode: leaf, rfc7951s: rfc7951Enabled}
+	return jnode.MarshalJSON()
+}
+
+func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
+	jnode := &jsonDataNode{DataNode: leaflist, rfc7951s: rfc7951Enabled}
+	return jnode.MarshalJSON()
 }
 
 // unmarshalList decode jval to the list that has the keys.
@@ -418,38 +472,6 @@ func (leaflist *DataLeafList) UnmarshalJSON(jsonbyte []byte) error {
 	return unmarshalJSON(leaflist, jval)
 }
 
-// rfc7951DataNode is used to print the qname of the namespace boundary nodes for rfc7951.
-type rfc7951DataNode struct {
-	DataNode
-}
-
-func (node rfc7951DataNode) MarshalJSON() ([]byte, error) {
-	switch n := node.DataNode.(type) {
-	case *DataBranch:
-		return n.marshalJSON(rfc7951InProgress)
-	case *DataLeaf:
-		return n.marshalJSON(rfc7951InProgress)
-	case *DataLeafList:
-		return n.marshalJSON(rfc7951InProgress)
-	}
-	return nil, fmt.Errorf("unknown type '%T'", node.DataNode)
-}
-
-func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: branch, rfc7951s: rfc7951Enabled}
-	return jnode.MarshalJSON()
-}
-
-func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: leaf, rfc7951s: rfc7951Enabled}
-	return jnode.MarshalJSON()
-}
-
-func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: leaflist, rfc7951s: rfc7951Enabled}
-	return jnode.MarshalJSON()
-}
-
 // MarshalJSON returns the JSON encoding of DataNode.
 //
 // Marshal traverses the value v recursively.
@@ -484,126 +506,11 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 	return json.MarshalIndent(jnode, prefix, indent)
 }
 
-type RFC7951Format struct{}
-
-func (f RFC7951Format) IsOption() {}
-
-type jsonDataNode struct {
-	DataNode
-	rfc7951s
-	config yang.TriState
-}
-
-func (jnode *jsonDataNode) rfc7951() rfc7951s {
-	if jnode == nil {
-		return rfc7951Disabled
+func UnmarshalJSON(node DataNode, jsonbyte []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jsonbyte, &jval)
+	if err != nil {
+		return err
 	}
-	return jnode.rfc7951s
-}
-
-func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
-	if jnode == nil || jnode.DataNode == nil {
-		return []byte("null"), nil
-	}
-	switch datanode := jnode.DataNode.(type) {
-	case *DataBranch:
-		length := len(datanode.children)
-		if length == 0 {
-			return []byte("{}"), nil
-		}
-		node := datanode.children
-		buffer := bytes.NewBufferString("{")
-		for i := 0; i < length; {
-			if IsList(node[i].Schema()) {
-				var err error
-				if jnode.rfc7951() != rfc7951Disabled {
-					i, err = marshalListRFC7951(buffer, node, i, jnode.rfc7951(), jnode.config)
-				} else {
-					if IsDuplicatedList(node[i].Schema()) {
-						i, err = marshalDuplicatedList(buffer, node, i, jnode.config)
-					} else {
-						i, err = marshalList(buffer, node, i, jnode.config)
-					}
-				}
-				if err != nil {
-					return nil, err
-				}
-				continue
-			}
-			var err error
-			var jsonValue []byte
-			var qname interface{} // namespace-qualified name
-			cjnode := &jsonDataNode{DataNode: node[i], config: jnode.config}
-			if cjnode.config == yang.TSTrue {
-				if !IsConfig(cjnode.Schema()) {
-					continue
-				}
-			} else if cjnode.config == yang.TSFalse {
-				if IsConfig(cjnode.Schema()) {
-					continue
-				}
-			}
-			switch jnode.rfc7951() {
-			case rfc7951InProgress, rfc7951Enabled:
-				cjnode.rfc7951s = rfc7951InProgress
-				if jsonValue, err = json.Marshal(cjnode); err != nil {
-					return nil, err
-				}
-				if qn, boundary := GetQName(cjnode.Schema()); boundary ||
-					jnode.rfc7951() == rfc7951Enabled {
-					qname = qn
-				}
-			default:
-				if jsonValue, err = json.Marshal(cjnode); err != nil {
-					return nil, err
-				}
-			}
-			if qname != nil {
-				buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
-			} else {
-				buffer.WriteString("\"" + cjnode.Key() + "\":" + string(jsonValue))
-			}
-			if i < length-1 {
-				buffer.WriteString(",")
-			}
-			i++
-		}
-		buffer.WriteString("}")
-		return buffer.Bytes(), nil
-	case *DataLeafList:
-		leaflist := datanode
-		if leaflist == nil {
-			return nil, nil
-		}
-		rfc7951enabled := false
-		if jnode.rfc7951() != rfc7951Disabled {
-			rfc7951enabled = true
-		}
-		var b bytes.Buffer
-		b.WriteString("[")
-		length := len(leaflist.value)
-		for i := 0; i < length; i++ {
-			valbyte, err := ValueToJSONValue(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
-			if err != nil {
-				return nil, err
-			}
-			b.Write(valbyte)
-			if i < length-1 {
-				b.WriteString(",")
-			}
-		}
-		b.WriteString("]")
-		return json.Marshal(leaflist.value)
-	case *DataLeaf:
-		leaf := datanode
-		if leaf == nil {
-			return nil, nil
-		}
-		rfc7951enabled := false
-		if jnode.rfc7951() != rfc7951Disabled {
-			rfc7951enabled = true
-		}
-		return ValueToJSONValue(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
-	}
-	return nil, nil
+	return unmarshalJSON(node, jval)
 }
