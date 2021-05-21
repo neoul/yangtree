@@ -277,7 +277,7 @@ func TestDataNode_FindState(t *testing.T) {
 		t.Error(err)
 	}
 
-	jbyte2, err := RootData.MarshalJSON_IETF()
+	jbyte2, err := MarshalJSON(RootData, FindState{})
 	if err != nil {
 		t.Error(err)
 	}

@@ -54,16 +54,13 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 		for i := 0; i < length; {
 			if IsList(node[i].Schema()) {
 				var err error
-				if comma {
-					buffer.WriteString(",")
-				}
 				if jnode.rfc7951() != rfc7951Disabled {
-					i, err = marshalListRFC7951(buffer, node, i, jnode.rfc7951(), jnode.config)
+					i, comma, err = marshalListRFC7951(buffer, node, i, comma, jnode.rfc7951(), jnode.config)
 				} else {
 					if IsDuplicatedList(node[i].Schema()) {
-						i, err = marshalDuplicatedList(buffer, node, i, jnode.config)
+						i, comma, err = marshalDuplicatedList(buffer, node, i, comma, jnode.config)
 					} else {
-						i, err = marshalList(buffer, node, i, jnode.config)
+						i, comma, err = marshalList(buffer, node, i, comma, jnode.config)
 					}
 				}
 				if err != nil {
@@ -71,24 +68,11 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 				}
 				continue
 			}
+			// container, leaf or leaflist
 			var err error
 			var jsonValue []byte
 			var qname interface{} // namespace-qualified name
 			cjnode := &jsonDataNode{DataNode: node[i], config: jnode.config}
-			if cjnode.config == yang.TSTrue {
-				if !IsConfig(cjnode.Schema()) {
-					continue
-				}
-			} else if cjnode.config == yang.TSFalse {
-				// if IsConfig(cjnode.Schema()) {
-				// 	continue
-				// }
-			}
-			// if !cjnode.Schema().IsDir() { // is leaf or leaflist
-			// 	if IsConfig(cjnode.Schema()) {
-			// 		continue
-			// 	}
-			// }
 			switch jnode.rfc7951() {
 			case rfc7951InProgress, rfc7951Enabled:
 				cjnode.rfc7951s = rfc7951InProgress
@@ -104,16 +88,47 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 					return nil, err
 				}
 			}
-			if comma {
-				buffer.WriteString(",")
+
+			if cjnode.config == yang.TSFalse { // state retrieval
+				if IsConfig(cjnode.Schema()) {
+					if !cjnode.Schema().IsDir() {
+						i++
+						continue
+					}
+					if isEmptyJsonStr(string(jsonValue)) {
+						i++
+						continue
+					}
+				}
+
+				if comma {
+					buffer.WriteString(",")
+				}
+				if qname != nil {
+					buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
+				} else {
+					buffer.WriteString("\"" + cjnode.Key() + "\":" + string(jsonValue))
+				}
+				comma = true
+				i++
+			} else { // config retrieval
+				if cjnode.config == yang.TSTrue {
+					if !IsConfig(cjnode.Schema()) {
+						i++
+						continue
+					}
+				}
+				if comma {
+					buffer.WriteString(",")
+				}
+				if qname != nil {
+					buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
+				} else {
+					buffer.WriteString("\"" + cjnode.Key() + "\":" + string(jsonValue))
+				}
+				comma = true
+				i++
 			}
-			if qname != nil {
-				buffer.WriteString("\"" + qname.(string) + "\":" + string(jsonValue))
-			} else {
-				buffer.WriteString("\"" + cjnode.Key() + "\":" + string(jsonValue))
-			}
-			comma = true
-			i++
 		}
 		buffer.WriteString("}")
 		return buffer.Bytes(), nil
@@ -155,11 +170,10 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 	return nil, nil
 }
 
-func marshalList(buffer *bytes.Buffer, node []DataNode, i int, config yang.TriState) (int, error) {
+func marshalList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, config yang.TriState) (int, bool, error) {
 	schema := node[i].Schema()
 	keyname := strings.Split(schema.Key, " ")
 	keynamelen := len(keyname)
-	buffer.WriteString("\"" + schema.Name + "\":")
 	keymap := map[string]interface{}{}
 	length := len(node)
 	for ; i < length; i++ {
@@ -169,7 +183,7 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, config yang.TriSt
 		}
 		keyval, err := ExtractKeyValues(keyname, jnode.Key())
 		if err != nil {
-			return 0, err
+			return 0, comma, err
 		}
 		m := keymap
 		for x := range keyval {
@@ -188,15 +202,26 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, config yang.TriSt
 	}
 	jsonValue, err := json.Marshal(keymap)
 	if err != nil {
-		return i, err
+		return i, comma, err
 	}
+	if config == yang.TSFalse { // state retrieval
+		if IsConfig(schema) {
+			if isEmptyJsonStr(string(jsonValue)) {
+				return i, comma, nil
+			}
+		}
+	}
+	if comma {
+		buffer.WriteString(",")
+	}
+	buffer.WriteString("\"" + schema.Name + "\":")
 	buffer.WriteString(string(jsonValue))
-	return i, nil
+	comma = true
+	return i, comma, nil
 }
 
-func marshalDuplicatedList(buffer *bytes.Buffer, node []DataNode, i int, config yang.TriState) (int, error) {
+func marshalDuplicatedList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, config yang.TriState) (int, bool, error) {
 	schema := node[i].Schema()
-	buffer.WriteString("\"" + schema.Name + "\":")
 
 	j := i
 	length := len(node)
@@ -215,19 +240,26 @@ func marshalDuplicatedList(buffer *bytes.Buffer, node []DataNode, i int, config 
 	}
 	jsonValue, err := json.Marshal(keylist)
 	if err != nil {
-		return i, err
+		return i, comma, err
 	}
+	if config == yang.TSFalse { // state retrieval
+		if IsConfig(schema) {
+			if isEmptyJsonStr(string(jsonValue)) {
+				return j, comma, nil
+			}
+		}
+	}
+	if comma {
+		buffer.WriteString(",")
+	}
+	buffer.WriteString("\"" + schema.Name + "\":")
 	buffer.WriteString(string(jsonValue))
-	return j, nil
+	comma = true
+	return j, comma, nil
 }
 
-func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, rfc7951 rfc7951s, config yang.TriState) (int, error) {
+func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, comma bool, rfc7951 rfc7951s, config yang.TriState) (int, bool, error) {
 	schema := node[i].Schema()
-	if qname, boundary := GetQName(schema); boundary || rfc7951 == rfc7951Enabled {
-		buffer.WriteString("\"" + qname + "\":")
-	} else {
-		buffer.WriteString("\"" + schema.Name + "\":")
-	}
 
 	j := i
 	length := len(node)
@@ -250,10 +282,33 @@ func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, rfc7951 rf
 	}
 	jsonValue, err := json.Marshal(keylist)
 	if err != nil {
-		return i, err
+		return i, comma, err
+	}
+	if isEmptyJsonStr(string(jsonValue)) {
+		return j, comma, nil
+	}
+	if comma {
+		buffer.WriteString(",")
+	}
+	if qname, boundary := GetQName(schema); boundary || rfc7951 == rfc7951Enabled {
+		buffer.WriteString("\"" + qname + "\":")
+	} else {
+		buffer.WriteString("\"" + schema.Name + "\":")
 	}
 	buffer.WriteString(string(jsonValue))
-	return j, nil
+	comma = true
+	return j, comma, nil
+}
+
+func isEmptyJsonStr(s string) bool {
+	for _, r := range s {
+		switch r {
+		case '[', ']', '{', '}', ',', ' ', '\t', '\n', '\r':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {
