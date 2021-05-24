@@ -272,7 +272,7 @@ func TestDataNode(t *testing.T) {
 			var err error
 			var node []DataNode
 			if tt.findState {
-				node, err = Find(RootData, tt.path, OptionGetState{})
+				node, err = Find(RootData, tt.path, StateOnly{})
 			} else {
 				node, err = Find(RootData, tt.path)
 			}
