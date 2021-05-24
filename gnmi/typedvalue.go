@@ -9,6 +9,28 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
+func GetModuleData(schema *yang.Entry) []*gnmipb.ModelData {
+	if schema == nil {
+		return nil
+	}
+	m := yangtree.GetAllModules(schema)
+	if len(m) == 0 {
+		return nil
+	}
+	modeldata := make([]*gnmipb.ModelData, 0, len(m))
+	for k, model := range m {
+		mdata := &gnmipb.ModelData{Name: k}
+		if model.Organization != nil {
+			mdata.Organization = model.Organization.Name
+		}
+		if model.YangVersion != nil {
+			mdata.Version = model.YangVersion.Name
+		}
+		modeldata = append(modeldata, mdata)
+	}
+	return modeldata
+}
+
 // ValueToTypedValue encodes val into a gNMI TypedValue message, using the specified encoding
 // type if the value is a struct.
 func ValueToTypedValue(val interface{}, enc gnmipb.Encoding) (*gnmipb.TypedValue, error) {
