@@ -298,10 +298,11 @@ func updateSchemaMetaForType(schema *yang.Entry, typ *yang.YangType) error {
 	return nil
 }
 
-func buildRootEntry(option SchemaOption) *yang.Entry {
+func buildRootEntry(mods map[string]*yang.Module, option SchemaOption) *yang.Entry {
 	rootEntry := &yang.Entry{
 		Dir: map[string]*yang.Entry{},
 		Annotation: map[string]interface{}{
+			"modules": mods,
 			"meta": &SchemaMetadata{
 				IsRoot: true,
 				Dir:    map[string]*yang.Entry{},
@@ -330,6 +331,16 @@ func IsUniqueList(schema *yang.Entry) bool {
 
 func IsList(schema *yang.Entry) bool {
 	return schema.IsList()
+}
+
+func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
+	for schema.Parent != nil {
+		schema = schema.Parent
+	}
+	if m, ok := schema.Annotation["modules"]; ok {
+		return m.(map[string]*yang.Module)
+	}
+	return nil
 }
 
 func GetSchemaMeta(schema *yang.Entry) *SchemaMetadata {
@@ -456,7 +467,7 @@ func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, err
 	for x, n := range names {
 		entries[x] = yang.ToEntry(mods[n])
 	}
-	root := buildRootEntry(option)
+	root := buildRootEntry(mods, option)
 	for _, mentry := range entries {
 		skip := false
 		for i := range e {
