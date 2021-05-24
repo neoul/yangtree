@@ -34,6 +34,9 @@ type DataNode interface {
 	// It also check the validation of the creating child data node for the range, length and pattern.
 	New(key string, value ...string) (DataNode, error)
 
+	// Merge() merges the src data node to the data node.
+	Merge(src DataNode) error
+
 	Exist(key string) bool
 	Get(key string) []DataNode       // Get children having the key
 	Lookup(prefix string) []DataNode // Get all children that starts with prefix
@@ -198,7 +201,10 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 		return nil, err
 	}
 	if len(pathnode) == 0 {
-		return nil, fmt.Errorf("invalid key inserted for new")
+		return nil, fmt.Errorf("invalid key %q inserted", key)
+	}
+	if len(pathnode) > 1 {
+		return nil, fmt.Errorf("invalid key %q inserted", key)
 	}
 	cschema := GetSchema(branch.schema, pathnode[0].Name)
 	if cschema == nil {
@@ -212,6 +218,20 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 }
 
 func (branch *DataBranch) Set(value ...string) error {
+	if IsCreatedWithDefault(branch.schema) {
+		for _, s := range branch.schema.Dir {
+			if !s.IsDir() && s.Default != "" {
+				c, err := New(s)
+				if err != nil {
+					return err
+				}
+				err = branch.Insert(c)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
 	for i := range value {
 		err := branch.UnmarshalJSON([]byte(value[i]))
 		if err != nil {
@@ -469,8 +489,14 @@ func (leaf *DataLeaf) New(key string, value ...string) (DataNode, error) {
 func (leaf *DataLeaf) Set(value ...string) error {
 	if IsKeyNode(leaf.schema) && leaf.parent != nil {
 		return nil
+		// [FIXME]
 		// ignore key update
 		// return fmt.Errorf("unable to update key node %q if used", leaf)
+	}
+	if len(value) == 0 && leaf.schema.Default != "" {
+		if err := leaf.Set(leaf.schema.Default); err != nil {
+			return err
+		}
 	}
 
 	for i := range value {
@@ -591,11 +617,8 @@ func (leaflist *DataLeafList) Value() interface{} {
 }
 
 func (leaflist *DataLeafList) ValueString() string {
-	var s strings.Builder
-	for i := range leaflist.value {
-		s.WriteString(ValueToString(leaflist.value[i]))
-	}
-	return s.String()
+	b, _ := leaflist.MarshalJSON_IETF()
+	return string(b)
 }
 
 func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error) {
@@ -603,11 +626,17 @@ func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error)
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
-	// if len(value) == 1 {
-	// 	if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
-	// 		return leaflist.UnmarshalJSON([]byte(value[0]))
-	// 	}
-	// }
+	if IsKeyNode(leaflist.schema) && leaflist.parent != nil {
+		return nil
+		// [FIXME]
+		// ignore key update
+		// return fmt.Errorf("unable to update key node %q if used", leaflist)
+	}
+	if len(value) == 2 && value[1] == "" {
+		if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
+			return leaflist.UnmarshalJSON([]byte(value[0]))
+		}
+	}
 	for i := range value {
 		length := len(leaflist.value)
 		index := sort.Search(length,
@@ -624,6 +653,24 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 		leaflist.value = append(leaflist.value, nil)
 		copy(leaflist.value[index+1:], leaflist.value[index:])
 		leaflist.value[index] = v
+	}
+	return nil
+}
+
+func (leaflist *DataLeafList) setValue(value ...interface{}) error {
+	if IsKeyNode(leaflist.schema) && leaflist.parent != nil {
+		return nil
+		// [FIXME]
+		// ignore key update
+		// return fmt.Errorf("unable to update key node %q if used", leaflist)
+	}
+	for i := range value {
+		vstr := ValueToString(value[i])
+		if !leaflist.Exist(vstr) {
+			if err := leaflist.Set(vstr); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -756,6 +803,9 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 	return child, nil
 }
 
+// New() creates a new DataNode (one of *DataBranch, *DataLeaf and *DataLeaflist) according to the schema
+// with its values. The values should be a string if the creating DataNode is *DataLeaf or *DataLeafList.
+// If the creating DataNode is *DataBranch, the values should be JSON encoded bytes.
 func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema.nil inserted for new")
@@ -776,11 +826,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 		leaf := &DataLeaf{
 			schema: schema,
 		}
-		if len(value) > 0 {
-			err = leaf.Set(value...)
-		} else if schema.Default != "" {
-			err = leaf.Set(schema.Default)
-		}
+		err = leaf.Set(value...)
 		if err != nil {
 			return nil, err
 		}
@@ -1292,21 +1338,159 @@ func FindValue(root DataNode, path string) ([]interface{}, error) {
 	return vlist, nil
 }
 
-func Clone(src DataNode) (DataNode, error) {
-	return nil, nil
+func clone(destParent *DataBranch, src DataNode) (DataNode, error) {
+	var dest DataNode
+	switch node := src.(type) {
+	case *DataBranch:
+		b := &DataBranch{
+			schema: node.schema,
+		}
+		for i := range node.children {
+			if _, err := clone(b, node.children[i]); err != nil {
+				return nil, err
+			}
+		}
+		dest = b
+	case *DataLeaf:
+		dest = &DataLeaf{
+			schema: node.schema,
+			value:  node.value,
+		}
+	case *DataLeafList:
+		var copied []interface{}
+		if node.value != nil {
+			copied = make([]interface{}, len(node.value))
+			copy(copied, node.value)
+		} else {
+			copied = nil
+		}
+		dest = &DataLeafList{
+			schema: node.schema,
+			value:  copied,
+		}
+	}
+	if destParent != nil {
+		err := destParent.Insert(dest)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dest, nil
 }
 
-func Merge(dest, src DataNode) error {
+// Clone makes a new DataNode copied from the src data node.
+func Clone(src DataNode) DataNode {
+	dest, _ := clone(nil, src)
+	return dest
+}
+
+// Equal() returns true if node1 and node2 have the same data tree.
+func Equal(node1, node2 DataNode) bool {
+	if node1 == node2 {
+		return true
+	}
+	if node1 == nil || node2 == nil {
+		return false
+	}
+	if node1.Schema() != node2.Schema() {
+		return false
+	}
+	switch d1 := node1.(type) {
+	case *DataBranch:
+		d2 := node2.(*DataBranch)
+		if d1.Len() != d2.Len() {
+			return false
+		}
+		for i := range d1.children {
+			if equal := Equal(d1.children[i], d2.children[i]); !equal {
+				return false
+			}
+		}
+		return true
+	case *DataLeaf:
+		d2 := node2.(*DataLeaf)
+		if d2.value == d1.value {
+			return true
+		}
+		d2.value = d1.value
+	case *DataLeafList:
+		d2 := node2.(*DataLeafList)
+		if d1.Len() != d2.Len() {
+			return false
+		}
+		equal := true
+		for i := range d1.value {
+			if d1.value[i] != d2.value[i] {
+				equal = false
+			}
+		}
+		return equal
+	}
+	return false
+}
+
+func merge(dest, src DataNode) error {
+	if dest.Schema() != src.Schema() {
+		return fmt.Errorf("unable to merge different schema (%s, %s)", dest, src)
+	}
+	switch s := src.(type) {
+	case *DataBranch:
+		d := dest.(*DataBranch)
+		for i := range s.children {
+			schema := s.children[i].Schema()
+			if IsDuplicatedList(schema) {
+				if _, err := clone(d, s.children[i]); err != nil {
+					return err
+				}
+			} else {
+				dchild := d.Get(s.children[i].Key())
+				if len(dchild) > 0 {
+					for j := range dchild {
+						if err := merge(dchild[j], s.children[i]); err != nil {
+							return err
+						}
+					}
+				} else {
+					if _, err := clone(d, s.children[i]); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	case *DataLeaf:
+		d := dest.(*DataLeaf)
+		d.value = s.value
+	case *DataLeafList:
+		d := dest.(*DataLeafList)
+		if err := d.setValue(s.value...); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("invalid data node %T", s)
+	}
 	return nil
 }
 
-func Update(dest, src DataNode) error {
-	return nil
+// Merge() merges the src data node to the branch data node.
+func (branch *DataBranch) Merge(src DataNode) error {
+	if !isValid(src) {
+		return fmt.Errorf("null source data node")
+	}
+	return merge(branch, src)
 }
 
-func Replace(dest, src DataNode) error {
-	return nil
+// Merge() merges the src data node to the leaf data node.
+func (leaf *DataLeaf) Merge(src DataNode) error {
+	if !isValid(src) {
+		return fmt.Errorf("null source data node")
+	}
+	return merge(leaf, src)
 }
 
-func Remove() {
+// Merge() merges the src data node to the leaflist data node.
+func (leaflist *DataLeafList) Merge(src DataNode) error {
+	if !isValid(src) {
+		return fmt.Errorf("null source data node")
+	}
+	return merge(leaflist, src)
 }

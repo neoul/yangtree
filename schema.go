@@ -14,8 +14,12 @@ import (
 	"github.com/openconfig/ygot/util"
 )
 
-type SchemaGlobalOption struct {
+// SchemaOption is the widely used option for the creation/deletion of the data tree.
+type SchemaOption struct {
+	CreatedWithDefault bool // DataNode (data node) is created with the default value of the schema if set.
 }
+
+func (schemaoption SchemaOption) IsOption() {}
 
 // SchemaMetadata is used to keep the additional data for a schema entry.
 type SchemaMetadata struct {
@@ -28,6 +32,7 @@ type SchemaMetadata struct {
 	Qboundary   bool                   // used to indicate the boundary of the namespace-qualified name of RFC 7951
 	IsRoot      bool
 	IsKey       bool
+	Option      *SchemaOption
 }
 
 func resolveGlobs(globs []string) ([]string, error) {
@@ -233,6 +238,15 @@ func getModule(schema *yang.Entry) *yang.Module {
 	return nil
 }
 
+func IsCreatedWithDefault(schema *yang.Entry) bool {
+	if data, ok := schema.Annotation["meta"]; ok {
+		if m, ok := data.(*SchemaMetadata); ok {
+			return m.Option.CreatedWithDefault
+		}
+	}
+	return false
+}
+
 func updateSchemaMetaForType(schema *yang.Entry, typ *yang.YangType) error {
 	if typ == nil {
 		return nil
@@ -284,13 +298,14 @@ func updateSchemaMetaForType(schema *yang.Entry, typ *yang.YangType) error {
 	return nil
 }
 
-func buildRootEntry() *yang.Entry {
+func buildRootEntry(option SchemaOption) *yang.Entry {
 	rootEntry := &yang.Entry{
 		Dir: map[string]*yang.Entry{},
 		Annotation: map[string]interface{}{
 			"meta": &SchemaMetadata{
 				IsRoot: true,
 				Dir:    map[string]*yang.Entry{},
+				Option: &option,
 			},
 		},
 		Kind: yang.DirectoryEntry, // root is container
@@ -380,6 +395,7 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 			pmeta = &SchemaMetadata{}
 			parent.Annotation["meta"] = pmeta
 		}
+		meta.Option = pmeta.Option
 		if pmeta.Dir == nil {
 			pmeta.Dir = map[string]*yang.Entry{}
 		}
@@ -407,7 +423,7 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 	return nil
 }
 
-func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
+func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, error) {
 	if len(f) == 0 {
 		return nil, fmt.Errorf("no yang file")
 	}
@@ -440,8 +456,7 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 	for x, n := range names {
 		entries[x] = yang.ToEntry(mods[n])
 	}
-
-	root := buildRootEntry()
+	root := buildRootEntry(option)
 	for _, mentry := range entries {
 		skip := false
 		for i := range e {
@@ -468,22 +483,22 @@ func generateSchemaTree(d, f, e []string) (*yang.Entry, error) {
 	return root, nil
 }
 
-// Load loads all yang files and build the schema tree
-func Load(_file, _dir, _excluded []string) (*yang.Entry, error) {
-	_dir = sanitizeArrayFlagValue(_dir)
-	_file = sanitizeArrayFlagValue(_file)
-	_excluded = sanitizeArrayFlagValue(_excluded)
+// Load loads all yang files (file) from dir directories and build the schema tree.
+func Load(file, dir, excluded []string, option ...Option) (*yang.Entry, error) {
+	dir = sanitizeArrayFlagValue(dir)
+	file = sanitizeArrayFlagValue(file)
+	excluded = sanitizeArrayFlagValue(excluded)
 
 	var err error
-	_dir, err = resolveGlobs(_dir)
+	dir, err = resolveGlobs(dir)
 	if err != nil {
 		return nil, err
 	}
-	_file, err = resolveGlobs(_file)
+	file, err = resolveGlobs(file)
 	if err != nil {
 		return nil, err
 	}
-	for _, dirpath := range _dir {
+	for _, dirpath := range dir {
 		expanded, err := yang.PathsWithModules(dirpath)
 		if err != nil {
 			return nil, err
@@ -494,18 +509,25 @@ func Load(_file, _dir, _excluded []string) (*yang.Entry, error) {
 		// }
 		yang.AddPath(expanded...)
 	}
-	yfiles, err := findYangFiles(_file)
+	yfiles, err := findYangFiles(file)
 	if err != nil {
 		return nil, err
 	}
-	_file = make([]string, 0, len(yfiles))
-	_file = append(_file, yfiles...)
-	// for _, file := range _file {
+	file = make([]string, 0, len(yfiles))
+	file = append(file, yfiles...)
+	// for _, file := range file {
 	// 	fmt.Printf("loading %s yang file\n", file)
 	// }
-	return generateSchemaTree(_dir, _file, _excluded)
+	var op SchemaOption
+	for i := range option {
+		if o, ok := option[i].(SchemaOption); ok {
+			op = o
+		}
+	}
+	return generateSchemaTree(dir, file, excluded, op)
 }
 
+// GetSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
 func GetSchema(schema *yang.Entry, name string) *yang.Entry {
 	var child *yang.Entry
 	if meta := GetSchemaMeta(schema); meta != nil {
@@ -514,7 +536,7 @@ func GetSchema(schema *yang.Entry, name string) *yang.Entry {
 	return child
 }
 
-// GetPresentParentSchema is used to get the non-choice and non-case parent schema entry.
+// GetPresentParentSchema() is used to get the non-choice and non-case parent schema entry.
 func GetPresentParentSchema(schema *yang.Entry) *yang.Entry {
 	for p := schema.Parent; p != nil; p = p.Parent {
 		if !p.IsCase() && !p.IsChoice() {
@@ -522,6 +544,44 @@ func GetPresentParentSchema(schema *yang.Entry) *yang.Entry {
 		}
 	}
 	return nil
+}
+
+// FindSchema() returns a descendant schema node. It provides the child name tagged its prefix or module name.
+func FindSchema(schema *yang.Entry, path string) *yang.Entry {
+	var target *yang.Entry
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return nil
+	}
+	if len(pathnode) == 0 {
+		return schema
+	}
+	target = schema
+	for i := range pathnode {
+		if target == nil {
+			break
+		}
+		switch pathnode[i].Select {
+		case NodeSelectSelf:
+		case NodeSelectParent:
+			target = GetPresentParentSchema(target)
+		case NodeSelectFromRoot:
+			for target.Parent != nil {
+				target = target.Parent
+			}
+		case NodeSelectAllChildren, NodeSelectAll:
+			// not supported
+			return nil
+		}
+		if pathnode[i].Name != "" {
+			meta := GetSchemaMeta(target)
+			if meta == nil {
+				return nil
+			}
+			target = meta.Dir[pathnode[i].Name]
+		}
+	}
+	return target
 }
 
 func GetKeynames(schema *yang.Entry) []string {
@@ -641,7 +701,7 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 				}
 			}
 			if inrange {
-				return length.String(), nil
+				return value, nil
 			}
 			return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
 		}

@@ -494,29 +494,35 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 						}
 					}
 				default:
-					var err error
 					var child DataNode
 					i, _ := n.Index(k)
 					if i < len(n.children) && n.children[i].Key() == k {
 						child = n.children[i]
+						if err := unmarshalJSON(child, v); err != nil {
+							return err
+						}
 					} else {
-						if child, err = n.New(k); err != nil {
+						child, err := New(cschema)
+						if err != nil {
+							return err
+						}
+						if err := unmarshalJSON(child, v); err != nil {
+							return err
+						}
+						if err := n.Insert(child); err != nil {
 							return err
 						}
 					}
-					if err := unmarshalJSON(child, v); err != nil {
-						return err
-					}
+
 				}
 			}
 			return nil
-		default:
-			return fmt.Errorf("unexpected json '%v' inserted for %s", jdata, n)
 		}
+		return fmt.Errorf("unexpected json '%v' inserted for %s", jval, n)
 	case *DataLeafList:
-		if islice, ok := jval.([]interface{}); ok {
-			for i := range islice {
-				valstr, err := JSONValueToString(islice[i])
+		if vslice, ok := jval.([]interface{}); ok {
+			for i := range vslice {
+				valstr, err := JSONValueToString(vslice[i])
 				if err != nil {
 					return err
 				}

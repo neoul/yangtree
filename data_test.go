@@ -60,15 +60,62 @@ func TestNew(t *testing.T) {
 		}
 	   }
 	`
-	RootData, err := New(RootSchema, jbyte)
+	root1, err := New(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
-	j, _ := MarshalJSONIndent(RootData, "", " ")
+	j, _ := MarshalJSON(root1)
 	t.Log(string(j))
 
-	cschema := GetSchema(RootSchema, "sample")
-	t.Log(New(cschema, `{"str-val": "ok"}`))
+	root2, err := New(RootSchema, jbyte)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ = MarshalJSON(root2)
+	t.Log(string(j))
+
+	if equal := Equal(root1, root2); !equal {
+		t.Errorf("equal(root1, root2) is failed for the same tree")
+	}
+	root3 := Clone(root1)
+	if root3 == nil {
+		t.Errorf("clone a data node is failed")
+	}
+	if equal := Equal(root1, root3); !equal {
+		t.Errorf("equal(root1, root3) is failed for the same tree")
+	}
+
+	err = Set(root1, "/sample/container-val/enum-val", "enum1")
+	if err != nil {
+		t.Error(err)
+	}
+	if equal := Equal(root1, root3); equal {
+		t.Errorf("equal(root1, root3) is not equal")
+	}
+
+	mergingData := `{
+	 "integer": 2,
+	 "str": "first",
+	 "ok": false
+	}`
+	s := FindSchema(RootSchema, "/sample/multiple-key-list")
+	if s == nil {
+		t.Error("schema multiple-key-list not found")
+	}
+	mnode, err := New(s, mergingData)
+	if err != nil {
+		t.Error("new failed", err)
+	}
+	node, _ := root2.Find("sample/multiple-key-list[integer=2][str=first]")
+	if err := node[0].Merge(mnode); err != nil {
+		t.Error("merge failed:", err)
+	}
+	if equal := Equal(root2, root3); equal {
+		t.Errorf("equal(root2, root3) is not equal")
+	}
+
+	j, _ = MarshalJSON(root2)
+	t.Log(string(j))
 }
 
 func TestChildDataNodeListing(t *testing.T) {
@@ -365,6 +412,50 @@ func TestComplexModel(t *testing.T) {
 	}
 	if _, err = rootdata.New("pattern-type", "abc"); err != nil {
 		t.Error(err)
+	}
+
+	j, err := rootdata.MarshalJSON()
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(string(j))
+}
+
+func TestCreatedWithDefault(t *testing.T) {
+	rootschema, err := Load(
+		[]string{
+			"data/modules/default.yang",
+		}, nil, nil, SchemaOption{CreatedWithDefault: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootdata, err := New(rootschema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	test, err := rootdata.New("test")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = test.New("config")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = test.New("state")
+	if err != nil {
+		t.Error(err)
+	}
+
+	node, err := test.Find("config/d1")
+	if err != nil {
+		t.Error(err)
+	}
+	if len(node) != 1 {
+		t.Errorf("d1 node must be created.=%d\n", len(node))
+	}
+	if len(node) == 1 && node[0].Value() == 100 {
+		t.Errorf("d1 node must be created with default. d1=%v\n", node[0].Value())
 	}
 
 	j, err := rootdata.MarshalJSON()

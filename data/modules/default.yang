@@ -1,0 +1,26 @@
+module default {
+  prefix "d";
+  namespace "urn:d";
+
+  grouping d-cfg {
+    leaf d1 {
+      type int32;
+      default 100;
+    }
+    leaf d2 {
+      type string;
+      default "dvalue";
+    }
+  }
+
+  container test {
+    container config {
+      uses d-cfg;
+    }
+
+    container state {
+      config false;
+      uses d-cfg;
+    }
+  }
+}
