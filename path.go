@@ -176,7 +176,7 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 	}
 	meta := GetSchemaMeta(schema)
 	for i := range pathnode.Predicates {
-		token, _, err := tokenizeXPath(nil, &(pathnode.Predicates[i]), 0)
+		token, _, err := TokenizePathExpr(nil, &(pathnode.Predicates[i]), 0)
 		if err != nil {
 			return "", nil, err
 		}
@@ -260,7 +260,7 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 	return pathnode.Name, p, nil
 }
 
-func tokenizeXPath(token []string, s *string, pos int) ([]string, int, error) {
+func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error) {
 	var err error
 	length := len((*s))
 	if token == nil {
@@ -309,7 +309,7 @@ func tokenizeXPath(token []string, s *string, pos int) ([]string, int, error) {
 				w.Reset()
 			}
 			token = append(token, "(")
-			token, pos, err = tokenizeXPath(token, s, pos+1)
+			token, pos, err = TokenizePathExpr(token, s, pos+1)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -471,7 +471,7 @@ func findByPredicates(current []DataNode, predicates []string) ([]DataNode, erro
 	}
 
 	for i := range predicates {
-		token, _, err := tokenizeXPath(nil, &(predicates[i]), 0)
+		token, _, err := TokenizePathExpr(nil, &(predicates[i]), 0)
 		if err != nil {
 			return nil, err
 		}
@@ -509,7 +509,7 @@ func findByPredicates(current []DataNode, predicates []string) ([]DataNode, erro
 }
 
 func evaluatePathExpr(node DataNode, exprstr string) (bool, error) {
-	token, _, err := tokenizeXPath(nil, &exprstr, 0)
+	token, _, err := TokenizePathExpr(nil, &exprstr, 0)
 	if err != nil {
 		return false, err
 	}

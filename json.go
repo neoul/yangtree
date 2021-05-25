@@ -409,12 +409,12 @@ func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kva
 	key = cschema.Name + key
 	var child DataNode
 	found := branch.Get(key)
-	if len(found) == 0 {
+	if found == nil {
 		if child, err = branch.New(key); err != nil {
 			return err
 		}
 	} else {
-		child = found[0]
+		child = found
 	}
 	// Update DataNode
 	return unmarshalJSON(child, jval)
@@ -450,12 +450,12 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 			}
 		} else {
 			found := branch.Get(key)
-			if len(found) == 0 {
+			if found == nil {
 				if child, err = branch.New(key); err != nil {
 					return err
 				}
 			} else {
-				child = found[0]
+				child = found
 			}
 		}
 

@@ -38,7 +38,8 @@ type DataNode interface {
 	Merge(src DataNode) error
 
 	Exist(key string) bool
-	Get(key string) []DataNode       // Get children having the key
+	Get(key string) DataNode         // Get a child child having the key
+	GetAll(key string) []DataNode    // Get children having the key
 	Lookup(prefix string) []DataNode // Get all children that starts with prefix
 
 	Len() int                    // Len() returns the length of children
@@ -344,10 +345,44 @@ func (branch *DataBranch) Exist(key string) bool {
 		func(j int) bool {
 			return key <= branch.children[j].Key()
 		})
-	return key == branch.children[i].Key()
+	if i < length {
+		return key == branch.children[i].Key()
+	}
+	return false
 }
 
-func (branch *DataBranch) Get(key string) []DataNode {
+func (branch *DataBranch) Get(key string) DataNode {
+	switch key {
+	case ".":
+		return branch
+	case "..":
+		return branch.parent
+	case "*":
+		if len(branch.children) > 0 {
+			return branch.children[0]
+		}
+		return nil
+	case "...":
+		n := findNode(branch, []*PathNode{
+			&PathNode{Name: "...", Select: NodeSelectAll}})
+		if len(n) > 0 {
+			return n[0]
+		}
+		return nil
+	default:
+		length := len(branch.children)
+		i := sort.Search(length,
+			func(j int) bool {
+				return key <= branch.children[j].Key()
+			})
+		if i < length && key == branch.children[i].Key() {
+			return branch.children[i]
+		}
+		return nil
+	}
+}
+
+func (branch *DataBranch) GetAll(key string) []DataNode {
 	switch key {
 	case ".":
 		return []DataNode{branch}
@@ -532,7 +567,11 @@ func (leaf *DataLeaf) Exist(key string) bool {
 	return false
 }
 
-func (leaf *DataLeaf) Get(key string) []DataNode {
+func (leaf *DataLeaf) Get(key string) DataNode {
+	return nil
+}
+
+func (leaf *DataLeaf) GetAll(key string) []DataNode {
 	return nil
 }
 
@@ -706,7 +745,11 @@ func (leaflist *DataLeafList) Delete(child DataNode) error {
 	return fmt.Errorf("delete not supported for %s", leaflist)
 }
 
-func (leaflist *DataLeafList) Get(key string) []DataNode {
+func (leaflist *DataLeafList) Get(key string) DataNode {
+	return nil
+}
+
+func (leaflist *DataLeafList) GetAll(key string) []DataNode {
 	return nil
 }
 
@@ -1443,7 +1486,7 @@ func merge(dest, src DataNode) error {
 					return err
 				}
 			} else {
-				dchild := d.Get(s.children[i].Key())
+				dchild := d.GetAll(s.children[i].Key())
 				if len(dchild) > 0 {
 					for j := range dchild {
 						if err := merge(dchild[j], s.children[i]); err != nil {
@@ -1493,4 +1536,13 @@ func (leaflist *DataLeafList) Merge(src DataNode) error {
 		return fmt.Errorf("null source data node")
 	}
 	return merge(leaflist, src)
+}
+
+// Map converts data node list to map using the path.
+func Map(node []DataNode) map[string]DataNode {
+	m := map[string]DataNode{}
+	for i := range node {
+		m[node[i].Path()] = node[i]
+	}
+	return m
 }
