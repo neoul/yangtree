@@ -85,14 +85,18 @@ func TestNew(t *testing.T) {
 		t.Errorf("equal(root1, root3) is failed for the same tree")
 	}
 
+	// Set
 	err = Set(root1, "/sample/container-val/enum-val", "enum1")
 	if err != nil {
 		t.Error(err)
 	}
+
+	// Equal
 	if equal := Equal(root1, root3); equal {
 		t.Errorf("equal(root1, root3) is not equal")
 	}
 
+	// Merge
 	mergingData := `{
 	 "integer": 2,
 	 "str": "first",

@@ -282,8 +282,11 @@ func updateSchemaMetaForType(schema *yang.Entry, typ *yang.YangType) error {
 			identityref = map[string]string{}
 		}
 		for i := range typ.IdentityBase.Values {
-			identityref[typ.IdentityBase.Values[i].NName()] = typ.IdentityBase.Values[i].PrefixedName()
-			identityref[typ.IdentityBase.Values[i].PrefixedName()] = typ.IdentityBase.Values[i].NName()
+			QValue := fmt.Sprintf("%s:%s",
+				yang.RootNode(typ.IdentityBase.Values[i]).Name, typ.IdentityBase.Values[i].NName())
+			identityref[typ.IdentityBase.Values[i].NName()] = QValue
+			// identityref[typ.IdentityBase.Values[i].NName()] = typ.IdentityBase.Values[i].PrefixedName()
+			// identityref[typ.IdentityBase.Values[i].PrefixedName()] = typ.IdentityBase.Values[i].NName()
 		}
 		if err := setIdentityref(schema, identityref); err != nil {
 			return err
@@ -350,6 +353,7 @@ func GetSchemaMeta(schema *yang.Entry) *SchemaMetadata {
 	return nil
 }
 
+// Return qname (namespace-qualified name e.g. module-name:node-name)
 func GetQName(schema *yang.Entry) (string, bool) {
 	if m, ok := schema.Annotation["meta"]; ok {
 		meta := m.(*SchemaMetadata)
@@ -374,7 +378,7 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 	meta.Module = module
 
 	// namespace-qualified name of RFC 7951
-	nsname := fmt.Sprintf("%s:%s", module.Name, schema.Name)
+	nsname := strings.Join([]string{module.Name, ":", schema.Name}, "")
 	meta.QName = nsname
 	if current != module {
 		meta.Qboundary = true
@@ -795,8 +799,15 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 		}
 	case yang.Yidentityref:
 		imap := getIdentityref(schema)
-		if _, ok := imap[value]; ok {
-			return value, nil
+		if i := strings.Index(value, ":"); i >= 0 {
+			iref := value[i+1:]
+			if _, ok := imap[iref]; ok {
+				return iref, nil
+			}
+		} else {
+			if _, ok := imap[value]; ok {
+				return value, nil
+			}
 		}
 	case yang.Yleafref:
 		// [FIXME] Check the schema ? or data ?
@@ -904,8 +915,12 @@ func ValueToJSONBytes(schema *yang.Entry, typ *yang.YangType, value interface{},
 			return []byte("[null]"), nil
 		case yang.Yidentityref:
 			if s, ok := value.(string); ok {
-				m := getIdentityref(schema)
-				return json.Marshal(m[s])
+				imap := getIdentityref(schema)
+				qvalue, ok := imap[s]
+				if !ok {
+					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
+				}
+				return json.Marshal(qvalue)
 			}
 		case yang.Yint64:
 			if v, ok := value.(int64); ok {

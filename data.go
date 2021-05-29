@@ -38,11 +38,13 @@ type DataNode interface {
 	Merge(src DataNode) error
 
 	Exist(key string) bool
-	Get(key string) DataNode         // Get a child child having the key
-	GetAll(key string) []DataNode    // Get children having the key
-	Lookup(prefix string) []DataNode // Get all children that starts with prefix
+	Get(key string) DataNode          // Get the child having the key.
+	GetAll(key string) []DataNode     // Get children having the key.
+	GetValue(key string) interface{}  // Get the value of the child having the key.
+	GetValueString(key string) string // Get the value (converted to string) of the child having the key.
+	Lookup(prefix string) []DataNode  // Get all children that starts with prefix.
 
-	Len() int                    // Len() returns the length of children
+	Len() int                    // Len() returns the length of children.
 	Index(key string) (int, int) // Index() finds all children and returns the indexes of them.
 	// Min(key string) int
 	// Max(key string) int
@@ -402,6 +404,40 @@ func (branch *DataBranch) GetAll(key string) []DataNode {
 	return nil
 }
 
+func (branch *DataBranch) GetValue(key string) interface{} {
+	switch key {
+	case ".", "..", "*", "...":
+		return nil
+	default:
+		length := len(branch.children)
+		i := sort.Search(length,
+			func(j int) bool {
+				return key <= branch.children[j].Key()
+			})
+		if i < length && key == branch.children[i].Key() {
+			return branch.children[i].Value()
+		}
+		return nil
+	}
+}
+
+func (branch *DataBranch) GetValueString(key string) string {
+	switch key {
+	case ".", "..", "*", "...":
+		return ""
+	default:
+		length := len(branch.children)
+		i := sort.Search(length,
+			func(j int) bool {
+				return key <= branch.children[j].Key()
+			})
+		if i < length && key == branch.children[i].Key() {
+			return branch.children[i].ValueString()
+		}
+		return ""
+	}
+}
+
 func (branch *DataBranch) Lookup(prefix string) []DataNode {
 	switch prefix {
 	case ".":
@@ -573,6 +609,14 @@ func (leaf *DataLeaf) Get(key string) DataNode {
 
 func (leaf *DataLeaf) GetAll(key string) []DataNode {
 	return nil
+}
+
+func (leaf *DataLeaf) GetValue(key string) interface{} {
+	return nil
+}
+
+func (leaf *DataLeaf) GetValueString(key string) string {
+	return ""
 }
 
 func (leaf *DataLeaf) Lookup(prefix string) []DataNode {
@@ -751,6 +795,14 @@ func (leaflist *DataLeafList) Get(key string) DataNode {
 
 func (leaflist *DataLeafList) GetAll(key string) []DataNode {
 	return nil
+}
+
+func (leaflist *DataLeafList) GetValue(key string) interface{} {
+	return nil
+}
+
+func (leaflist *DataLeafList) GetValueString(key string) string {
+	return ""
 }
 
 func (leaflist *DataLeafList) Lookup(prefix string) []DataNode {

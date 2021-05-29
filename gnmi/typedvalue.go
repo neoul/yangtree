@@ -151,7 +151,25 @@ func ValueToTypedValue(val interface{}, enc gnmipb.Encoding) (*gnmipb.TypedValue
 }
 
 func DataNodeToTypedValue(node yangtree.DataNode, enc gnmipb.Encoding) (*gnmipb.TypedValue, error) {
-	return ValueToTypedValue(node, enc)
+	if node.IsBranch() {
+		switch enc {
+		case gnmipb.Encoding_JSON:
+			jbytes, err := node.MarshalJSON()
+			if err != nil {
+				return nil, err
+			}
+			return &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonVal{JsonVal: jbytes}}, nil
+		case gnmipb.Encoding_JSON_IETF:
+			jbytes, err := node.MarshalJSON_IETF()
+			if err != nil {
+				return nil, err
+			}
+			return &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonIetfVal{JsonIetfVal: jbytes}}, nil
+		default:
+			return nil, fmt.Errorf("typed value encoding %q not supported", enc)
+		}
+	}
+	return value.FromScalar(node.Value())
 }
 
 func TypedValueToDataNode(schema *yang.Entry, tv *gnmipb.TypedValue) (yangtree.DataNode, error) {

@@ -39,78 +39,74 @@ func CloneGNMIPath(src *gnmipb.Path) *gnmipb.Path {
 	return proto.Clone(src).(*gnmipb.Path)
 }
 
-// UpdateGNMIPath returns the updated gNMI Path.
-func UpdateGNMIPath(target, src *gnmipb.Path) *gnmipb.Path {
-	if target == nil {
-		return CloneGNMIPath(src)
+// ValidateGNMIPath checks the validation of the gnmi path.
+func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
+	if gpath == nil {
+		return nil
 	}
-	if src == nil {
-		return target
+	if gpath.GetOrigin() != "" {
+		module := yangtree.GetAllModules(schema)
+		if _, ok := module[gpath.GetOrigin()]; !ok {
+			return fmt.Errorf("schema %q not found", gpath.GetOrigin())
+		}
 	}
-	l := len(src.GetElem())
-	pathElems := []*gnmipb.PathElem{}
-	if l > 0 {
-		pathElems = make([]*gnmipb.PathElem, l)
-		copy(pathElems, src.GetElem())
+	if gpath.GetElem() == nil && gpath.GetElement() != nil {
+		return fmt.Errorf("deprecated path.element used")
 	}
-	target.Elem = pathElems
-	return target
-}
+	// if gpath.Target != "" { // 2.2.2.1 Path Target
+	// 	return fmt.Errorf("path.target MUST only ever be present on the prefix path")
+	// }
 
-// NewGNMIAliasPath returns Alias gNMI Path.
-func NewGNMIAliasPath(name, target, origin string) *gnmipb.Path {
-	return &gnmipb.Path{
-		Target: target,
-		Origin: origin,
-		Elem: []*gnmipb.PathElem{
-			&gnmipb.PathElem{
-				Name: name,
-			},
-		},
-	}
-}
-
-// ValidateGNMIPath checks the validation of the gnmi path and merge all the input gnmi paths.
-func ValidateGNMIPath(schema *yang.Entry, gpath ...*gnmipb.Path) error {
-	if len(gpath) == 0 {
-		return fmt.Errorf("no path")
-	}
-	p := proto.Clone(gpath[0]).(*gnmipb.Path)
-	for i := 1; i < len(gpath); i++ {
-		if gpath[i].GetElem() == nil && gpath[i].GetElement() != nil {
-			return fmt.Errorf("deprecated path.element used")
-		}
-		if gpath[i].Target != "" { // 2.2.2.1 Path Target
-			return fmt.Errorf("path.target MUST only ever be present on the prefix path")
-		}
-		p.Elem = append(p.Elem, gpath[i].Elem...)
-	}
-	origin := p.GetOrigin()
-	module := yangtree.GetAllModules(schema)
-	if origin != "" {
-		if _, ok := module[origin]; !ok {
-			return fmt.Errorf("schema %q not found", origin)
-		}
-	}
-	for i := range p.Elem {
-		schema = yangtree.GetSchema(schema, p.Elem[i].Name)
+	for i := range gpath.Elem {
+		schema = yangtree.GetSchema(schema, gpath.Elem[i].Name)
 		if schema == nil {
-			return fmt.Errorf("schema %q not found", p.Elem[i].Name)
+			return fmt.Errorf("schema %q not found", gpath.Elem[i].Name)
 		}
+		if len(gpath.Elem[i].Key) > 0 {
+			for k := range gpath.Elem[i].Key {
+				if j := strings.Index(schema.Key, k); j < 0 {
+					return fmt.Errorf("%q is not a key for schema %q", k, schema.Name)
+				}
+			}
+		}
+
 	}
 	return nil
 }
 
-// MergeGNMIPath checks the validation of the gnmi path and merge all the input gnmi paths.
+// MergeGNMIPath merges input gnmi paths.
 func MergeGNMIPath(gpath ...*gnmipb.Path) *gnmipb.Path {
 	if len(gpath) == 0 {
 		return &gnmipb.Path{}
 	}
-	p := proto.Clone(gpath[0]).(*gnmipb.Path)
-	for i := 1; i < len(gpath); i++ {
-		p.Elem = append(p.Elem, gpath[i].Elem...)
+	p := &gnmipb.Path{}
+	for i := range gpath {
+		if gpath[i] == nil {
+			continue
+		}
+		for j := range gpath[i].Elem {
+			if gpath[i].Elem[j] != nil {
+				elem := &gnmipb.PathElem{Name: gpath[i].Elem[j].Name}
+				if len(gpath[i].Elem[j].Key) > 0 {
+					elem.Key = make(map[string]string)
+					for k, v := range gpath[i].Elem[j].Key {
+						elem.Key[k] = v
+					}
+				}
+				p.Elem = append(p.Elem, elem)
+			}
+		}
 	}
 	return p
+}
+
+// UpdateGNMIPath updates the target and origin field of the dest path using the src path.
+func UpdateGNMIPath(dest, src *gnmipb.Path) {
+	if dest == nil || src != nil {
+		return
+	}
+	dest.Target = src.Target
+	dest.Origin = src.Origin
 }
 
 // ToGNMIPath returns the gnmi path for the path.
@@ -131,9 +127,7 @@ func ToGNMIPath(path string) (*gnmipb.Path, error) {
 			gpath.Elem = append(gpath.Elem, &gnmipb.PathElem{Name: "*"})
 		case yangtree.NodeSelectAll:
 			gpath.Elem = append(gpath.Elem, &gnmipb.PathElem{Name: "..."})
-		case yangtree.NodeSelectSelf:
-		case yangtree.NodeSelectFromRoot:
-		case yangtree.NodeSelectChild:
+		case yangtree.NodeSelectChild, yangtree.NodeSelectFromRoot, yangtree.NodeSelectSelf:
 			if pathnode[i].Name != "" {
 				elem := &gnmipb.PathElem{Name: pathnode[i].Name}
 				if len(pathnode[i].Predicates) > 0 {
@@ -178,6 +172,9 @@ func IsSchemaGNMIPath(path *gnmipb.Path) bool {
 func ToPath(gpath ...*gnmipb.Path) string {
 	pe := []string{""}
 	for _, p := range gpath {
+		if p == nil {
+			continue
+		}
 		for _, e := range p.GetElem() {
 			if e.GetKey() != nil {
 				ke := []string{e.GetName()}
@@ -271,17 +268,20 @@ func findPaths(schema *yang.Entry, prefix string, elems []*gnmipb.PathElem) []st
 		return founds
 	}
 	name := e.Name
-	entry := schema.Dir[e.Name]
-	if entry == nil {
+	if i := strings.Index(name, ":"); i >= 0 {
+		name = name[i+1:]
+	}
+	schema = schema.Dir[name]
+	if schema == nil {
 		return nil
 	}
 	if e.Key != nil {
 		for kname := range e.Key {
-			if !strings.Contains(entry.Key, kname) {
+			if !strings.Contains(schema.Key, kname) {
 				return nil
 			}
 		}
-		knames := strings.Split(entry.Key, " ")
+		knames := strings.Split(schema.Key, " ")
 		for _, kname := range knames {
 			if kval, ok := e.Key[kname]; ok {
 				if kval == "*" {
@@ -293,5 +293,5 @@ func findPaths(schema *yang.Entry, prefix string, elems []*gnmipb.PathElem) []st
 			}
 		}
 	}
-	return findPaths(entry, strings.Join([]string{prefix, name}, "/"), elems[1:])
+	return findPaths(schema, strings.Join([]string{prefix, name}, "/"), elems[1:])
 }
