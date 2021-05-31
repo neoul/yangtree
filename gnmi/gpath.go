@@ -115,7 +115,7 @@ func MergeGNMIPath(gpath ...*gnmipb.Path) *gnmipb.Path {
 
 // UpdateGNMIPath updates the target and origin field of the dest path using the src path.
 func UpdateGNMIPath(dest, src *gnmipb.Path) {
-	if dest == nil || src != nil {
+	if dest == nil || src == nil {
 		return
 	}
 	dest.Target = src.Target

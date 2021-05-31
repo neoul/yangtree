@@ -189,6 +189,9 @@ func (branch *DataBranch) Path() string {
 	if branch.parent != nil {
 		return branch.parent.Path() + "/" + branch.Key()
 	}
+	if IsRoot(branch.schema) {
+		return ""
+	}
 	return "/" + branch.Key()
 }
 

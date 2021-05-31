@@ -322,6 +322,14 @@ func buildRootEntry(mods map[string]*yang.Module, option SchemaOption) *yang.Ent
 	return rootEntry
 }
 
+func IsRoot(schema *yang.Entry) bool {
+	if m, ok := schema.Annotation["meta"]; ok {
+		meta := m.(*SchemaMetadata)
+		return meta.IsRoot
+	}
+	return false
+}
+
 // IsDuplicatedList() checks the data nodes can be duplicated.
 func IsDuplicatedList(schema *yang.Entry) bool {
 	return schema.IsList() && schema.Key == ""
