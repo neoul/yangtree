@@ -172,6 +172,32 @@ func DataNodeToTypedValue(node yangtree.DataNode, enc gnmipb.Encoding) (*gnmipb.
 	return value.FromScalar(node.Value())
 }
 
-func TypedValueToDataNode(schema *yang.Entry, tv *gnmipb.TypedValue) (yangtree.DataNode, error) {
-	return nil, nil
+func TypedValueToString(typedvalue *gnmipb.TypedValue) (string, error) {
+	if typedvalue == nil {
+		return "", fmt.Errorf("nil typed-value")
+	}
+	switch tv := typedvalue.Value.(type) {
+	case *gnmipb.TypedValue_AsciiVal, *gnmipb.TypedValue_ProtoBytes,
+		*gnmipb.TypedValue_AnyVal, *gnmipb.TypedValue_BytesVal:
+		return "", fmt.Errorf("not supported typed-value %T", tv)
+	case *gnmipb.TypedValue_BoolVal:
+		return yangtree.ValueToString(tv.BoolVal), nil
+	case *gnmipb.TypedValue_DecimalVal:
+		return tv.DecimalVal.String(), nil
+	case *gnmipb.TypedValue_FloatVal:
+		return yangtree.ValueToString(tv.FloatVal), nil
+	case *gnmipb.TypedValue_IntVal:
+		return yangtree.ValueToString(tv.IntVal), nil
+	case *gnmipb.TypedValue_JsonIetfVal:
+		return string(tv.JsonIetfVal), nil
+	case *gnmipb.TypedValue_JsonVal:
+		return string(tv.JsonVal), nil
+	case *gnmipb.TypedValue_LeaflistVal:
+		return tv.LeaflistVal.String(), nil
+	case *gnmipb.TypedValue_StringVal:
+		return tv.StringVal, nil
+	case *gnmipb.TypedValue_UintVal:
+		return yangtree.ValueToString(tv.UintVal), nil
+	}
+	return "", fmt.Errorf("unknown typed-value")
 }

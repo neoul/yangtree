@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -468,4 +469,38 @@ func TestCreatedWithDefault(t *testing.T) {
 	}
 
 	t.Log(string(j))
+}
+
+func TestInsert(t *testing.T) {
+	files := []string{
+		"../../YangModels/yang/standard/ietf/RFC/iana-if-type@2017-01-19.yang",
+		"../../openconfig/public/release/models/interfaces/openconfig-interfaces.yang",
+		"../../openconfig/public/release/models/system/openconfig-messages.yang",
+		"../../openconfig/public/release/models/telemetry/openconfig-telemetry.yang",
+		"../../openconfig/public/release/models/openflow/openconfig-openflow.yang",
+		"../../openconfig/public/release/models/platform/openconfig-platform.yang",
+		"../../openconfig/public/release/models/system/openconfig-system.yang",
+	}
+	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
+	excluded := []string{"ietf-interfaces"}
+	rootschema, err := Load(files, dir, excluded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := New(rootschema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := FindSchema(rootschema, "interfaces/interface")
+	for i := 1; i < 5; i++ {
+		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
+		n, err := New(schema, v)
+		if err != nil {
+			t.Error(err)
+		}
+		Insert(root, n, "interfaces")
+	}
+
+	b, _ := root.MarshalJSON()
+	t.Log(string(b))
 }

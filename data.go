@@ -29,10 +29,11 @@ type DataNode interface {
 	Remove(value ...string) error
 
 	// New() creates a cild using a key and values
-	// key is the element of xpath combined with xpath predicates.
-	// For example, /interfaces/interface[name=VALUE]
-	// It also check the validation of the creating child data node for the range, length and pattern.
+	// key is an xpath element combined with xpath predicates.
+	// For example, interface[name=VALUE]
 	New(key string, value ...string) (DataNode, error)
+
+	Update(key string, value ...string) error
 
 	// Merge() merges the src data node to the data node.
 	Merge(src DataNode) error
@@ -218,6 +219,23 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 		return nil, err
 	}
 	return newChild(branch, cschema, pmap, value...)
+}
+
+func (branch *DataBranch) Update(key string, value ...string) error {
+	pathnode, err := ParsePath(&key)
+	if err != nil {
+		return err
+	}
+	if len(pathnode) == 0 {
+		return fmt.Errorf("invalid key %q inserted", key)
+	}
+	if len(pathnode) > 1 {
+		return fmt.Errorf("invalid key %q inserted", key)
+	}
+	if err := setValue(branch, pathnode[:1], value...); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (branch *DataBranch) Set(value ...string) error {
@@ -554,7 +572,11 @@ func (leaf *DataLeaf) ValueString() string {
 }
 
 func (leaf *DataLeaf) New(key string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("insert not supported for %s", leaf)
+	return nil, fmt.Errorf("no child exists for %s", leaf)
+}
+
+func (leaf *DataLeaf) Update(key string, value ...string) error {
+	return fmt.Errorf("no child to update for %s", leaf)
 }
 
 func (leaf *DataLeaf) Set(value ...string) error {
@@ -705,7 +727,11 @@ func (leaflist *DataLeafList) ValueString() string {
 }
 
 func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("insert not supported for %s", leaflist)
+	return nil, fmt.Errorf("no child exists for %s", leaflist)
+}
+
+func (leaflist *DataLeafList) Update(key string, value ...string) error {
+	return fmt.Errorf("no child to update for %s", leaflist)
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
@@ -1060,6 +1086,95 @@ func Set(root DataNode, path string, value ...string) error {
 		return err
 	}
 	return setValue(root, pathnode, value...)
+}
+
+func insert(root DataNode, node DataNode, pathnode []*PathNode) error {
+	if len(pathnode) == 0 {
+		return root.Insert(node)
+	}
+	switch pathnode[0].Select {
+	case NodeSelectSelf:
+		return insert(root, node, pathnode[1:])
+	case NodeSelectParent:
+		if root.Parent() == nil {
+			return fmt.Errorf("the parent of %s is not present in the path", root)
+		}
+		root = root.Parent()
+		return insert(root, node, pathnode[1:])
+	case NodeSelectFromRoot:
+		for root.Parent() != nil {
+			root = root.Parent()
+		}
+	case NodeSelectAllChildren:
+		return fmt.Errorf("unable to specify the node position inserted")
+	case NodeSelectAll:
+		return fmt.Errorf("unable to specify the node position inserted")
+	}
+
+	branch, ok := root.(*DataBranch)
+	if !ok {
+		return fmt.Errorf("unable to find a child from %s", root)
+	}
+	cschema := GetSchema(root.Schema(), pathnode[0].Name)
+	if cschema == nil {
+		return fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
+	}
+	// if root.Schema() == GetPresentParentSchema(node.Schema()) {
+	// 	return root.Insert(node)
+	// }
+	if cschema == node.Schema() {
+		return root.Insert(node)
+	}
+
+	var first, last int
+	key, pmap, err := keyGen(cschema, pathnode[0])
+	if err != nil {
+		return err
+	}
+	if index, ok := pmap["@index"]; ok {
+		first = keyToIndex(branch, key)
+		first, last, err = jumpToIndex(branch, first, index.(int))
+		if err != nil {
+			return err
+		}
+	} else {
+		_, prefixmatch := pmap["@prefix"]
+		first, last = indexRange(branch, key, prefixmatch)
+		if IsDuplicatedList(cschema) {
+			first = last
+		}
+	}
+	// newly adds a node
+	if first == last {
+		child, err := newChild(branch, cschema, pmap)
+		if err != nil {
+			return err
+		}
+		err = insert(child, node, pathnode[1:])
+		if err != nil {
+			child.Remove()
+		}
+		return err
+	}
+	// updates existent nodes
+	if first+1 == last {
+		return insert(root.Child(first), node, pathnode[1:])
+	}
+	return fmt.Errorf("unable to specify the node position inserted")
+}
+
+func Insert(root, new DataNode, path string) error {
+	if !isValid(root) {
+		return fmt.Errorf("invalid root node")
+	}
+	if !isValid(new) {
+		return fmt.Errorf("invalid new node")
+	}
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return err
+	}
+	return insert(root, new, pathnode)
 }
 
 func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {

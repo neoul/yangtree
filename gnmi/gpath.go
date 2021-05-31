@@ -39,6 +39,19 @@ func CloneGNMIPath(src *gnmipb.Path) *gnmipb.Path {
 	return proto.Clone(src).(*gnmipb.Path)
 }
 
+func FindSchema(schema *yang.Entry, gpath *gnmipb.Path) *yang.Entry {
+	if gpath == nil {
+		return schema
+	}
+	for i := range gpath.Elem {
+		schema = yangtree.GetSchema(schema, gpath.Elem[i].Name)
+		if schema == nil {
+			return nil
+		}
+	}
+	return schema
+}
+
 // ValidateGNMIPath checks the validation of the gnmi path.
 func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
 	if gpath == nil {
