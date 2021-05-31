@@ -1625,7 +1625,6 @@ func Equal(node1, node2 DataNode) bool {
 		if d2.value == d1.value {
 			return true
 		}
-		d2.value = d1.value
 	case *DataLeafList:
 		d2 := node2.(*DataLeafList)
 		if d1.Len() != d2.Len() {
@@ -1682,6 +1681,16 @@ func merge(dest, src DataNode) error {
 		return fmt.Errorf("invalid data node %T", s)
 	}
 	return nil
+}
+
+func Merge(dest, src DataNode) error {
+	if !isValid(dest) {
+		return fmt.Errorf("null dest data node")
+	}
+	if !isValid(src) {
+		return fmt.Errorf("null source data node")
+	}
+	return merge(dest, src)
 }
 
 // Merge() merges the src data node to the branch data node.
