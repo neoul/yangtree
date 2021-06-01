@@ -227,6 +227,7 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 		for i := range keyname {
 			v, ok := p[keyname[i]]
 			if !ok {
+				p["@nokey"] = true
 				p["@prefix"] = true
 				break LOOP
 			}

@@ -498,11 +498,28 @@ func TestReplace(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		// err = Replace(root, n, fmt.Sprintf("interfaces/interface[name=e%v]", i))
 		err = Replace(root, n, "/interfaces/interface")
 		if err != nil {
 			t.Error(err)
 		}
+	}
+	for i := 3; i < 7; i++ {
+		v := `{ "config": {"enabled":"true"}, "state": {"admin-status":"UP"}}`
+		n, err := New(schema, v)
+		if err != nil {
+			t.Error(err)
+		}
+		err = Replace(root, n, fmt.Sprintf("interfaces/interface[name=e%v]", i))
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	ifnodes, err := Find(root, "interfaces/interface")
+	if err != nil {
+		t.Error(err)
+	}
+	if len(ifnodes) != 6 {
+		t.Errorf("expected num: %d, got: %d", 6, len(ifnodes))
 	}
 
 	b, _ := root.MarshalJSON()

@@ -298,6 +298,9 @@ func (branch *DataBranch) Insert(child DataNode) error {
 	}
 	length := len(branch.children)
 	key := child.Key()
+	if key == "" {
+		return fmt.Errorf("unable to insert non-key data node %q", child.Schema().Name)
+	}
 	i := sort.Search(length,
 		func(j int) bool {
 			return key <= branch.children[j].Key()
@@ -502,11 +505,16 @@ func (branch *DataBranch) Key() string {
 		key := make([]string, 0, len(keyname)+1)
 		key = append(key, branch.schema.Name)
 		for i := range keyname {
+			found := false
 			for j := range branch.children {
 				// [FIXME]
 				if branch.children[j].Key() == keyname[i] {
 					key = append(key, "["+keyname[i]+"="+branch.children[j].ValueString()+"]")
+					found = true
 				}
+			}
+			if !found {
+				return ""
 			}
 		}
 		return strings.Join(key, "")
@@ -893,7 +901,7 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
-				return nil, fmt.Errorf("schema.%s of schema.%s must be present in the path", keyname[i], cschema.Name)
+				return nil, fmt.Errorf("unable to insert non-key data node %q (%q)", cschema.Name, keyname[i])
 			}
 			delete(pmap, keyname[i])
 			kn, err := New(GetSchema(cschema, keyname[i]), v.(string))
@@ -940,7 +948,6 @@ func updateChild(node DataNode, pmap map[string]interface{}, value ...string) er
 			v, ok := pmap[keyname[i]]
 			if !ok {
 				continue
-				// return fmt.Errorf("schema.%s of schema.%s must be present in the path", keyname[i], schema.Name)
 			}
 			delete(pmap, keyname[i])
 			kn, err := New(GetSchema(schema, keyname[i]), v.(string))
