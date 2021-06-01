@@ -21,7 +21,7 @@ type SchemaOption struct {
 
 func (schemaoption SchemaOption) IsOption() {}
 
-// SchemaMetadata is used to keep the additional data for a schema entry.
+// SchemaMetadata is used to keep the additional data for each schema entry.
 type SchemaMetadata struct {
 	Module      *yang.Module           // used to store the module of the schema entry
 	Dir         map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
@@ -145,7 +145,7 @@ func CollectSchemaEntries(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	return collected
 }
 
-func GeneratePath(schema *yang.Entry, prefixTagging bool) string {
+func GeneratePath(schema *yang.Entry, keyPrint, prefixTagging bool) string {
 	path := ""
 	for e := schema; e != nil && e.Parent != nil; e = e.Parent {
 		if e.IsCase() || e.IsChoice() {
@@ -155,7 +155,7 @@ func GeneratePath(schema *yang.Entry, prefixTagging bool) string {
 		if prefixTagging && e.Prefix != nil {
 			elementName = e.Prefix.Name + ":" + elementName
 		}
-		if e.Key != "" {
+		if keyPrint && e.Key != "" {
 			keylist := strings.Split(e.Key, " ")
 			for _, k := range keylist {
 				if prefixTagging && e.Prefix != nil {
@@ -407,7 +407,7 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 				}
 			}
 			if parent == nil {
-				return fmt.Errorf("updating schema tree failed")
+				return fmt.Errorf("no parent found ... updating schema tree failed")
 			}
 		}
 		if parent.Annotation == nil {
@@ -446,6 +446,16 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 	return nil
 }
 
+type MultipleError []error
+
+func (me MultipleError) Error() string {
+	var errstr strings.Builder
+	for i := range me {
+		errstr.WriteString(me[i].Error() + "\n")
+	}
+	return errstr.String()
+}
+
 func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, error) {
 	if len(f) == 0 {
 		return nil, fmt.Errorf("no yang file")
@@ -458,10 +468,10 @@ func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, err
 		}
 	}
 	if errors := ms.Process(); len(errors) > 0 {
-		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "yang loading error: %v\n", e)
-		}
-		return nil, fmt.Errorf("yang loading failed with %d errors", len(errors))
+		err := make(MultipleError, 0, len(errors)+1)
+		err = append(err, errors...)
+		err = append(err, fmt.Errorf("yang loading failed: %d errors", len(errors)))
+		return nil, err
 	}
 	// Keep track of the top level modules we read in.
 	// Those are the only modules we want to print below.
@@ -492,7 +502,7 @@ func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, err
 				if same, ok := root.Dir[schema.Name]; ok {
 					mo := getModule(same)
 					return nil, fmt.Errorf(
-						"multiple top-level nodes are defined in %s and %s",
+						"duplicated schema found: %q, %q",
 						mentry.Name, mo.Name)
 				}
 				schema.Parent = root
@@ -639,7 +649,7 @@ func IsConfig(schema *yang.Entry) bool {
 func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	length := len(keystr)
 	if length <= 0 {
-		return nil, fmt.Errorf("extractkeys from empty keystr")
+		return nil, fmt.Errorf("empty key string found")
 	}
 	index := 0
 	begin := 0
@@ -656,7 +666,7 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 		begin = 1
 		insideBrackets++
 	case ']', '=':
-		return nil, fmt.Errorf("extractkeys keystr '%s' starts with invalid char", keystr)
+		return nil, fmt.Errorf("key string %q starts with invalid char: ] or =", keystr)
 	}
 	end++
 	// fmt.Println(keys, keystr)
@@ -689,11 +699,11 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 			end++
 		case '=':
 			if insideBrackets <= 0 {
-				return nil, fmt.Errorf("invalid key format '%s'", keystr[begin:end])
+				return nil, fmt.Errorf("invalid key format %q", keystr[begin:end])
 			} else if insideBrackets == 1 {
 				if begin < end {
 					if keys[index] != keystr[begin:end] {
-						return nil, fmt.Errorf("invalid key '%s'", keystr[begin:end])
+						return nil, fmt.Errorf("invalid key %q", keystr[begin:end])
 					}
 					index++
 					begin = end + 1
@@ -705,7 +715,7 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 		}
 	}
 	if len(keys) != index {
-		return nil, fmt.Errorf("invalid key '%s'", keystr)
+		return nil, fmt.Errorf("invalid key %q", keystr)
 	}
 	return keyval, nil
 }
@@ -726,7 +736,7 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 			if inrange {
 				return value, nil
 			}
-			return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
+			return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
 		}
 
 		// Check that the value satisfies any regex patterns.
@@ -740,10 +750,10 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 				r, err = regexp.Compile(p)
 			}
 			if err != nil {
-				return nil, fmt.Errorf("pattern error: %v", err)
+				return nil, fmt.Errorf("pattern compile error: %v", err)
 			}
 			if !r.MatchString(value) {
-				return nil, fmt.Errorf("%q does not match regular expression pattern %q for schema %s", value, r, schema.Name)
+				return nil, fmt.Errorf("invalid pattern %q inserted for %q: %v", value, schema.Name, r)
 			}
 		}
 		return value, nil
@@ -754,7 +764,7 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 		} else if v == "false" {
 			return false, nil
 		} else {
-			return false, fmt.Errorf("'%v' is not boolean", value)
+			return false, fmt.Errorf("%q is not boolean", value)
 		}
 	case yang.Yempty:
 		return nil, nil
@@ -771,7 +781,7 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 				}
 			}
 			if !inrange {
-				return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
+				return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
 			}
 		}
 		if typ.Kind == yang.Yuint64 {
@@ -836,7 +846,7 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 			if inrange {
 				return number, nil
 			}
-			return nil, fmt.Errorf("'%s' is out of the range, %v", value, typ.Range)
+			return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
@@ -850,7 +860,7 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 	case yang.Ynone:
 		break
 	}
-	return nil, fmt.Errorf("invalid value '%v' for '%s'", value, schema.Name)
+	return nil, fmt.Errorf("invalid value %q inserted for %q", value, schema.Name)
 }
 
 func ValueToString(value interface{}) string {
@@ -899,7 +909,7 @@ func ValueToJSONBytes(schema *yang.Entry, typ *yang.YangType, value interface{},
 				return v, nil
 			}
 		}
-		return nil, fmt.Errorf("unexpected type found for value type '%s'", typ.Name)
+		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
 	case yang.YinstanceIdentifier:
 		// [FIXME] The leftmost (top-level) data node name is always in the
 		//   namespace-qualified form (qname).
@@ -976,7 +986,7 @@ func JSONValueToString(jval interface{}) (string, error) {
 			return "true", nil
 		}
 	}
-	return "", fmt.Errorf("unexpected jsonval '%v (%T)'", jval, jval)
+	return "", fmt.Errorf("unexpected json-value %v (%T)", jval, jval)
 }
 
 // GetMust returns the when XPath statement of e if able.

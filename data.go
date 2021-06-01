@@ -27,7 +27,7 @@ type DataNode interface {
 	Merge(src DataNode) error    // Merge() merges the src to the current data node.
 
 	Set(value ...string) error
-	Remove(value ...string) error
+	Remove(value ...string) error // Remote() removes the value if the value is inserted or itself if the value is not specified.
 
 	// New() creates a cild using the key and values.
 	// key is an xpath element combined with xpath predicates.
@@ -147,7 +147,7 @@ func jumpToIndex(parent *DataBranch, index, offset int) (int, int, error) {
 	j := index + offset
 	if j < length {
 		if parent.Child(index).Schema() != parent.Child(j).Schema() {
-			return length, length, fmt.Errorf("invalid node selected")
+			return length, length, fmt.Errorf("invalid data node selected")
 		}
 		return j, j + 1, nil
 	}
@@ -192,9 +192,9 @@ func (branch *DataBranch) Path() string {
 
 func (branch *DataBranch) String() string {
 	if branch == nil {
-		return "branch.nil"
+		return ""
 	}
-	return "branch." + branch.Key()
+	return branch.Key()
 }
 
 func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
@@ -210,7 +210,7 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 	}
 	cschema := GetSchema(branch.schema, pathnode[0].Name)
 	if cschema == nil {
-		return nil, fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, branch.schema.Name)
+		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 	key, pmap, err := keyGen(cschema, pathnode[0])
 	if err != nil {
@@ -288,13 +288,13 @@ func (branch *DataBranch) Remove(value ...string) error {
 
 func (branch *DataBranch) Insert(child DataNode) error {
 	if !isValid(child) {
-		return fmt.Errorf("invalid child node")
+		return fmt.Errorf("invalid child data node")
 	}
 	if child.Parent() != nil {
-		return fmt.Errorf("the node is already appended to a parent")
+		return fmt.Errorf("%q is already inserted", child)
 	}
 	if branch.Schema() != GetPresentParentSchema(child.Schema()) {
-		return fmt.Errorf("'%s' is not a child of %s", child, branch)
+		return fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
 	}
 	length := len(branch.children)
 	key := child.Key()
@@ -357,7 +357,7 @@ func (branch *DataBranch) Delete(child DataNode) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("%s not found on delete", child)
+	return fmt.Errorf("%q not found on %q", child, branch)
 }
 
 func (branch *DataBranch) Exist(key string) bool {
@@ -523,18 +523,6 @@ func (branch *DataBranch) Key() string {
 	}
 }
 
-// Find data nodes using the path
-func (branch *DataBranch) Find(path string, option ...Option) ([]DataNode, error) {
-	if !isValid(branch) {
-		return nil, fmt.Errorf("null data node")
-	}
-	pathnode, err := ParsePath(&path)
-	if err != nil {
-		return nil, err
-	}
-	return findNode(branch, pathnode, option...), nil
-}
-
 // func (branch *DataBranch) FindValue(path string) ([]interface{}, error) {
 // 	pathnode, err := ParsePath(&path)
 // 	if err != nil {
@@ -557,9 +545,9 @@ func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
 func (leaf *DataLeaf) Parent() DataNode    { return leaf.parent }
 func (leaf *DataLeaf) String() string {
 	if leaf == nil {
-		return "leaf.nil"
+		return ""
 	}
-	return "leaf." + leaf.schema.Name
+	return leaf.schema.Name
 }
 
 func (leaf *DataLeaf) Path() string {
@@ -581,11 +569,11 @@ func (leaf *DataLeaf) ValueString() string {
 }
 
 func (leaf *DataLeaf) New(key string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("no child exists for %s", leaf)
+	return nil, fmt.Errorf("new is not supported on %q", leaf)
 }
 
 func (leaf *DataLeaf) Update(key string, value ...string) error {
-	return fmt.Errorf("no child to update for %s", leaf)
+	return fmt.Errorf("update is not supported %q", leaf)
 }
 
 func (leaf *DataLeaf) Set(value ...string) error {
@@ -623,11 +611,11 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 }
 
 func (leaf *DataLeaf) Insert(child DataNode) error {
-	return fmt.Errorf("insert not supported for %s", leaf)
+	return fmt.Errorf("insert is not supported on %q", leaf)
 }
 
 func (leaf *DataLeaf) Delete(child DataNode) error {
-	return fmt.Errorf("delete not supported for %s", leaf)
+	return fmt.Errorf("delete is not supported on %q", leaf)
 }
 
 func (leaf *DataLeaf) Exist(key string) bool {
@@ -676,18 +664,6 @@ func (leaf *DataLeaf) Key() string {
 	return leaf.schema.Name
 }
 
-// Find data nodes using the path
-func (leaf *DataLeaf) Find(path string, option ...Option) ([]DataNode, error) {
-	if !isValid(leaf) {
-		return nil, fmt.Errorf("null data node")
-	}
-	pathnode, err := ParsePath(&path)
-	if err != nil {
-		return nil, err
-	}
-	return findNode(leaf, pathnode, option...), nil
-}
-
 // DataLeafList (leaf-list data node)
 // It can be set by the key
 type DataLeafList struct {
@@ -714,9 +690,9 @@ func (leaflist *DataLeafList) Parent() DataNode {
 }
 func (leaflist *DataLeafList) String() string {
 	if leaflist == nil {
-		return "leaf-list.nil"
+		return ""
 	}
-	return "leaf-list." + leaflist.schema.Name
+	return leaflist.schema.Name
 }
 
 func (leaflist *DataLeafList) Path() string {
@@ -739,11 +715,11 @@ func (leaflist *DataLeafList) ValueString() string {
 }
 
 func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("no child exists for %s", leaflist)
+	return nil, fmt.Errorf("new is not supported on %q", leaflist)
 }
 
 func (leaflist *DataLeafList) Update(key string, value ...string) error {
-	return fmt.Errorf("no child to update for %s", leaflist)
+	return fmt.Errorf("update is not supported %q", leaflist)
 }
 
 func (leaflist *DataLeafList) Set(value ...string) error {
@@ -820,11 +796,11 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 }
 
 func (leaflist *DataLeafList) Insert(child DataNode) error {
-	return fmt.Errorf("insert not supported for %s", leaflist)
+	return fmt.Errorf("insert is not supported on %q", leaflist)
 }
 
 func (leaflist *DataLeafList) Delete(child DataNode) error {
-	return fmt.Errorf("delete not supported for %s", leaflist)
+	return fmt.Errorf("delete is not supported on %q", leaflist)
 }
 
 func (leaflist *DataLeafList) Get(key string) DataNode {
@@ -878,18 +854,6 @@ func (leaflist *DataLeafList) Key() string {
 	return leaflist.schema.Name
 }
 
-// Find data nodes using the path
-func (leaflist *DataLeafList) Find(path string, option ...Option) ([]DataNode, error) {
-	if !isValid(leaflist) {
-		return nil, fmt.Errorf("null data node")
-	}
-	pathnode, err := ParsePath(&path)
-	if err != nil {
-		return nil, err
-	}
-	return findNode(leaflist, pathnode, option...), nil
-}
-
 func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface{}, value ...string) (DataNode, error) {
 	child, err := New(cschema, value...)
 	if err != nil {
@@ -901,7 +865,7 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
-				return nil, fmt.Errorf("unable to insert non-key data node %q (%q)", cschema.Name, keyname[i])
+				return nil, fmt.Errorf("unable to insert non-key data node %q (%q must be present.)", cschema.Name, keyname[i])
 			}
 			delete(pmap, keyname[i])
 			kn, err := New(GetSchema(cschema, keyname[i]), v.(string))
@@ -987,7 +951,7 @@ func updateChild(node DataNode, pmap map[string]interface{}, value ...string) er
 // If the creating DataNode is *DataBranch, the values should be JSON encoded bytes.
 func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
-		return nil, fmt.Errorf("schema.nil inserted for new")
+		return nil, fmt.Errorf("schema is nil")
 	}
 	var err error
 	var newdata DataNode
@@ -1035,7 +999,7 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return setValue(root, pathnode[1:], value...)
 	case NodeSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("the parent of %s is not present in the path", root)
+			return fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
 		return setValue(root, pathnode[1:], value...)
@@ -1081,11 +1045,11 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	}
 	branch, ok := root.(*DataBranch)
 	if !ok {
-		return fmt.Errorf("unable to find children from %s", root)
+		return fmt.Errorf("unable to find children from %q", root)
 	}
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
+		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 
 	var first, last int
@@ -1137,7 +1101,7 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 // If the target data node is a leaf or a leaf-list node, the value should be string.
 func Set(root DataNode, path string, value ...string) error {
 	if !isValid(root) {
-		return fmt.Errorf("invalid root node")
+		return fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -1155,7 +1119,7 @@ func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 		return replace(root, node, pathnode[1:])
 	case NodeSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("the parent of %s is not present in the path", root)
+			return fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
 		return replace(root, node, pathnode[1:])
@@ -1171,11 +1135,11 @@ func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 
 	branch, ok := root.(*DataBranch)
 	if !ok {
-		return fmt.Errorf("unable to find a child from %s", root)
+		return fmt.Errorf("unable to find a child from %q", root)
 	}
 	cschema := GetSchema(branch.schema, pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, branch.schema.Name)
+		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 
 	var first, last int
@@ -1198,7 +1162,7 @@ func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 	}
 	if cschema == node.Schema() {
 		if len(pathnode) > 1 {
-			return fmt.Errorf("invalid path")
+			return fmt.Errorf("invalid long tail path: %q", pathnode[1].Name)
 		}
 		err := updateChild(node, pmap)
 		if err != nil {
@@ -1225,12 +1189,13 @@ func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 	return fmt.Errorf("unable to specify the node position inserted")
 }
 
-func Replace(root, new DataNode, path string) error {
+// Replace() replaces the target data node to the new data node in the path.
+func Replace(root DataNode, path string, new DataNode) error {
 	if !isValid(root) {
-		return fmt.Errorf("invalid root node")
+		return fmt.Errorf("invalid root data node")
 	}
 	if !isValid(new) {
-		return fmt.Errorf("invalid new node")
+		return fmt.Errorf("invalid new data node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -1248,7 +1213,7 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return deleteValue(root, pathnode[1:], value...)
 	case NodeSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("the parent of %s is not present in the path", root)
+			return fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
 		return deleteValue(root, pathnode[1:], value...)
@@ -1294,11 +1259,11 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	}
 	branch, ok := root.(*DataBranch)
 	if !ok {
-		return fmt.Errorf("unable to find children from %s", root)
+		return fmt.Errorf("select children from non-branch node %q", root)
 	}
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
+		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, root.Schema().Name)
 	}
 	var first, last int
 	key, pmap, err := keyGen(cschema, pathnode[0])
@@ -1333,9 +1298,11 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	return nil
 }
 
+// Delete() deletes the target data node in the path if the value is not specified.
+// If the value is specified, only the value is deleted.
 func Delete(root DataNode, path string, value ...string) error {
 	if !isValid(root) {
-		return fmt.Errorf("invalid root node")
+		return fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -1456,10 +1423,10 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	return children
 }
 
-// Find data nodes using the path
+// Find() finds all data nodes in the path. xpath format is used for the path.
 func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
 	if !isValid(root) {
-		return nil, fmt.Errorf("invalid root node")
+		return nil, fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -1580,10 +1547,10 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	return childvalues
 }
 
-// Find data nodes using the path
+// FindValueString() finds all data in the path and then returns their values by string.
 func FindValueString(root DataNode, path string) ([]string, error) {
 	if !isValid(root) {
-		return nil, fmt.Errorf("invalid root node")
+		return nil, fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -1597,10 +1564,10 @@ func FindValueString(root DataNode, path string) ([]string, error) {
 	return slist, nil
 }
 
-// Find data nodes using the path
+// FindValue() finds all data in the path and then returns their values.
 func FindValue(root DataNode, path string) ([]interface{}, error) {
 	if !isValid(root) {
-		return nil, fmt.Errorf("invalid root node")
+		return nil, fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -1650,13 +1617,13 @@ func clone(destParent *DataBranch, src DataNode) (DataNode, error) {
 	return dest, nil
 }
 
-// Clone makes a new DataNode copied from the src data node.
+// Clone() makes a new data node copied from the src data node.
 func Clone(src DataNode) DataNode {
 	dest, _ := clone(nil, src)
 	return dest
 }
 
-// Equal() returns true if node1 and node2 have the same data tree.
+// Equal() returns true if node1 and node2 have the same data tree and values.
 func Equal(node1, node2 DataNode) bool {
 	if node1 == node2 {
 		return true
@@ -1737,25 +1704,38 @@ func merge(dest, src DataNode) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("invalid data node %T", s)
+		return fmt.Errorf("invalid data node type: %T", s)
 	}
 	return nil
 }
 
-func Merge(dest, src DataNode) error {
-	if !isValid(dest) {
-		return fmt.Errorf("null dest data node")
-	}
+// Merge() merges the src data node to the target data node in the path.
+// The target data node is updated using the src data node.
+func Merge(root DataNode, path string, src DataNode) error {
 	if !isValid(src) {
-		return fmt.Errorf("null source data node")
+		return fmt.Errorf("invalid src data node")
 	}
-	return merge(dest, src)
+	node, err := Find(root, path)
+	if err != nil {
+		return err
+	}
+	switch len(node) {
+	case 0:
+		err := Set(root, path)
+		if err != nil {
+			return err
+		}
+		return Merge(root, path, src)
+	case 1:
+		return merge(node[0], src)
+	}
+	return fmt.Errorf("more than one data node found - cannot specify the merged node")
 }
 
 // Merge() merges the src data node to the branch data node.
 func (branch *DataBranch) Merge(src DataNode) error {
 	if !isValid(src) {
-		return fmt.Errorf("null source data node")
+		return fmt.Errorf("invalid src data node")
 	}
 	return merge(branch, src)
 }
@@ -1763,7 +1743,7 @@ func (branch *DataBranch) Merge(src DataNode) error {
 // Merge() merges the src data node to the leaf data node.
 func (leaf *DataLeaf) Merge(src DataNode) error {
 	if !isValid(src) {
-		return fmt.Errorf("null source data node")
+		return fmt.Errorf("invalid src data node")
 	}
 	return merge(leaf, src)
 }
@@ -1771,12 +1751,12 @@ func (leaf *DataLeaf) Merge(src DataNode) error {
 // Merge() merges the src data node to the leaflist data node.
 func (leaflist *DataLeafList) Merge(src DataNode) error {
 	if !isValid(src) {
-		return fmt.Errorf("null source data node")
+		return fmt.Errorf("invalid src data node")
 	}
 	return merge(leaflist, src)
 }
 
-// Map converts data node list to map using the path.
+// Map converts the data node list to a map using the path.
 func Map(node []DataNode) map[string]DataNode {
 	m := map[string]DataNode{}
 	for i := range node {

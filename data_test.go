@@ -494,22 +494,22 @@ func TestReplace(t *testing.T) {
 	schema := FindSchema(rootschema, "interfaces/interface")
 	for i := 1; i < 5; i++ {
 		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
-		n, err := New(schema, v)
+		new, err := New(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
-		err = Replace(root, n, "/interfaces/interface")
+		err = Replace(root, "/interfaces/interface", new)
 		if err != nil {
 			t.Error(err)
 		}
 	}
 	for i := 3; i < 7; i++ {
 		v := `{ "config": {"enabled":"true"}, "state": {"admin-status":"UP"}}`
-		n, err := New(schema, v)
+		new, err := New(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
-		err = Replace(root, n, fmt.Sprintf("interfaces/interface[name=e%v]", i))
+		err = Replace(root, fmt.Sprintf("interfaces/interface[name=e%v]", i), new)
 		if err != nil {
 			t.Error(err)
 		}

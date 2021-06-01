@@ -30,6 +30,6 @@ func main() {
 		collected = append(collected, yangtree.CollectSchemaEntries(entry, true)...)
 	}
 	for _, entry := range collected {
-		fmt.Println(yangtree.GeneratePath(entry, *pathWithPrefix))
+		fmt.Println(yangtree.GeneratePath(entry, false, *pathWithPrefix))
 	}
 }

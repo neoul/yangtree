@@ -387,7 +387,7 @@ func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
 func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
 	jdata, ok := jval.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected json type '%T' for %s", jval, cschema.Name)
+		return fmt.Errorf("unexpected json type '%T' for %q", jval, cschema.Name)
 	}
 	if len(kname) != len(kval) {
 		for k, v := range jdata {
@@ -432,7 +432,7 @@ func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []stri
 		for i := range kname {
 			found := GetSchema(cschema, kname[i])
 			if found == nil {
-				return fmt.Errorf("schema '%s' not found", kname[i])
+				return fmt.Errorf("schema %q not found", kname[i])
 			}
 			kval := fmt.Sprint(jentry[kname[i]])
 			// [FIXME] need to check key validation
@@ -475,7 +475,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 			for k, v := range jdata {
 				cschema := GetSchema(n.schema, k)
 				if cschema == nil {
-					return fmt.Errorf("schema.%s not found from schema.%s", k, n.schema.Name)
+					return fmt.Errorf("schema %q not found from %q", k, n.schema.Name)
 				}
 				switch {
 				case IsList(cschema):
@@ -485,7 +485,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 						}
 					} else {
 						if IsDuplicatedList(cschema) {
-							return fmt.Errorf("non-key list '%s' must have the array format of RFC7951", cschema.Name)
+							return fmt.Errorf("non-key list %q must have the array format of RFC7951", cschema.Name)
 						}
 						kname := GetKeynames(cschema)
 						kval := make([]string, 0, len(kname))
@@ -518,7 +518,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 			}
 			return nil
 		}
-		return fmt.Errorf("unexpected json '%v' inserted for %s", jval, n)
+		return fmt.Errorf("unexpected json value '%v' inserted for %s", jval, n)
 	case *DataLeafList:
 		if vslice, ok := jval.([]interface{}); ok {
 			for i := range vslice {
@@ -540,7 +540,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 		}
 		return n.Set(valstr)
 	default:
-		return fmt.Errorf("unknown data node type '%T'", node)
+		return fmt.Errorf("unknown data node type: %T", node)
 	}
 }
 

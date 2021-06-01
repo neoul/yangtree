@@ -152,7 +152,7 @@ func ParsePath(path *string) ([]*PathNode, error) {
 		end++
 	}
 	if insideBrackets > 0 {
-		return nil, fmt.Errorf("invalid path format '%s'", *path)
+		return nil, fmt.Errorf("invalid path format %q", *path)
 	}
 
 	if begin < end {
@@ -366,7 +366,7 @@ func convertToGoExpr(goExpr *strings.Builder, env map[string]interface{}, token 
 				return i, err
 			}
 			if token[i] != ")" {
-				return i, fmt.Errorf("not terminated path expr, %q", strings.Join(token, ""))
+				return i, fmt.Errorf("not terminated path expr: %q", strings.Join(token, ""))
 			}
 			goExpr.WriteString(")")
 		case ")":
