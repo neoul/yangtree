@@ -72,7 +72,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 		// case yang.Yunion:
 		// case yang.Ynone:
 		case yang.YinstanceIdentifier:
-			ref, err := node.Find(node.ValueString())
+			ref, err := Find(node, node.ValueString())
 			if err != nil {
 				return append(errors, err)
 			}
@@ -80,7 +80,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 				return append(errors, fmt.Errorf("data instance not present to %q", node.Path()))
 			}
 		case yang.Yleafref:
-			ref, err := node.Find(typ.Path)
+			ref, err := Find(node, typ.Path)
 			if err != nil {
 				return append(errors, err)
 			}

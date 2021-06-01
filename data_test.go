@@ -111,7 +111,7 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Error("new failed", err)
 	}
-	node, _ := root2.Find("sample/multiple-key-list[integer=2][str=first]")
+	node, _ := Find(root2, "sample/multiple-key-list[integer=2][str=first]")
 	if err := node[0].Merge(mnode); err != nil {
 		t.Error("merge failed:", err)
 	}
@@ -452,7 +452,7 @@ func TestCreatedWithDefault(t *testing.T) {
 		t.Error(err)
 	}
 
-	node, err := test.Find("config/d1")
+	node, err := Find(test, "config/d1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -471,7 +471,7 @@ func TestCreatedWithDefault(t *testing.T) {
 	t.Log(string(j))
 }
 
-func TestInsert(t *testing.T) {
+func TestReplace(t *testing.T) {
 	files := []string{
 		"../../YangModels/yang/standard/ietf/RFC/iana-if-type@2017-01-19.yang",
 		"../../openconfig/public/release/models/interfaces/openconfig-interfaces.yang",
@@ -498,7 +498,11 @@ func TestInsert(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		Insert(root, n, "interfaces")
+		// err = Replace(root, n, fmt.Sprintf("interfaces/interface[name=e%v]", i))
+		err = Replace(root, n, "/interfaces/interface")
+		if err != nil {
+			t.Error(err)
+		}
 	}
 
 	b, _ := root.MarshalJSON()

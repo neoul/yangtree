@@ -22,21 +22,20 @@ type DataNode interface {
 	Schema() *yang.Entry
 	Parent() DataNode
 
-	Insert(child DataNode) error
-	Delete(child DataNode) error
+	Insert(child DataNode) error // Insert a child node. It replaces the old child node.
+	Delete(child DataNode) error // Delete a child node.
+	Merge(src DataNode) error    // Merge() merges the src to the current data node.
 
 	Set(value ...string) error
 	Remove(value ...string) error
 
-	// New() creates a cild using a key and values
+	// New() creates a cild using the key and values.
 	// key is an xpath element combined with xpath predicates.
 	// For example, interface[name=VALUE]
 	New(key string, value ...string) (DataNode, error)
 
+	// Update() updates a existent child using the key and values.
 	Update(key string, value ...string) error
-
-	// Merge() merges the src data node to the data node.
-	Merge(src DataNode) error
 
 	Exist(key string) bool
 	Get(key string) DataNode          // Get the child having the key.
@@ -47,21 +46,17 @@ type DataNode interface {
 
 	Len() int                    // Len() returns the length of children.
 	Index(key string) (int, int) // Index() finds all children and returns the indexes of them.
-	// Min(key string) int
-	// Max(key string) int
-	Child(index int) DataNode // Child() gets the child of the index.
+	Child(index int) DataNode    // Child() gets the child of the index.
 
 	String() string
-	Path() string
-	Value() interface{}
-	ValueString() string
+	Path() string        // Path() returns the path from the root data node.
+	Value() interface{}  // Value() returns the raw data of the node.
+	ValueString() string // ValueString() returns the value string of the node.
 
 	MarshalJSON() ([]byte, error)      // Encoding to JSON
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
 
 	UnmarshalJSON([]byte) error // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
-
-	Find(path string, option ...Option) ([]DataNode, error)
 }
 
 type Option interface {
@@ -522,6 +517,9 @@ func (branch *DataBranch) Key() string {
 
 // Find data nodes using the path
 func (branch *DataBranch) Find(path string, option ...Option) ([]DataNode, error) {
+	if !isValid(branch) {
+		return nil, fmt.Errorf("null data node")
+	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -672,6 +670,9 @@ func (leaf *DataLeaf) Key() string {
 
 // Find data nodes using the path
 func (leaf *DataLeaf) Find(path string, option ...Option) ([]DataNode, error) {
+	if !isValid(leaf) {
+		return nil, fmt.Errorf("null data node")
+	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -871,6 +872,9 @@ func (leaflist *DataLeafList) Key() string {
 
 // Find data nodes using the path
 func (leaflist *DataLeafList) Find(path string, option ...Option) ([]DataNode, error) {
+	if !isValid(leaflist) {
+		return nil, fmt.Errorf("null data node")
+	}
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, err
@@ -885,7 +889,7 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 	}
 	switch {
 	case IsUniqueList(cschema):
-		keyname := strings.Split(cschema.Key, " ")
+		keyname := GetKeynames(cschema)
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
@@ -925,6 +929,50 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 		return nil, err
 	}
 	return child, nil
+}
+
+func updateChild(node DataNode, pmap map[string]interface{}, value ...string) error {
+	schema := node.Schema()
+	switch {
+	case IsUniqueList(schema):
+		keyname := GetKeynames(schema)
+		for i := range keyname {
+			v, ok := pmap[keyname[i]]
+			if !ok {
+				continue
+				// return fmt.Errorf("schema.%s of schema.%s must be present in the path", keyname[i], schema.Name)
+			}
+			delete(pmap, keyname[i])
+			kn, err := New(GetSchema(schema, keyname[i]), v.(string))
+			if err != nil {
+				return err
+			}
+			if err := node.Insert(kn); err != nil {
+				return err
+			}
+		}
+		fallthrough
+	default:
+		for k, v := range pmap {
+			if strings.HasPrefix(k, "@") {
+				continue
+			}
+			if k == "." {
+				if err := node.Set(v.(string)); err != nil {
+					return err
+				}
+				continue
+			}
+			kn, err := New(GetSchema(schema, k), v.(string))
+			if err != nil {
+				return err
+			}
+			if err := node.Insert(kn); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // New() creates a new DataNode (one of *DataBranch, *DataLeaf and *DataLeaflist) according to the schema
@@ -1091,19 +1139,19 @@ func Set(root DataNode, path string, value ...string) error {
 	return setValue(root, pathnode, value...)
 }
 
-func insert(root DataNode, node DataNode, pathnode []*PathNode) error {
+func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 	if len(pathnode) == 0 {
 		return root.Insert(node)
 	}
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
-		return insert(root, node, pathnode[1:])
+		return replace(root, node, pathnode[1:])
 	case NodeSelectParent:
 		if root.Parent() == nil {
 			return fmt.Errorf("the parent of %s is not present in the path", root)
 		}
 		root = root.Parent()
-		return insert(root, node, pathnode[1:])
+		return replace(root, node, pathnode[1:])
 	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
@@ -1118,15 +1166,9 @@ func insert(root DataNode, node DataNode, pathnode []*PathNode) error {
 	if !ok {
 		return fmt.Errorf("unable to find a child from %s", root)
 	}
-	cschema := GetSchema(root.Schema(), pathnode[0].Name)
+	cschema := GetSchema(branch.schema, pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, root.Schema().Name)
-	}
-	// if root.Schema() == GetPresentParentSchema(node.Schema()) {
-	// 	return root.Insert(node)
-	// }
-	if cschema == node.Schema() {
-		return root.Insert(node)
+		return fmt.Errorf("schema.%s not found from schema.%s", pathnode[0].Name, branch.schema.Name)
 	}
 
 	var first, last int
@@ -1147,13 +1189,23 @@ func insert(root DataNode, node DataNode, pathnode []*PathNode) error {
 			first = last
 		}
 	}
+	if cschema == node.Schema() {
+		if len(pathnode) > 1 {
+			return fmt.Errorf("invalid path")
+		}
+		err := updateChild(node, pmap)
+		if err != nil {
+			return err
+		}
+		return branch.Insert(node)
+	}
 	// newly adds a node
 	if first == last {
 		child, err := newChild(branch, cschema, pmap)
 		if err != nil {
 			return err
 		}
-		err = insert(child, node, pathnode[1:])
+		err = replace(child, node, pathnode[1:])
 		if err != nil {
 			child.Remove()
 		}
@@ -1161,12 +1213,12 @@ func insert(root DataNode, node DataNode, pathnode []*PathNode) error {
 	}
 	// updates existent nodes
 	if first+1 == last {
-		return insert(root.Child(first), node, pathnode[1:])
+		return replace(branch.Child(first), node, pathnode[1:])
 	}
 	return fmt.Errorf("unable to specify the node position inserted")
 }
 
-func Insert(root, new DataNode, path string) error {
+func Replace(root, new DataNode, path string) error {
 	if !isValid(root) {
 		return fmt.Errorf("invalid root node")
 	}
@@ -1177,7 +1229,7 @@ func Insert(root, new DataNode, path string) error {
 	if err != nil {
 		return err
 	}
-	return insert(root, new, pathnode)
+	return replace(root, new, pathnode)
 }
 
 func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
