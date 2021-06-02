@@ -15,6 +15,7 @@ var (
 
 type DataNode interface {
 	IsYangDataNode()
+	IsNil() bool // IsNil() is used to check the data node is null.
 	IsBranch() bool
 	IsLeaf() bool
 	IsLeafList() bool
@@ -69,18 +70,22 @@ type StateOnly struct{}
 func (f ConfigOnly) IsOption() {}
 func (f StateOnly) IsOption()  {}
 
-func LoopInOrder(n int, f func(int) bool) int {
-	i := 0
-	for ; i < n; i++ {
-		if f(i) {
-			break
-		}
-	}
-	return i
-}
+// [FIXME] not used
+// func LoopInOrder(n int, f func(int) bool) int {
+// 	i := 0
+// 	for ; i < n; i++ {
+// 		if f(i) {
+// 			break
+// 		}
+// 	}
+// 	return i
+// }
 
-func isValid(node DataNode) bool {
+func IsValid(node DataNode) bool {
 	if node == nil {
+		return false
+	}
+	if node.IsNil() {
 		return false
 	}
 	if node.Schema() == nil {
@@ -156,18 +161,24 @@ func jumpToIndex(parent *DataBranch, index, offset int) (int, int, error) {
 
 type DataBranch struct {
 	schema   *yang.Entry
-	parent   DataNode
+	parent   *DataBranch
 	key      string
 	children []DataNode
 }
 
 func (branch *DataBranch) IsYangDataNode()     {}
+func (branch *DataBranch) IsNil() bool         { return branch == nil }
 func (branch *DataBranch) IsBranch() bool      { return true }
 func (branch *DataBranch) IsLeaf() bool        { return false }
 func (branch *DataBranch) IsLeafList() bool    { return false }
 func (branch *DataBranch) Schema() *yang.Entry { return branch.schema }
-func (branch *DataBranch) Parent() DataNode    { return branch.parent }
-func (branch *DataBranch) Value() interface{}  { return nil }
+func (branch *DataBranch) Parent() DataNode {
+	if branch.parent == nil {
+		return nil
+	}
+	return branch.parent
+}
+func (branch *DataBranch) Value() interface{} { return nil }
 
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
@@ -264,7 +275,7 @@ func (branch *DataBranch) Remove(value ...string) error {
 	if branch.parent == nil {
 		return nil
 	}
-	parent := branch.parent.(*DataBranch)
+	parent := branch.parent
 	length := len(parent.children)
 	key := branch.Key()
 	i := sort.Search(length,
@@ -287,7 +298,7 @@ func (branch *DataBranch) Remove(value ...string) error {
 }
 
 func (branch *DataBranch) Insert(child DataNode) error {
-	if !isValid(child) {
+	if !IsValid(child) {
 		return fmt.Errorf("invalid child data node")
 	}
 	if child.Parent() != nil {
@@ -326,7 +337,7 @@ func (branch *DataBranch) Insert(child DataNode) error {
 }
 
 func (branch *DataBranch) Delete(child DataNode) error {
-	// if !isValid(child) {
+	// if !IsValid(child) {
 	// 	return fmt.Errorf("invalid child node")
 	// }
 
@@ -533,22 +544,23 @@ func (branch *DataBranch) Key() string {
 
 type DataLeaf struct {
 	schema *yang.Entry
-	parent DataNode
+	parent *DataBranch
 	value  interface{}
 }
 
 func (leaf *DataLeaf) IsYangDataNode()     {}
+func (leaf *DataLeaf) IsNil() bool         { return leaf == nil }
 func (leaf *DataLeaf) IsBranch() bool      { return false }
 func (leaf *DataLeaf) IsLeaf() bool        { return true }
 func (leaf *DataLeaf) IsLeafList() bool    { return false }
 func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
-func (leaf *DataLeaf) Parent() DataNode    { return leaf.parent }
-func (leaf *DataLeaf) String() string {
-	if leaf == nil {
-		return ""
+func (leaf *DataLeaf) Parent() DataNode {
+	if leaf.parent == nil {
+		return nil
 	}
-	return leaf.schema.Name
+	return leaf.parent
 }
+func (leaf *DataLeaf) String() string { return leaf.schema.Name }
 
 func (leaf *DataLeaf) Path() string {
 	if leaf == nil {
@@ -604,7 +616,7 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 	if leaf.parent == nil {
 		return nil
 	}
-	if branch, ok := leaf.parent.(*DataBranch); ok {
+	if branch := leaf.parent; branch != nil {
 		return branch.Delete(leaf)
 	}
 	return nil
@@ -668,32 +680,23 @@ func (leaf *DataLeaf) Key() string {
 // It can be set by the key
 type DataLeafList struct {
 	schema *yang.Entry
-	parent DataNode
+	parent *DataBranch
 	value  []interface{}
 }
 
-func (leaflist *DataLeafList) IsYangDataNode()  {}
-func (leaflist *DataLeafList) IsBranch() bool   { return false }
-func (leaflist *DataLeafList) IsLeaf() bool     { return false }
-func (leaflist *DataLeafList) IsLeafList() bool { return true }
-func (leaflist *DataLeafList) Schema() *yang.Entry {
-	if leaflist == nil {
-		return nil
-	}
-	return leaflist.schema
-}
+func (leaflist *DataLeafList) IsYangDataNode()     {}
+func (leaflist *DataLeafList) IsNil() bool         { return leaflist == nil }
+func (leaflist *DataLeafList) IsBranch() bool      { return false }
+func (leaflist *DataLeafList) IsLeaf() bool        { return false }
+func (leaflist *DataLeafList) IsLeafList() bool    { return true }
+func (leaflist *DataLeafList) Schema() *yang.Entry { return leaflist.schema }
 func (leaflist *DataLeafList) Parent() DataNode {
-	if leaflist == nil {
+	if leaflist.parent == nil {
 		return nil
 	}
 	return leaflist.parent
 }
-func (leaflist *DataLeafList) String() string {
-	if leaflist == nil {
-		return ""
-	}
-	return leaflist.schema.Name
-}
+func (leaflist *DataLeafList) String() string { return leaflist.schema.Name }
 
 func (leaflist *DataLeafList) Path() string {
 	if leaflist == nil {
@@ -794,7 +797,7 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 		if leaflist.parent == nil {
 			return nil
 		}
-		if branch, ok := leaflist.parent.(*DataBranch); ok {
+		if branch := leaflist.parent; branch != nil {
 			branch.Delete(leaflist)
 		}
 	}
@@ -1106,7 +1109,7 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 // If the target DataNode is a branch node, the value must be json or json_ietf bytes.
 // If the target data node is a leaf or a leaf-list node, the value should be string.
 func Set(root DataNode, path string, value ...string) error {
-	if !isValid(root) {
+	if !IsValid(root) {
 		return fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
@@ -1197,10 +1200,10 @@ func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 
 // Replace() replaces the target data node to the new data node in the path.
 func Replace(root DataNode, path string, new DataNode) error {
-	if !isValid(root) {
+	if !IsValid(root) {
 		return fmt.Errorf("invalid root data node")
 	}
-	if !isValid(new) {
+	if !IsValid(new) {
 		return fmt.Errorf("invalid new data node")
 	}
 	pathnode, err := ParsePath(&path)
@@ -1307,7 +1310,7 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 // Delete() deletes the target data node in the path if the value is not specified.
 // If the value is specified, only the value is deleted.
 func Delete(root DataNode, path string, value ...string) error {
-	if !isValid(root) {
+	if !IsValid(root) {
 		return fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
@@ -1431,7 +1434,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 
 // Find() finds all data nodes in the path. xpath format is used for the path.
 func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
-	if !isValid(root) {
+	if !IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
@@ -1555,7 +1558,7 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 
 // FindValueString() finds all data in the path and then returns their values by string.
 func FindValueString(root DataNode, path string) ([]string, error) {
-	if !isValid(root) {
+	if !IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
@@ -1572,7 +1575,7 @@ func FindValueString(root DataNode, path string) ([]string, error) {
 
 // FindValue() finds all data in the path and then returns their values.
 func FindValue(root DataNode, path string) ([]interface{}, error) {
-	if !isValid(root) {
+	if !IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
 	}
 	pathnode, err := ParsePath(&path)
@@ -1625,8 +1628,11 @@ func clone(destParent *DataBranch, src DataNode) (DataNode, error) {
 
 // Clone() makes a new data node copied from the src data node.
 func Clone(src DataNode) DataNode {
-	dest, _ := clone(nil, src)
-	return dest
+	if IsValid(src) {
+		dest, _ := clone(nil, src)
+		return dest
+	}
+	return nil
 }
 
 // Equal() returns true if node1 and node2 have the same data tree and values.
@@ -1718,7 +1724,7 @@ func merge(dest, src DataNode) error {
 // Merge() merges the src data node to the target data node in the path.
 // The target data node is updated using the src data node.
 func Merge(root DataNode, path string, src DataNode) error {
-	if !isValid(src) {
+	if !IsValid(src) {
 		return fmt.Errorf("invalid src data node")
 	}
 	node, err := Find(root, path)
@@ -1749,7 +1755,7 @@ func Merge(root DataNode, path string, src DataNode) error {
 
 // Merge() merges the src data node to the branch data node.
 func (branch *DataBranch) Merge(src DataNode) error {
-	if !isValid(src) {
+	if !IsValid(src) {
 		return fmt.Errorf("invalid src data node")
 	}
 	return merge(branch, src)
@@ -1757,7 +1763,7 @@ func (branch *DataBranch) Merge(src DataNode) error {
 
 // Merge() merges the src data node to the leaf data node.
 func (leaf *DataLeaf) Merge(src DataNode) error {
-	if !isValid(src) {
+	if !IsValid(src) {
 		return fmt.Errorf("invalid src data node")
 	}
 	return merge(leaf, src)
@@ -1765,7 +1771,7 @@ func (leaf *DataLeaf) Merge(src DataNode) error {
 
 // Merge() merges the src data node to the leaflist data node.
 func (leaflist *DataLeafList) Merge(src DataNode) error {
-	if !isValid(src) {
+	if !IsValid(src) {
 		return fmt.Errorf("invalid src data node")
 	}
 	return merge(leaflist, src)
