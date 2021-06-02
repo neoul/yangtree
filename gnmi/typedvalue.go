@@ -2,6 +2,7 @@ package gnmi
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/neoul/yangtree"
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
@@ -189,9 +190,21 @@ func TypedValueToString(typedvalue *gnmipb.TypedValue) (string, error) {
 	case *gnmipb.TypedValue_IntVal:
 		return yangtree.ValueToString(tv.IntVal), nil
 	case *gnmipb.TypedValue_JsonIetfVal:
-		return string(tv.JsonIetfVal), nil
+		s := string(tv.JsonIetfVal)
+		if len(s) >= 2 {
+			if s[0] == '"' && s[len(s)-1] == '"' {
+				return strings.Trim(s, "\""), nil
+			}
+		}
+		return s, nil
 	case *gnmipb.TypedValue_JsonVal:
-		return string(tv.JsonVal), nil
+		s := string(tv.JsonVal)
+		if len(s) >= 2 {
+			if s[0] == '"' && s[len(s)-1] == '"' {
+				return strings.Trim(s, "\""), nil
+			}
+		}
+		return s, nil
 	case *gnmipb.TypedValue_LeaflistVal:
 		return tv.LeaflistVal.String(), nil
 	case *gnmipb.TypedValue_StringVal:

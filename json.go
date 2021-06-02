@@ -387,7 +387,7 @@ func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
 func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
 	jdata, ok := jval.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected json type '%T' for %q", jval, cschema.Name)
+		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", jval, jval, cschema.Name)
 	}
 	if len(kname) != len(kval) {
 		for k, v := range jdata {
@@ -517,8 +517,16 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 				}
 			}
 			return nil
+		case []interface{}:
+			for i := range jdata {
+				if err := unmarshalJSON(node, jdata[i]); err != nil {
+					return err
+				}
+			}
+			return nil
+		default:
+			return fmt.Errorf("unexpected json value \"%v\" (%T) inserted for %q", jval, jval, n)
 		}
-		return fmt.Errorf("unexpected json value '%v' inserted for %s", jval, n)
 	case *DataLeafList:
 		if vslice, ok := jval.([]interface{}); ok {
 			for i := range vslice {

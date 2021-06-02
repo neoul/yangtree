@@ -729,7 +729,13 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 		// ignore key update
 		// return fmt.Errorf("unable to update key node %q if used", leaflist)
 	}
-	if len(value) == 2 && value[1] == "" {
+	// [FIXME] - how to process it if the value is the list string?
+	// if len(value) == 2 && value[1] == "" {
+	// 	if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
+	// 		return leaflist.UnmarshalJSON([]byte(value[0]))
+	// 	}
+	// }
+	if len(value) == 1 {
 		if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
 			return leaflist.UnmarshalJSON([]byte(value[0]))
 		}
@@ -1725,7 +1731,16 @@ func Merge(root DataNode, path string, src DataNode) error {
 		if err != nil {
 			return err
 		}
-		return Merge(root, path, src)
+		node, err = Find(root, path)
+		if err != nil {
+			return err
+		}
+		if len(node) > 1 {
+			return fmt.Errorf("more than one data node found - cannot specify the merged node")
+		} else if len(node) == 1 {
+			return merge(node[0], src)
+		}
+		return fmt.Errorf("failed to create and merge the nodes in %q", path)
 	case 1:
 		return merge(node[0], src)
 	}
