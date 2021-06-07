@@ -161,10 +161,10 @@ func GeneratePath(schema *yang.Entry, keyPrint, prefixTagging bool) string {
 				if prefixTagging && e.Prefix != nil {
 					k = e.Prefix.Name + ":" + k
 				}
-				elementName = fmt.Sprintf("%s[%s=*]", elementName, k)
+				elementName = elementName + "[" + k + "=*]"
 			}
 		}
-		path = fmt.Sprintf("/%s%s", elementName, path)
+		path = "/" + elementName + path
 	}
 	// if *pathPathType == "gnmi" {
 	// 	gnmiPath, err := xpath.ToGNMIPath(path)
@@ -615,6 +615,15 @@ func FindSchema(schema *yang.Entry, path string) *yang.Entry {
 		}
 	}
 	return target
+}
+
+func HasDifferentSchemaPath(schema *yang.Entry) bool {
+	for n := schema; n != nil; n = n.Parent {
+		if IsUniqueList(n) {
+			return true
+		}
+	}
+	return false
 }
 
 func GetKeynames(schema *yang.Entry) []string {
