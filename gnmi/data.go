@@ -7,7 +7,7 @@ import (
 )
 
 func Find(root yangtree.DataNode, gpath *gnmipb.Path, option ...yangtree.Option) ([]yangtree.DataNode, error) {
-	path := ToPath(gpath)
+	path := ToPath(false, gpath)
 	return yangtree.Find(root, path, option...)
 }
 

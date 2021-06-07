@@ -182,8 +182,18 @@ func IsSchemaGNMIPath(path *gnmipb.Path) bool {
 }
 
 // ToPath returns the path for the gnmi path.
-func ToPath(gpath ...*gnmipb.Path) string {
-	pe := []string{""}
+func ToPath(abspath bool, gpath ...*gnmipb.Path) string {
+	num := 0
+	for _, p := range gpath {
+		if p == nil {
+			continue
+		}
+		num = num + len(p.Elem)
+	}
+	pe := make([]string, 0, num+1)
+	if abspath {
+		pe = append(pe, "")
+	}
 	for _, p := range gpath {
 		if p == nil {
 			continue

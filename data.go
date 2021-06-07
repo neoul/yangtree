@@ -50,9 +50,10 @@ type DataNode interface {
 	Child(index int) DataNode    // Child() gets the child of the index.
 
 	String() string
-	Path() string        // Path() returns the path from the root data node.
-	Value() interface{}  // Value() returns the raw data of the node.
-	ValueString() string // ValueString() returns the value string of the node.
+	Path() string                      // Path() returns the path from the root data node.
+	PathTo(descendant DataNode) string // PathTo() returns the relative path to an descendant node.
+	Value() interface{}                // Value() returns the raw data of the node.
+	ValueString() string               // ValueString() returns the value string of the node.
 
 	MarshalJSON() ([]byte, error)      // Encoding to JSON
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
@@ -199,6 +200,25 @@ func (branch *DataBranch) Path() string {
 		return ""
 	}
 	return "/" + branch.Key()
+}
+
+func (branch *DataBranch) PathTo(descendant DataNode) string {
+	if descendant == nil || branch == descendant {
+		return ""
+	}
+	p := []string{}
+	for n := descendant; n != nil; n = n.Parent() {
+		if n == branch {
+			var buf strings.Builder
+			for i := len(p) - 1; i >= 0; i-- {
+				buf.WriteString(p[i])
+				buf.WriteString("/")
+			}
+			return buf.String()
+		}
+		p = append(p, n.Key())
+	}
+	return ""
 }
 
 func (branch *DataBranch) String() string {
@@ -572,6 +592,10 @@ func (leaf *DataLeaf) Path() string {
 	return "/" + leaf.Key()
 }
 
+func (leaf *DataLeaf) PathTo(descendant DataNode) string {
+	return ""
+}
+
 func (leaf *DataLeaf) Value() interface{} {
 	return leaf.value
 }
@@ -706,6 +730,10 @@ func (leaflist *DataLeafList) Path() string {
 		return leaflist.parent.Path() + "/" + leaflist.Key()
 	}
 	return "/" + leaflist.Key()
+}
+
+func (leaflist *DataLeafList) PathTo(descendant DataNode) string {
+	return ""
 }
 
 func (leaflist *DataLeafList) Value() interface{} {
