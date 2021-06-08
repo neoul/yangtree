@@ -271,6 +271,9 @@ func (branch *DataBranch) Set(value ...string) error {
 	if IsCreatedWithDefault(branch.schema) {
 		for _, s := range branch.schema.Dir {
 			if !s.IsDir() && s.Default != "" {
+				if branch.Get(s.Name) != nil {
+					continue
+				}
 				c, err := New(s)
 				if err != nil {
 					return err
@@ -791,7 +794,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 	return nil
 }
 
-func (leaflist *DataLeafList) setValue(value ...interface{}) error {
+func (leaflist *DataLeafList) setListValue(value ...interface{}) error {
 	if IsKeyNode(leaflist.schema) && leaflist.parent != nil {
 		return nil
 		// [FIXME]
@@ -1147,19 +1150,19 @@ func Set(root DataNode, path string, value ...string) error {
 	return setValue(root, pathnode, value...)
 }
 
-func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
+func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 	if len(pathnode) == 0 {
 		return root.Insert(node)
 	}
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
-		return replace(root, node, pathnode[1:])
+		return replace(root, pathnode[1:], node)
 	case NodeSelectParent:
 		if root.Parent() == nil {
 			return fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
-		return replace(root, node, pathnode[1:])
+		return replace(root, pathnode[1:], node)
 	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
@@ -1213,7 +1216,7 @@ func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 		if err != nil {
 			return err
 		}
-		err = replace(child, node, pathnode[1:])
+		err = replace(child, pathnode[1:], node)
 		if err != nil {
 			child.Remove()
 		}
@@ -1221,7 +1224,7 @@ func replace(root DataNode, node DataNode, pathnode []*PathNode) error {
 	}
 	// updates existent nodes
 	if first+1 == last {
-		return replace(branch.Child(first), node, pathnode[1:])
+		return replace(branch.Child(first), pathnode[1:], node)
 	}
 	return fmt.Errorf("unable to specify the node position inserted")
 }
@@ -1238,7 +1241,7 @@ func Replace(root DataNode, path string, new DataNode) error {
 	if err != nil {
 		return err
 	}
-	return replace(root, new, pathnode)
+	return replace(root, pathnode, new)
 }
 
 func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
@@ -1740,7 +1743,7 @@ func merge(dest, src DataNode) error {
 		d.value = s.value
 	case *DataLeafList:
 		d := dest.(*DataLeafList)
-		if err := d.setValue(s.value...); err != nil {
+		if err := d.setListValue(s.value...); err != nil {
 			return err
 		}
 	default:
