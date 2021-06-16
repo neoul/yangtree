@@ -1819,93 +1819,6 @@ func Map(node []DataNode) map[string]DataNode {
 	return m
 }
 
-// // Diff() returns differences between nodes.
-// // It returns all created, replaced and deleted nodes in node2 (including itself) against node1.
-// // node1 ==> node2
-// func Diff(node1, node2 DataNode) ([]DataNode, []DataNode, []DataNode) {
-// 	if node1 == node2 {
-// 		return nil, nil, nil
-// 	}
-// 	if node1 == nil {
-// 		created, _ := Find(node2, "...")
-// 		return created, nil, nil
-// 	}
-// 	if node2 == nil {
-// 		deleted, _ := Find(node1, "...")
-// 		return nil, nil, deleted
-// 	}
-// 	if node1.Schema() != node2.Schema() {
-// 		return nil, nil, nil
-// 	}
-// 	switch d1 := node1.(type) {
-// 	case *DataBranch:
-// 		d2 := node2.(*DataBranch)
-// 		// created or replaced nodes
-// 		created := []DataNode{}
-// 		replaced := []DataNode{}
-// 		deleted := []DataNode{}
-// 		// created, replaced
-// 		for first := 0; first < len(d2.children); first++ {
-// 			if IsDuplicatedList(d2.children[first].Schema()) {
-// 				key := d2.children[first].Key()
-// 				d1children := d1.GetAll(key)
-// 				d2children := d2.GetAll(key)
-// 				for i := range d2children {
-// 					if i < len(d1children) {
-// 						c, r, d := Diff(d1children[i], d2children[i])
-// 						created = append(created, c...)
-// 						replaced = append(replaced, r...)
-// 						deleted = append(deleted, d...)
-// 					} else {
-// 						c, r, d := Diff(nil, d2children[i])
-// 						created = append(created, c...)
-// 						replaced = append(replaced, r...)
-// 						deleted = append(deleted, d...)
-// 					}
-// 				}
-// 				first = len(d2children) - 1
-// 			} else {
-// 				c, r, d := Diff(d1.Get(d2.children[first].Key()), d2.children[first])
-// 				created = append(created, c...)
-// 				replaced = append(replaced, r...)
-// 				deleted = append(deleted, d...)
-// 			}
-// 		}
-// 		// deleted nodes
-// 		for first := 0; first < len(d1.children); first++ {
-// 			if IsDuplicatedList(d1.children[first].Schema()) {
-// 				key := d1.children[first].Key()
-// 				d1children := d1.GetAll(key)
-// 				d2children := d2.GetAll(key)
-// 				for i := len(d2children); i < len(d1children); i++ {
-// 					deleted = append(deleted, d1children[i])
-// 				}
-// 				first = len(d2children) - 1
-// 			} else {
-// 				key := d1.children[first].Key()
-// 				n := d2.Get(key)
-// 				if n == nil {
-// 					deleted = append(deleted, d1.children[first])
-// 				}
-// 			}
-// 		}
-// 		return created, replaced, deleted
-// 	case *DataLeaf:
-// 		d2 := node2.(*DataLeaf)
-// 		if cmp.Equal(d1.value, d2.value) {
-// 			return nil, nil, nil
-// 		}
-// 		return nil, []DataNode{d2}, nil
-// 	case *DataLeafList:
-// 		d2 := node2.(*DataLeafList)
-// 		if Equal(d1, d2) {
-// 			return nil, nil, nil
-// 		}
-// 		return nil, []DataNode{d2}, nil
-// 	}
-// 	return nil, nil, nil
-// }
-
 // DiffUpdated() returns updated nodes.
 // It returns all created, replaced nodes in node2 (including itself) against node1.
 // The deleted nodes can be obtained by the reverse input. e.g. node1 ==> node2, node2 ==> node1
@@ -1968,4 +1881,12 @@ func DiffUpdated(node1, node2 DataNode) ([]DataNode, []DataNode) {
 		return nil, []DataNode{d2}
 	}
 	return nil, nil
+}
+
+// Diff() returns differences between nodes.
+// It returns all created, replaced and deleted nodes in node2 (including itself) against node1.
+func Diff(node1, node2 DataNode) ([]DataNode, []DataNode, []DataNode) {
+	c, r := DiffUpdated(node1, node2)
+	d, _ := DiffUpdated(node2, node1)
+	return c, r, d
 }
