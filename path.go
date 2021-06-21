@@ -530,3 +530,29 @@ func evaluatePathExpr(node DataNode, exprstr string) (bool, error) {
 	}
 	return value.(bool), nil
 }
+
+func RemovePredicates(path *string) (string, bool) {
+	pathnode, err := ParsePath(path)
+	if err != nil {
+		return "", false
+	}
+	var removed bool
+	var b strings.Builder
+	for i := range pathnode {
+		switch pathnode[i].Select {
+		case NodeSelectFromRoot:
+			b.WriteString("/")
+		}
+		if pathnode[i].Prefix != "" {
+			b.WriteString(pathnode[i].Prefix)
+		}
+		b.WriteString(pathnode[i].Name)
+		if len(pathnode[i].Predicates) > 0 {
+			removed = true
+		}
+	}
+	if removed {
+		return b.String(), true
+	}
+	return "", false
+}
