@@ -177,8 +177,8 @@ type jsonbytes struct {
 	bytes []byte
 }
 
-func (mjb *jsonbytes) MarshalJSON() ([]byte, error) {
-	return mjb.bytes, nil
+func (jb *jsonbytes) MarshalJSON() ([]byte, error) {
+	return jb.bytes, nil
 }
 
 func marshalList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, config yang.TriState) (int, bool, error) {

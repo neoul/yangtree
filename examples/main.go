@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"yangtree"
+
+	"github.com/neoul/yangtree"
 
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/pflag"

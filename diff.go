@@ -143,5 +143,8 @@ func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNod
 		return nil, nil, err
 	}
 	c, d := DiffUpdated(root, new)
+	if err := root.Merge(new); err != nil {
+		return nil, nil, err
+	}
 	return c, d, nil
 }
