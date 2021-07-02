@@ -22,6 +22,7 @@ func New(schema *yang.Entry, typedvalue *gnmipb.TypedValue) (yangtree.DataNode, 
 }
 
 // Replace() replaces the target data node to the new data node in the path.
+// It will return a new created node or the replaced top node.
 func Replace(root yangtree.DataNode, path string, new yangtree.DataNode) (yangtree.DataNode, error) {
 	if !yangtree.IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
@@ -74,4 +75,57 @@ func Replace(root yangtree.DataNode, path string, new yangtree.DataNode) (yangtr
 		return created, nil
 	}
 	return new, nil
+}
+
+// Update() updates the target data node using the new data node in the path.
+// It will return a new created node or the updated top node.
+func Update(root yangtree.DataNode, path string, new yangtree.DataNode) (yangtree.DataNode, error) {
+	if !yangtree.IsValid(root) {
+		return nil, fmt.Errorf("invalid root data node")
+	}
+	if !yangtree.IsValid(new) {
+		return nil, fmt.Errorf("invalid new data node")
+	}
+	node := root
+	pathnode, err := yangtree.ParsePath(&path)
+	if err != nil {
+		return nil, err
+	}
+	var key string
+	var found, created yangtree.DataNode
+	for i := range pathnode {
+		if pathnode[i].Select == yangtree.NodeSelectAll ||
+			pathnode[i].Select == yangtree.NodeSelectAllChildren {
+			err = fmt.Errorf("cannot Update multiple nodes")
+			break
+		}
+		key, _, err = yangtree.KeyGen(node.Schema(), pathnode[i])
+		if err != nil {
+			break
+		}
+		found = node.Get(key)
+		if found == nil {
+			found, err = node.New(key)
+			if err != nil {
+				break
+			}
+			if created == nil {
+				created = found
+			}
+		}
+		node = found
+	}
+	if err == nil {
+		err = node.Merge(new)
+	}
+	if err != nil {
+		if yangtree.IsValid(created) {
+			created.Remove()
+		}
+		return nil, err
+	}
+	if created != nil {
+		return created, nil
+	}
+	return node, nil
 }
