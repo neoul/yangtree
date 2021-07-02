@@ -26,6 +26,7 @@ type DataNode interface {
 
 	Insert(child DataNode) error // Insert a child node. It replaces the old child node.
 	Delete(child DataNode) error // Delete a child node.
+	Replace(src DataNode) error  // Replace() replaces itself to the src node.
 	Merge(src DataNode) error    // Merge() merges the src to the current data node.
 
 	Set(value ...string) error
@@ -814,6 +815,9 @@ func (leaflist *DataLeafList) setListValue(value ...interface{}) error {
 }
 
 func (leaflist *DataLeafList) Remove(value ...string) error {
+	if leaflist.parent == nil {
+		return nil
+	}
 	for i := range value {
 		length := len(leaflist.value)
 		index := sort.Search(length,
@@ -944,7 +948,9 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 	return child, nil
 }
 
-func updateChild(node DataNode, pmap map[string]interface{}, value ...string) error {
+// UpdateChild() updates the data node using pmap (path predicate map) and string values.
+// The pmap is a map has {child key : value} pairs.
+func UpdateChild(node DataNode, pmap map[string]interface{}) error {
 	schema := node.Schema()
 	switch {
 	case IsUniqueList(schema):
@@ -1205,7 +1211,7 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 		if len(pathnode) > 1 {
 			return fmt.Errorf("invalid long tail path: %q", pathnode[1].Name)
 		}
-		err := updateChild(node, pmap)
+		err := UpdateChild(node, pmap)
 		if err != nil {
 			return err
 		}
@@ -1810,6 +1816,51 @@ func (leaflist *DataLeafList) Merge(src DataNode) error {
 	return merge(leaflist, src)
 }
 
+// Replace() replaces itself to the src node.
+func (branch *DataBranch) Replace(src DataNode) error {
+	if !IsValid(src) {
+		return fmt.Errorf("invalid src data node")
+	}
+	if branch.parent == nil {
+		return fmt.Errorf("no parent node")
+	}
+	if branch.schema != src.Schema() {
+		return fmt.Errorf("unable to replace the different schema nodes")
+	}
+	if IsDuplicatedList(branch.schema) {
+		return fmt.Errorf("replace is not supported for non-key list")
+	}
+	return branch.parent.Insert(src)
+}
+
+// Replace() replaces itself to the src node.
+func (leaf *DataLeaf) Replace(src DataNode) error {
+	if !IsValid(src) {
+		return fmt.Errorf("invalid src data node")
+	}
+	if leaf.schema != src.Schema() {
+		return fmt.Errorf("unable to replace the different schema nodes")
+	}
+	if leaf.parent == nil {
+		return fmt.Errorf("no parent node")
+	}
+	return leaf.parent.Insert(src)
+}
+
+// Replace() replaces itself to the src node.
+func (leaflist *DataLeafList) Replace(src DataNode) error {
+	if !IsValid(src) {
+		return fmt.Errorf("invalid src data node")
+	}
+	if leaflist.schema != src.Schema() {
+		return fmt.Errorf("unable to replace the different schema nodes")
+	}
+	if leaflist.parent == nil {
+		return fmt.Errorf("no parent node")
+	}
+	return leaflist.parent.Insert(src)
+}
+
 // Map converts the data node list to a map using the path.
 func Map(node []DataNode) map[string]DataNode {
 	m := map[string]DataNode{}
@@ -1817,4 +1868,10 @@ func Map(node []DataNode) map[string]DataNode {
 		m[node[i].Path()] = node[i]
 	}
 	return m
+}
+
+// FindAllInRoute() find all parent nodes in the path.
+// The path must indicate an unique node. (not support wildcard and multiple node selection)
+func FindAllInRoute(path string) []DataNode {
+	return nil
 }

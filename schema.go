@@ -579,6 +579,11 @@ func GetPresentParentSchema(schema *yang.Entry) *yang.Entry {
 	return nil
 }
 
+// IsEqualSchema() checks if they have the same schema.
+func IsEqualSchema(a, b DataNode) bool {
+	return a.Schema() == b.Schema()
+}
+
 // FindSchema() returns a descendant schema node. It provides the child name tagged its prefix or module name.
 func FindSchema(schema *yang.Entry, path string) *yang.Entry {
 	var target *yang.Entry
@@ -617,7 +622,7 @@ func FindSchema(schema *yang.Entry, path string) *yang.Entry {
 	return target
 }
 
-func HasDifferentSchemaPath(schema *yang.Entry) bool {
+func HasUniqueListParent(schema *yang.Entry) bool {
 	for n := schema; n != nil; n = n.Parent {
 		if IsUniqueList(n) {
 			return true

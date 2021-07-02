@@ -556,3 +556,12 @@ func RemovePredicates(path *string) (string, bool) {
 	}
 	return "", false
 }
+
+// KeyGen() generates the child key and child map from the PathNode.
+func KeyGen(pschema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
+	cschema := GetSchema(pschema, pathnode.Name)
+	if cschema == nil {
+		return "", nil, fmt.Errorf("schema %q not found from %q", pathnode.Name, pschema.Name)
+	}
+	return keyGen(cschema, pathnode)
+}

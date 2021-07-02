@@ -1,6 +1,8 @@
 package gnmi
 
 import (
+	"fmt"
+
 	"github.com/neoul/yangtree"
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
@@ -17,4 +19,59 @@ func New(schema *yang.Entry, typedvalue *gnmipb.TypedValue) (yangtree.DataNode, 
 		return nil, err
 	}
 	return yangtree.New(schema, valstr)
+}
+
+// Replace() replaces the target data node to the new data node in the path.
+func Replace(root yangtree.DataNode, path string, new yangtree.DataNode) (yangtree.DataNode, error) {
+	if !yangtree.IsValid(root) {
+		return nil, fmt.Errorf("invalid root data node")
+	}
+	if !yangtree.IsValid(new) {
+		return nil, fmt.Errorf("invalid new data node")
+	}
+	pathnode, err := yangtree.ParsePath(&path)
+	if err != nil {
+		return nil, err
+	}
+	var key string
+	var found, created yangtree.DataNode
+	var pmap map[string]interface{}
+	for i := range pathnode {
+		if pathnode[i].Select == yangtree.NodeSelectAll ||
+			pathnode[i].Select == yangtree.NodeSelectAllChildren {
+			err = fmt.Errorf("cannot replace multiple nodes")
+			break
+		}
+		key, pmap, err = yangtree.KeyGen(root.Schema(), pathnode[i])
+		if err != nil {
+			break
+		}
+		found = root.Get(key)
+		if found == nil {
+			found, err = root.New(key)
+			if err != nil {
+				break
+			}
+			if created == nil {
+				created = found
+			}
+		}
+		root = found
+	}
+	if err == nil {
+		if yangtree.IsEqualSchema(root, new) && len(pmap) > 0 {
+			yangtree.UpdateChild(new, pmap)
+		}
+		err = root.Replace(new)
+	}
+	if err != nil {
+		if yangtree.IsValid(created) {
+			created.Remove()
+		}
+		return nil, err
+	}
+	if created != nil {
+		return created, nil
+	}
+	return new, nil
 }
