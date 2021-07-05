@@ -335,7 +335,7 @@ func (branch *DataBranch) Insert(child DataNode) error {
 	length := len(branch.children)
 	key := child.Key()
 	if key == "" {
-		return fmt.Errorf("unable to insert non-key data node %q", child.Schema().Name)
+		return fmt.Errorf("unable to insert %q because it doesn't have a key", child.Schema().Name)
 	}
 	i := sort.Search(length,
 		func(j int) bool {
@@ -910,7 +910,7 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
-				return nil, fmt.Errorf("unable to insert non-key data node %q (%q must be present.)", cschema.Name, keyname[i])
+				return nil, fmt.Errorf("%q doesn't have a key %q", cschema.Name, keyname[i])
 			}
 			delete(pmap, keyname[i])
 			kn, err := New(GetSchema(cschema, keyname[i]), v.(string))

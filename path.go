@@ -299,6 +299,13 @@ func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error)
 				w.Reset()
 			}
 		case '=':
+			if len(token) > 0 {
+				prev := token[len(token)-1]
+				if prev == "=" || prev == ">=" || prev == "<=" || prev == "!=" {
+					w.WriteByte((*s)[pos])
+					continue
+				}
+			}
 			if w.Len() > 0 {
 				token = append(token, w.String())
 				w.Reset()
@@ -330,6 +337,14 @@ func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error)
 			}
 			switch (*s)[pos : pos+2] {
 			case "<=", ">=", "!=":
+				if len(token) > 0 {
+					prev := token[len(token)-1]
+					if prev == "=" || prev == ">=" || prev == "<=" || prev == "!=" {
+						w.WriteString((*s)[pos : pos+2])
+						pos++
+						continue
+					}
+				}
 				if w.Len() > 0 {
 					token = append(token, w.String())
 					w.Reset()
