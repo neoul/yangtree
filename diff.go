@@ -148,3 +148,22 @@ func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNod
 	}
 	return c, d, nil
 }
+
+// MergeDiff() = Set() + Diff()
+func MergeDiff(root DataNode, path string, node DataNode) ([]DataNode, []DataNode, error) {
+	if !IsValid(root) {
+		return nil, nil, fmt.Errorf("invalid root node")
+	}
+	new, err := New(root.Schema())
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := Merge(new, path, node); err != nil {
+		return nil, nil, err
+	}
+	c, d := DiffUpdated(root, new)
+	if err := root.Merge(new); err != nil {
+		return nil, nil, err
+	}
+	return c, d, nil
+}

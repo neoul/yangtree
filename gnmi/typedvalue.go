@@ -2,6 +2,7 @@ package gnmi
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/neoul/yangtree"
@@ -29,6 +30,9 @@ func GetModuleData(schema *yang.Entry) []*gnmipb.ModelData {
 		}
 		modeldata = append(modeldata, mdata)
 	}
+	sort.Slice(modeldata, func(i, j int) bool {
+		return modeldata[i].Name < modeldata[j].Name
+	})
 	return modeldata
 }
 
