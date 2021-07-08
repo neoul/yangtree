@@ -53,6 +53,45 @@ func FindSchema(schema *yang.Entry, gpath *gnmipb.Path) *yang.Entry {
 }
 
 // ValidateGNMIPath checks the validation of the gnmi path.
+func validateGNMIPath(schema *yang.Entry, elem []*gnmipb.PathElem) bool {
+	for i := range elem {
+		switch elem[i].Name {
+		case "*":
+			chidren := yangtree.GetAllChildSchema(schema)
+			for j := range chidren {
+				ok := validateGNMIPath(chidren[j], elem[i+1:])
+				if ok {
+					return true
+				}
+			}
+		case "...":
+			chidren := yangtree.GetAllChildSchema(schema)
+			for j := range chidren {
+				if ok := validateGNMIPath(chidren[j], elem[i+1:]); ok {
+					return true
+				}
+				if ok := validateGNMIPath(chidren[j], elem[i:]); ok {
+					return true
+				}
+			}
+		default:
+			schema = yangtree.GetSchema(schema, elem[i].Name)
+			if schema == nil {
+				return false
+			}
+			if len(elem[i].Key) > 0 {
+				for k := range elem[i].Key {
+					if j := strings.Index(schema.Key, k); j < 0 {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return schema != nil
+}
+
+// ValidateGNMIPath checks the validation of the gnmi path.
 func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
 	if gpath == nil {
 		return nil
@@ -71,18 +110,25 @@ func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
 	// }
 
 	for i := range gpath.Elem {
-		schema = yangtree.GetSchema(schema, gpath.Elem[i].Name)
-		if schema == nil {
-			return fmt.Errorf("schema %q not found", gpath.Elem[i].Name)
-		}
-		if len(gpath.Elem[i].Key) > 0 {
-			for k := range gpath.Elem[i].Key {
-				if j := strings.Index(schema.Key, k); j < 0 {
-					return fmt.Errorf("%q is not a key for schema %q", k, schema.Name)
+		switch gpath.Elem[i].Name {
+		case "*", "...":
+			if found := validateGNMIPath(schema, gpath.Elem[i:]); !found {
+				return fmt.Errorf("schema not found for %v", gpath)
+			}
+			return nil
+		default:
+			schema = yangtree.GetSchema(schema, gpath.Elem[i].Name)
+			if schema == nil {
+				return fmt.Errorf("schema %q not found", gpath.Elem[i].Name)
+			}
+			if len(gpath.Elem[i].Key) > 0 {
+				for k := range gpath.Elem[i].Key {
+					if j := strings.Index(schema.Key, k); j < 0 {
+						return fmt.Errorf("%q is not a key for schema %q", k, schema.Name)
+					}
 				}
 			}
 		}
-
 	}
 	return nil
 }
@@ -92,7 +138,17 @@ func MergeGNMIPath(gpath ...*gnmipb.Path) *gnmipb.Path {
 	if len(gpath) == 0 {
 		return &gnmipb.Path{}
 	}
-	p := &gnmipb.Path{}
+	num := 0
+	for i := range gpath {
+		if gpath[i] == nil {
+			continue
+		}
+		num += len(gpath[i].Elem)
+	}
+	first := true
+	p := &gnmipb.Path{
+		Elem: make([]*gnmipb.PathElem, 0, num),
+	}
 	for i := range gpath {
 		if gpath[i] == nil {
 			continue
@@ -109,8 +165,31 @@ func MergeGNMIPath(gpath ...*gnmipb.Path) *gnmipb.Path {
 				p.Elem = append(p.Elem, elem)
 			}
 		}
+		if first {
+			if gpath[i].Target != "" {
+				p.Target = gpath[i].Target
+			}
+			if gpath[i].Origin != "" {
+				p.Origin = gpath[i].Origin
+			}
+		}
+		first = false
 	}
 	return p
+}
+
+func ToFullGNMIPath(gprefix *gnmipb.Path, gpaths []*gnmipb.Path) ([]*gnmipb.Path, error) {
+	if len(gpaths) == 0 {
+		return nil, fmt.Errorf("no path requested")
+	}
+	gfullpath := make([]*gnmipb.Path, 0, len(gpaths))
+	for i := range gpaths {
+		if gpaths[i].GetElem() == nil && gpaths[i].GetElement() != nil {
+			return nil, fmt.Errorf("deprecated path.element is used for %v", gpaths[i])
+		}
+		gfullpath = append(gfullpath, MergeGNMIPath(gprefix, gpaths[i]))
+	}
+	return gfullpath, nil
 }
 
 // UpdateGNMIPath updates the target and origin field of the dest path using the src path.
@@ -241,7 +320,7 @@ func GNMIPathElemToXPATH(elem []*gnmipb.PathElem, schemaPath bool) string {
 	return strings.Join(pe, "/")
 }
 
-// FindPaths - validates all schema of the gNMI Path.
+// FindPaths finds all possible paths. It resolves the gNMI path wildcards.
 func FindPaths(schema *yang.Entry, gpath *gnmipb.Path) []string {
 	if schema == nil {
 		return nil

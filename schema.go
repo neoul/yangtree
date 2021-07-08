@@ -23,7 +23,8 @@ func (schemaoption SchemaOption) IsOption() {}
 
 // SchemaMetadata is used to keep the additional data for each schema entry.
 type SchemaMetadata struct {
-	Module      *yang.Module           // used to store the module of the schema entry
+	Module      *yang.Module // used to store the module of the schema entry
+	Child       []*yang.Entry
 	Dir         map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
 	Enum        map[string]int64       // used to store all enumeration string
 	Identityref map[string]string      // used to store all identity values of the schema entry
@@ -345,6 +346,9 @@ func IsList(schema *yang.Entry) bool {
 }
 
 func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
+	if schema == nil {
+		return nil
+	}
 	for schema.Parent != nil {
 		schema = schema.Parent
 	}
@@ -427,6 +431,7 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 		pmeta.Dir[schema.Name] = schema
 		pmeta.Dir["."] = schema
 		pmeta.Dir[".."] = GetPresentParentSchema(schema)
+		pmeta.Child = append(pmeta.Child, schema)
 
 		for i := range pmeta.Keyname {
 			if pmeta.Keyname[i] == schema.Name {
@@ -560,9 +565,23 @@ func Load(file, dir, excluded []string, option ...Option) (*yang.Entry, error) {
 	return generateSchemaTree(dir, file, excluded, op)
 }
 
+// GetAllChildSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
+func GetAllChildSchema(schema *yang.Entry) []*yang.Entry {
+	if schema == nil {
+		return nil
+	}
+	if meta := GetSchemaMeta(schema); meta != nil {
+		return meta.Child
+	}
+	return nil
+}
+
 // GetSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
 func GetSchema(schema *yang.Entry, name string) *yang.Entry {
 	var child *yang.Entry
+	if schema == nil {
+		return nil
+	}
 	if meta := GetSchemaMeta(schema); meta != nil {
 		child = meta.Dir[name]
 	}
