@@ -2,6 +2,7 @@ package gnmi
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
@@ -278,10 +279,18 @@ func ToPath(abspath bool, gpath ...*gnmipb.Path) string {
 			continue
 		}
 		for _, e := range p.GetElem() {
-			if e.GetKey() != nil {
-				ke := []string{e.GetName()}
-				for k, kv := range e.GetKey() {
-					ke = append(ke, fmt.Sprintf("[%s=%s]", k, kv))
+			if len(e.Key) > 0 {
+				kname := make([]string, 0, len(e.Key))
+				for k := range e.Key {
+					kname = append(kname, k)
+				}
+				sort.Slice(kname, func(i, j int) bool {
+					return kname[i] > kname[j]
+				})
+				ke := make([]string, 0, len(kname)+1)
+				ke = append(ke, e.Name)
+				for i := range kname {
+					ke = append(ke, "["+kname[i]+"="+e.Key[kname[i]]+"]")
 				}
 				pe = append(pe, strings.Join(ke, ""))
 			} else {
