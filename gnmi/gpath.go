@@ -397,3 +397,37 @@ func findPaths(schema *yang.Entry, prefix string, elems []*gnmipb.PathElem) []st
 	}
 	return findPaths(schema, strings.Join([]string{prefix, name}, "/"), elems[1:])
 }
+
+// ToExactPath checks the validation of the gnmi path.
+func ToExactPath(schema *yang.Entry, elem []*gnmipb.PathElem) (string, error) {
+	var path strings.Builder
+	for i := range elem {
+		switch elem[i].Name {
+		case "*", "...":
+			return "", fmt.Errorf("wildcard path elem inserted for the instance path")
+		default:
+			schema = yangtree.GetSchema(schema, elem[i].Name)
+			if schema == nil {
+				return "", fmt.Errorf("schema %q not found", elem[i].Name)
+			}
+			path.WriteString("/" + elem[i].Name)
+			keyname := yangtree.GetKeynames(schema)
+			if len(keyname) > 0 {
+				if len(elem[i].Key) > len(keyname) {
+					return "", fmt.Errorf("more keys inserted for the path elem: %v", elem[i])
+				}
+				if len(elem[i].Key) < len(keyname) {
+					return "", fmt.Errorf("less keys inserted for the path elem: %v", elem[i])
+				}
+				for j := range keyname {
+					if keyval, ok := elem[i].Key[keyname[j]]; ok {
+						path.WriteString("[" + keyname[j] + "=" + keyval + "]")
+					} else {
+						return "", fmt.Errorf("key %q not inserted for the path elem: %v", keyname[j], elem[i].Name)
+					}
+				}
+			}
+		}
+	}
+	return path.String(), nil
+}
