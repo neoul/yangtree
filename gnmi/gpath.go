@@ -92,6 +92,23 @@ func validateGNMIPath(schema *yang.Entry, elem []*gnmipb.PathElem) bool {
 	return schema != nil
 }
 
+// ValidateGNMIPrefixPath checks and returns the prefix path (absolute path) for a gNMI prefix path.
+func ValidateGNMIPrefixPath(schema *yang.Entry, gpath *gnmipb.Path) (string, error) {
+	if gpath == nil {
+		return "/", nil
+	}
+	if gpath.GetOrigin() != "" {
+		module := yangtree.GetAllModules(schema)
+		if _, ok := module[gpath.GetOrigin()]; !ok {
+			return "", fmt.Errorf("schema %q not found", gpath.GetOrigin())
+		}
+	}
+	if gpath.GetElem() == nil && gpath.GetElement() != nil {
+		return "", fmt.Errorf("deprecated path element used")
+	}
+	return ToValidDataPath(schema, gpath)
+}
+
 // ValidateGNMIPath checks the validation of the gnmi path.
 func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
 	if gpath == nil {
@@ -104,7 +121,7 @@ func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
 		}
 	}
 	if gpath.GetElem() == nil && gpath.GetElement() != nil {
-		return fmt.Errorf("deprecated path.element used")
+		return fmt.Errorf("deprecated path element used")
 	}
 	// if gpath.Target != "" { // 2.2.2.1 Path Target
 	// 	return fmt.Errorf("path.target MUST only ever be present on the prefix path")
@@ -186,14 +203,14 @@ func ToFullGNMIPath(gprefix *gnmipb.Path, gpaths []*gnmipb.Path) ([]*gnmipb.Path
 	gfullpath := make([]*gnmipb.Path, 0, len(gpaths))
 	for i := range gpaths {
 		if gpaths[i].GetElem() == nil && gpaths[i].GetElement() != nil {
-			return nil, fmt.Errorf("deprecated path.element is used for %v", gpaths[i])
+			return nil, fmt.Errorf("deprecated path element is used for %v", gpaths[i])
 		}
 		gfullpath = append(gfullpath, MergeGNMIPath(gprefix, gpaths[i]))
 	}
 	return gfullpath, nil
 }
 
-// UpdateGNMIPath updates the target and origin field of the dest path using the src path.
+// UpdateGNMIPath updates the target and origin fields of the dest path using the src path.
 func UpdateGNMIPath(dest, src *gnmipb.Path) {
 	if dest == nil || src == nil {
 		return
