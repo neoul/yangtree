@@ -301,20 +301,22 @@ func ToPath(abspath bool, gpath ...*gnmipb.Path) string {
 	return strings.Join(pe, "/")
 }
 
-// PathElemToXPATH eturns XPath string converted from gNMI Path
-func GNMIPathElemToXPATH(elem []*gnmipb.PathElem, schemaPath bool) string {
+// GNMIPathElemToPATH returns path string converted from gNMI Path
+func GNMIPathElemToPATH(abspath, schemapath bool, elem []*gnmipb.PathElem) string {
 	if elem == nil {
 		return ""
 	}
-	if schemaPath {
-		pe := []string{""}
+	var pe []string
+	pe = make([]string, 0, len(elem)+1)
+	if abspath {
+		pe = append(pe, "")
+	}
+	if schemapath {
 		for _, e := range elem {
 			pe = append(pe, e.GetName())
 		}
 		return strings.Join(pe, "/")
 	}
-
-	pe := []string{""}
 	for _, e := range elem {
 		if e.GetKey() != nil {
 			ke := []string{e.GetName()}
@@ -334,11 +336,10 @@ func FindPaths(schema *yang.Entry, gpath *gnmipb.Path) []string {
 	if schema == nil {
 		return nil
 	}
-	elems := gpath.GetElem()
-	if len(elems) == 0 {
+	if gpath == nil || len(gpath.GetElem()) == 0 {
 		return []string{"/"}
 	}
-	return findPaths(schema, "", elems)
+	return findPaths(schema, "", gpath.GetElem())
 }
 
 func findPaths(schema *yang.Entry, prefix string, elems []*gnmipb.PathElem) []string {
@@ -392,7 +393,7 @@ func findPaths(schema *yang.Entry, prefix string, elems []*gnmipb.PathElem) []st
 				return nil
 			}
 		}
-		knames := strings.Split(schema.Key, " ")
+		knames := yangtree.GetKeynames(schema)
 		for _, kname := range knames {
 			if kval, ok := e.Key[kname]; ok {
 				if kval == "*" {
@@ -407,36 +408,53 @@ func findPaths(schema *yang.Entry, prefix string, elems []*gnmipb.PathElem) []st
 	return findPaths(schema, strings.Join([]string{prefix, name}, "/"), elems[1:])
 }
 
-// ToExactPath checks the validation of the gnmi path.
-func ToExactPath(schema *yang.Entry, elem []*gnmipb.PathElem) (string, error) {
+// ToValidDataPath checks and returns the valid data path (absolute path) for a gNMI path.
+func ToValidDataPath(schema *yang.Entry, gpath *gnmipb.Path) (string, error) {
+	if gpath == nil {
+		return "/", nil
+	}
 	var path strings.Builder
-	for i := range elem {
-		switch elem[i].Name {
+	for i := range gpath.Elem {
+		switch gpath.Elem[i].Name {
 		case "*", "...":
-			return "", fmt.Errorf("wildcard path elem inserted for the instance path")
+			return "", fmt.Errorf("wildcard %q used for the absolute path", gpath.Elem[i].Name)
 		default:
-			schema = yangtree.GetSchema(schema, elem[i].Name)
+			schema = yangtree.GetSchema(schema, gpath.Elem[i].Name)
 			if schema == nil {
-				return "", fmt.Errorf("schema %q not found", elem[i].Name)
+				return "", fmt.Errorf("schema %q not found", gpath.Elem[i].Name)
 			}
-			path.WriteString("/" + elem[i].Name)
+			path.WriteString("/" + gpath.Elem[i].Name)
 			keyname := yangtree.GetKeynames(schema)
 			if len(keyname) > 0 {
-				if len(elem[i].Key) > len(keyname) {
-					return "", fmt.Errorf("more keys inserted for the path elem: %v", elem[i])
+				if len(gpath.Elem[i].Key) > len(keyname) {
+					return "", fmt.Errorf("more keys inserted for path gpath.Elem %q", gpath.Elem[i].Name)
 				}
-				if len(elem[i].Key) < len(keyname) {
-					return "", fmt.Errorf("less keys inserted for the path elem: %v", elem[i])
+				if len(gpath.Elem[i].Key) < len(keyname) {
+					return "", fmt.Errorf("less keys inserted for path gpath.Elem %q", gpath.Elem[i].Name)
 				}
 				for j := range keyname {
-					if keyval, ok := elem[i].Key[keyname[j]]; ok {
+					if keyval, ok := gpath.Elem[i].Key[keyname[j]]; ok {
 						path.WriteString("[" + keyname[j] + "=" + keyval + "]")
 					} else {
-						return "", fmt.Errorf("key %q not inserted for the path elem: %v", keyname[j], elem[i].Name)
+						return "", fmt.Errorf("key %q not inserted for path gpath.Elem %q", keyname[j], gpath.Elem[i].Name)
 					}
 				}
 			}
 		}
 	}
 	return path.String(), nil
+}
+
+// HasGNMIPathWildcards checks the validation of the gnmi path.
+func HasGNMIPathWildcards(gpath *gnmipb.Path) bool {
+	if gpath == nil {
+		return false
+	}
+	for i := range gpath.Elem {
+		switch gpath.Elem[i].Name {
+		case "*", "...":
+			return true
+		}
+	}
+	return false
 }
