@@ -167,16 +167,6 @@ func GeneratePath(schema *yang.Entry, keyPrint, prefixTagging bool) string {
 		}
 		path = "/" + elementName + path
 	}
-	// if *pathPathType == "gnmi" {
-	// 	gnmiPath, err := xpath.ToGNMIPath(path)
-	// 	if err != nil {
-	// 		fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
-	// 	}
-	// 	path = gnmiPath.String()
-	// }
-	// if *pathTypes {
-	// 	path = fmt.Sprintf("%s (type=%s)", path, schema.Type.Name)
-	// }
 	return path
 }
 
@@ -323,7 +313,7 @@ func buildRootEntry(mods map[string]*yang.Module, option SchemaOption) *yang.Ent
 	return rootEntry
 }
 
-func IsRoot(schema *yang.Entry) bool {
+func IsRootSchema(schema *yang.Entry) bool {
 	if m, ok := schema.Annotation["meta"]; ok {
 		meta := m.(*SchemaMetadata)
 		return meta.IsRoot

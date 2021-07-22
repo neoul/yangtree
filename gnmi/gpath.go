@@ -54,62 +54,6 @@ func FindSchema(schema *yang.Entry, gpath *gnmipb.Path) *yang.Entry {
 }
 
 // ValidateGNMIPath checks the validation of the gnmi path.
-func validateGNMIPath(schema *yang.Entry, elem []*gnmipb.PathElem) bool {
-	for i := range elem {
-		switch elem[i].Name {
-		case "*":
-			chidren := yangtree.GetAllChildSchema(schema)
-			for j := range chidren {
-				ok := validateGNMIPath(chidren[j], elem[i+1:])
-				if ok {
-					return true
-				}
-			}
-		case "...":
-			chidren := yangtree.GetAllChildSchema(schema)
-			for j := range chidren {
-				if ok := validateGNMIPath(chidren[j], elem[i+1:]); ok {
-					return true
-				}
-				if ok := validateGNMIPath(chidren[j], elem[i:]); ok {
-					return true
-				}
-			}
-		default:
-			schema = yangtree.GetSchema(schema, elem[i].Name)
-			if schema == nil {
-				return false
-			}
-			if len(elem[i].Key) > 0 {
-				for k := range elem[i].Key {
-					if j := strings.Index(schema.Key, k); j < 0 {
-						return false
-					}
-				}
-			}
-		}
-	}
-	return schema != nil
-}
-
-// ValidateGNMIPrefixPath checks and returns the prefix path (absolute path) for a gNMI prefix path.
-func ValidateGNMIPrefixPath(schema *yang.Entry, gpath *gnmipb.Path) (string, error) {
-	if gpath == nil {
-		return "/", nil
-	}
-	if gpath.GetOrigin() != "" {
-		module := yangtree.GetAllModules(schema)
-		if _, ok := module[gpath.GetOrigin()]; !ok {
-			return "", fmt.Errorf("schema %q not found", gpath.GetOrigin())
-		}
-	}
-	if gpath.GetElem() == nil && gpath.GetElement() != nil {
-		return "", fmt.Errorf("deprecated path element used")
-	}
-	return ToValidDataPath(schema, gpath)
-}
-
-// ValidateGNMIPath checks the validation of the gnmi path.
 func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
 	if gpath == nil {
 		return nil
@@ -130,7 +74,7 @@ func ValidateGNMIPath(schema *yang.Entry, gpath *gnmipb.Path) error {
 	for i := range gpath.Elem {
 		switch gpath.Elem[i].Name {
 		case "*", "...":
-			if found := validateGNMIPath(schema, gpath.Elem[i:]); !found {
+			if isvalid := isValidGNMIPath(schema, gpath.Elem[i:]); !isvalid {
 				return fmt.Errorf("schema not found for %v", gpath)
 			}
 			return nil
@@ -225,10 +169,10 @@ func ToGNMIPath(path string) (*gnmipb.Path, error) {
 	if err != nil {
 		return nil, err
 	}
-	gpath := &gnmipb.Path{}
 	if len(pathnode) == 0 {
-		return gpath, nil
+		return nil, nil
 	}
+	gpath := &gnmipb.Path{}
 	for i := range pathnode {
 		switch pathnode[i].Select {
 		case yangtree.NodeSelectParent:
@@ -426,40 +370,40 @@ func findPaths(schema *yang.Entry, prefix string, elems []*gnmipb.PathElem) []st
 }
 
 // ToValidDataPath checks and returns the valid data path (absolute path) for a gNMI path.
-func ToValidDataPath(schema *yang.Entry, gpath *gnmipb.Path) (string, error) {
+func ToValidDataPath(schema *yang.Entry, gpath *gnmipb.Path) (*yang.Entry, string, error) {
 	if gpath == nil {
-		return "/", nil
+		return schema, "", nil
 	}
 	var path strings.Builder
 	for i := range gpath.Elem {
 		switch gpath.Elem[i].Name {
 		case "*", "...":
-			return "", fmt.Errorf("wildcard %q used for the absolute path", gpath.Elem[i].Name)
+			return schema, "", fmt.Errorf("wildcard %q is unable to use for the data path", gpath.Elem[i].Name)
 		default:
 			schema = yangtree.GetSchema(schema, gpath.Elem[i].Name)
 			if schema == nil {
-				return "", fmt.Errorf("schema %q not found", gpath.Elem[i].Name)
+				return schema, "", fmt.Errorf("schema %q not found", gpath.Elem[i].Name)
 			}
 			path.WriteString("/" + gpath.Elem[i].Name)
 			keyname := yangtree.GetKeynames(schema)
 			if len(keyname) > 0 {
 				if len(gpath.Elem[i].Key) > len(keyname) {
-					return "", fmt.Errorf("more keys inserted for path gpath.Elem %q", gpath.Elem[i].Name)
+					return schema, "", fmt.Errorf("more keys inserted for path gpath.elem %q", gpath.Elem[i].Name)
 				}
 				if len(gpath.Elem[i].Key) < len(keyname) {
-					return "", fmt.Errorf("less keys inserted for path gpath.Elem %q", gpath.Elem[i].Name)
+					return schema, "", fmt.Errorf("less keys inserted for path gpath.elem %q", gpath.Elem[i].Name)
 				}
 				for j := range keyname {
 					if keyval, ok := gpath.Elem[i].Key[keyname[j]]; ok {
 						path.WriteString("[" + keyname[j] + "=" + keyval + "]")
 					} else {
-						return "", fmt.Errorf("key %q not inserted for path gpath.Elem %q", keyname[j], gpath.Elem[i].Name)
+						return schema, "", fmt.Errorf("key %q not inserted for path gpath.elem %q", keyname[j], gpath.Elem[i].Name)
 					}
 				}
 			}
 		}
 	}
-	return path.String(), nil
+	return schema, path.String(), nil
 }
 
 // HasGNMIPathWildcards checks the validation of the gnmi path.
@@ -474,4 +418,76 @@ func HasGNMIPathWildcards(gpath *gnmipb.Path) bool {
 		}
 	}
 	return false
+}
+
+// ValidateAndConvertGNMIPath checks the validation of the gnmi path and returns string paths.
+func ValidateAndConvertGNMIPath(schema *yang.Entry, gprefix *gnmipb.Path, gpath []*gnmipb.Path) (string, []string, error) {
+	if len(gpath) == 0 {
+		return "", nil, fmt.Errorf("no path inserted")
+	}
+	var err error
+	var sprefix string
+	if gprefix != nil {
+		if gprefix.GetOrigin() != "" {
+			module := yangtree.GetAllModules(schema)
+			if _, ok := module[gprefix.GetOrigin()]; !ok {
+				return "", nil, fmt.Errorf("invalid prefix: schema %q not found", gprefix.GetOrigin())
+			}
+		}
+		if gprefix.GetElem() == nil && gprefix.GetElement() != nil {
+			return "", nil, fmt.Errorf("deprecated path element used for the prefix")
+		}
+		schema, sprefix, err = ToValidDataPath(schema, gprefix)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid prefix: %v", err)
+		}
+	}
+
+	spath := make([]string, 0, len(gpath))
+	for i := range gpath {
+		err := ValidateGNMIPath(schema, gpath[i])
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid path: %v", err)
+		}
+		spath = append(spath, ToPath(gprefix == nil, gpath[i]))
+	}
+	return sprefix, spath, nil
+}
+
+func isValidGNMIPath(schema *yang.Entry, elem []*gnmipb.PathElem) bool {
+	for i := range elem {
+		switch elem[i].Name {
+		case "*":
+			chidren := yangtree.GetAllChildSchema(schema)
+			for j := range chidren {
+				ok := isValidGNMIPath(chidren[j], elem[i+1:])
+				if ok {
+					return true
+				}
+			}
+		case "...":
+			chidren := yangtree.GetAllChildSchema(schema)
+			for j := range chidren {
+				if ok := isValidGNMIPath(chidren[j], elem[i+1:]); ok {
+					return true
+				}
+				if ok := isValidGNMIPath(chidren[j], elem[i:]); ok {
+					return true
+				}
+			}
+		default:
+			schema = yangtree.GetSchema(schema, elem[i].Name)
+			if schema == nil {
+				return false
+			}
+			if len(elem[i].Key) > 0 {
+				for k := range elem[i].Key {
+					if j := strings.Index(schema.Key, k); j < 0 {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return schema != nil
 }

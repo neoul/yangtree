@@ -580,3 +580,88 @@ func KeyGen(pschema *yang.Entry, pathnode *PathNode) (string, map[string]interfa
 	}
 	return keyGen(cschema, pathnode)
 }
+
+// FindAllPossiblePath finds all possible paths. It resolves the gNMI path wildcards.
+func FindAllPossiblePath(schema *yang.Entry, spath string) []string {
+	if schema == nil {
+		return nil
+	}
+	pathnode, err := ParsePath(&spath)
+	if err != nil {
+		return nil
+	}
+	prefix := make([]string, 0, 12)
+	if IsRootSchema(schema) {
+		prefix = append(prefix, "")
+	}
+	return findAllPossiblePath(schema, prefix, pathnode)
+}
+
+func findAllPossiblePath(schema *yang.Entry, prefix []string, pathnode []*PathNode) []string {
+	if len(pathnode) == 0 {
+		return []string{strings.Join(prefix, "/")}
+	}
+	switch pathnode[0].Select {
+	case NodeSelectSelf:
+		return findAllPossiblePath(schema, prefix, pathnode[1:])
+	case NodeSelectParent:
+		if schema.Parent == nil {
+			return nil
+		}
+		if IsRootSchema(schema.Parent) {
+			return findAllPossiblePath(schema.Parent, append(prefix[:0], ""), pathnode[1:])
+		} else if len(prefix) > 0 {
+			return findAllPossiblePath(schema.Parent, prefix[:len(prefix)-1], pathnode[1:])
+		}
+		return findAllPossiblePath(schema.Parent, []string{".."}, pathnode[1:])
+	case NodeSelectFromRoot:
+		for schema.Parent != nil {
+			schema = schema.Parent
+		}
+	case NodeSelectAllChildren:
+		cschema := GetAllChildSchema(schema)
+		if len(cschema) == 0 {
+			return nil
+		}
+		founds := make([]string, 0, len(cschema))
+		for i := range cschema {
+			founds = append(founds,
+				findAllPossiblePath(cschema[i], append(prefix, cschema[i].Name), pathnode[1:])...)
+		}
+		return founds
+	case NodeSelectAll:
+		cschema := GetAllChildSchema(schema)
+		if len(cschema) == 0 {
+			return nil
+		}
+		founds := make([]string, 0, 16)
+		for i := range cschema {
+			cprefix := append(prefix, cschema[i].Name)
+			founds = append(founds,
+				findAllPossiblePath(cschema[i], cprefix, pathnode[1:])...)
+			founds = append(founds,
+				findAllPossiblePath(cschema[i], cprefix, pathnode[0:])...)
+		}
+		return founds
+	}
+
+	if pathnode[0].Name == "" {
+		return []string{strings.Join(prefix, "/")}
+	}
+	schema = GetSchema(schema, pathnode[0].Name)
+	if schema == nil {
+		return nil
+	}
+	if len(pathnode[0].Predicates) > 0 {
+		// predicates are not validated. It is just copied.
+		var elem strings.Builder
+		elem.WriteString(pathnode[0].Name)
+		for i := range pathnode[0].Predicates {
+			elem.WriteString("[")
+			elem.WriteString(pathnode[0].Predicates[i])
+			elem.WriteString("]")
+		}
+		return findAllPossiblePath(schema, append(prefix, elem.String()), pathnode[1:])
+	}
+	return findAllPossiblePath(schema, append(prefix, pathnode[0].Name), pathnode[1:])
+}
