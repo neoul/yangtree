@@ -51,7 +51,8 @@ func isEmptyJSONBytes(s string) bool {
 func (jnode *jsonDataNode) marshalJSON() ([]byte, error) {
 	var err error
 	var jbytes []byte
-	if jnode.config == yang.TSFalse { // state retrieval
+	switch jnode.config {
+	case yang.TSFalse: // state retrieval
 		if IsConfig(jnode.Schema()) {
 			if !jnode.Schema().IsDir() {
 				return nil, nil
@@ -65,11 +66,9 @@ func (jnode *jsonDataNode) marshalJSON() ([]byte, error) {
 			}
 			return jbytes, err
 		}
-	} else { // config or all node retrieval
-		if jnode.config == yang.TSTrue { // config retrieval
-			if !IsConfig(jnode.Schema()) {
-				return nil, nil
-			}
+	case yang.TSTrue:
+		if !IsConfig(jnode.Schema()) {
+			return nil, nil
 		}
 	}
 	return json.Marshal(jnode)
@@ -586,6 +585,8 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 	jnode := &jsonDataNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
+		case HasState:
+			return nil, fmt.Errorf("%v is not allowed for marshaling", option[i])
 		case ConfigOnly:
 			jnode.config = yang.TSTrue
 		case StateOnly:
@@ -602,6 +603,8 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 	jnode := &jsonDataNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
+		case HasState:
+			return nil, fmt.Errorf("%v is not allowed for marshaling", option[i])
 		case ConfigOnly:
 			jnode.config = yang.TSTrue
 		case StateOnly:

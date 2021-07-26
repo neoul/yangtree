@@ -253,7 +253,7 @@ func TestDataNode(t *testing.T) {
 	testfinds := []struct {
 		expectedNum int
 		path        string
-		findState   bool
+		findOption  Option
 	}{
 		{expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
 		{expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
@@ -263,7 +263,7 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 13, path: "/sample/single-key-list/*"},
 		{expectedNum: 14, path: "/sample/*"},
 		{expectedNum: 49, path: "/sample/..."},
-		{expectedNum: 4, path: "/sample/...", findState: true},
+		{expectedNum: 4, path: "/sample/...", findOption: StateOnly{}},
 		{expectedNum: 1, path: "/sample/.../enum-val"},
 		{expectedNum: 34, path: "/sample/*/*/"},
 		{expectedNum: 3, path: "/sample//non-key-list"},
@@ -273,14 +273,10 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
 	}
 	for _, tt := range testfinds {
-		t.Run("Find."+tt.path, func(t *testing.T) {
+		t.Run(fmt.Sprintf("Find(%s,%v)", tt.path, tt.findOption), func(t *testing.T) {
 			var err error
 			var node []DataNode
-			if tt.findState {
-				node, err = Find(RootData, tt.path, StateOnly{})
-			} else {
-				node, err = Find(RootData, tt.path)
-			}
+			node, err = Find(RootData, tt.path, tt.findOption)
 			if err != nil {
 				t.Errorf("Find() path %v error = %v", tt.path, err)
 			}
@@ -293,6 +289,29 @@ func TestDataNode(t *testing.T) {
 				t.Errorf("find error for %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
 			}
 		})
+	}
+
+	if node, err := Find(RootData, "/sample"); err != nil {
+		t.Errorf("Find() path %v error = %v", "/sample", err)
+	} else {
+		if b, err := MarshalJSON(node[0], StateOnly{}); err != nil {
+			t.Errorf("MarshalJSON() state-only error = %v", err)
+		} else {
+			t.Logf("marshalled %s", string(b))
+			j := `{"single-key-list":{"AAA":{"uint32-range":100},"BBB":{"uint32-range":200},"CCC":{"uint32-range":300},"DDD":{"uint32-range":400}}}`
+			if string(b) != j {
+				t.Errorf("MarshalJSON(state-only) returns unexpected json  = %v", string(b))
+			}
+		}
+		if b, err := MarshalJSON(node[0], RFC7951Format{}, StateOnly{}); err != nil {
+			t.Errorf("MarshalJSON() state-only error = %v", err)
+		} else {
+			t.Logf("marshalled %s", string(b))
+			j := `{"sample:single-key-list":[{"uint32-range":100},{"uint32-range":200},{"uint32-range":300},{"uint32-range":400}]}`
+			if string(b) != j {
+				t.Errorf("MarshalJSON(state-only) returns unexpected json  = %v", string(b))
+			}
+		}
 	}
 
 	path := []string{

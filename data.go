@@ -67,22 +67,22 @@ type Option interface {
 	IsOption()
 }
 
+// ConfigOnly option is used to find config data nodes that have "config false" statement.
 type ConfigOnly struct{}
+
+// StateOnly option is used to find state data nodes.
 type StateOnly struct{}
+
+// HasState option is used to find state data nodes and data nodes having state data nodes.
+type HasState struct{}
 
 func (f ConfigOnly) IsOption() {}
 func (f StateOnly) IsOption()  {}
+func (f HasState) IsOption()   {}
 
-// [FIXME] not used
-// func LoopInOrder(n int, f func(int) bool) int {
-// 	i := 0
-// 	for ; i < n; i++ {
-// 		if f(i) {
-// 			break
-// 		}
-// 	}
-// 	return i
-// }
+func (f ConfigOnly) String() string { return "config-only" }
+func (f StateOnly) String() string  { return "state-only" }
+func (f HasState) String() string   { return "has-state" }
 
 func IsValid(node DataNode) bool {
 	if node == nil {
@@ -558,14 +558,6 @@ func (branch *DataBranch) Key() string {
 		return branch.schema.Name
 	}
 }
-
-// func (branch *DataBranch) FindValue(path string) ([]interface{}, error) {
-// 	pathnode, err := ParsePath(&path)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return findNode(branch, pathnode), nil
-// }
 
 type DataLeaf struct {
 	schema *yang.Entry
@@ -1359,32 +1351,31 @@ func Delete(root DataNode, path string, value ...string) error {
 }
 
 func returnFound(node DataNode, option ...Option) []DataNode {
-	if len(option) == 0 {
-		return []DataNode{node}
-	}
-	s := node.Schema()
-	isconfig := s.Config
-	if isconfig == yang.TSUnset {
-		for n := s.Parent; n != nil; n = n.Parent {
-			isconfig = n.Config
-			if isconfig != yang.TSUnset {
-				break
-			}
-		}
-	}
 	for i := range option {
 		switch option[i].(type) {
 		case ConfigOnly:
-			if isconfig == yang.TSTrue {
-				return []DataNode{node}
+			meta := GetSchemaMeta(node.Schema())
+			if meta.IsState {
+				return nil
 			}
+			return []DataNode{node}
 		case StateOnly:
-			if isconfig == yang.TSFalse {
+			meta := GetSchemaMeta(node.Schema())
+			if meta.IsState {
 				return []DataNode{node}
 			}
+			return nil
+		case HasState:
+			meta := GetSchemaMeta(node.Schema())
+			if meta.IsState {
+				return []DataNode{node}
+			} else if meta.HasState {
+				return []DataNode{node}
+			}
+			return nil
 		}
 	}
-	return nil
+	return []DataNode{node}
 }
 
 func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode {

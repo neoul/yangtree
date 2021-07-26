@@ -155,17 +155,20 @@ func ValueToTypedValue(val interface{}, enc gnmipb.Encoding) (*gnmipb.TypedValue
 	return tv, nil
 }
 
-func DataNodeToTypedValue(node yangtree.DataNode, enc gnmipb.Encoding) (*gnmipb.TypedValue, error) {
+func DataNodeToTypedValue(node yangtree.DataNode, enc gnmipb.Encoding, option ...yangtree.Option) (*gnmipb.TypedValue, error) {
 	if node.IsBranch() {
 		switch enc {
 		case gnmipb.Encoding_JSON:
-			jbytes, err := node.MarshalJSON()
+			jbytes, err := yangtree.MarshalJSON(node, option...)
+			// jbytes, err := node.MarshalJSON()
 			if err != nil {
 				return nil, err
 			}
 			return &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonVal{JsonVal: jbytes}}, nil
 		case gnmipb.Encoding_JSON_IETF:
-			jbytes, err := node.MarshalJSON_IETF()
+			option = append(option, yangtree.RFC7951Format{})
+			jbytes, err := yangtree.MarshalJSON(node, option...)
+			// jbytes, err := node.MarshalJSON_IETF()
 			if err != nil {
 				return nil, err
 			}

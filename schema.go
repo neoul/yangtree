@@ -31,8 +31,10 @@ type SchemaMetadata struct {
 	Keyname     []string               // used to store key list
 	QName       string                 // namespace-qualified name of RFC 7951
 	Qboundary   bool                   // used to indicate the boundary of the namespace-qualified name of RFC 7951
-	IsRoot      bool
-	IsKey       bool
+	IsRoot      bool                   // used to indicate the schema is the root of the schema tree.
+	IsKey       bool                   // used to indicate the schema entry is a key node of a list.
+	IsState     bool                   // used to indicate the schema entry is state node.
+	HasState    bool                   // used to indicate the schema entry has a state node at least.
 	Option      *SchemaOption
 }
 
@@ -404,6 +406,7 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 				return fmt.Errorf("no parent found ... updating schema tree failed")
 			}
 		}
+		// Using the Annotation, update addtional information for the schema.
 		if parent.Annotation == nil {
 			parent.Annotation = map[string]interface{}{}
 		}
@@ -426,6 +429,23 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 		for i := range pmeta.Keyname {
 			if pmeta.Keyname[i] == schema.Name {
 				meta.IsKey = true
+			}
+		}
+		var isconfig yang.TriState
+		for s := schema; s != nil; s = s.Parent {
+			isconfig = s.Config
+			if isconfig != yang.TSUnset {
+				break
+			}
+		}
+		if isconfig == yang.TSFalse {
+			meta.IsState = true
+		}
+		if schema.Config == yang.TSFalse {
+			for p := parent; p != nil; p = p.Parent {
+				if m := GetSchemaMeta(p); m != nil {
+					m.HasState = true
+				}
 			}
 		}
 	}
@@ -651,21 +671,13 @@ func IsKeyNode(schema *yang.Entry) bool {
 }
 
 func IsConfig(schema *yang.Entry) bool {
-	if schema == nil {
-		return false
-	}
-	for ; schema.Parent != nil; schema = schema.Parent {
-		switch schema.Config {
-		case yang.TSTrue:
-			return true
-		case yang.TSFalse:
-			return false
-		}
-	}
+	meta := GetSchemaMeta(schema)
+	return !meta.IsState
+}
 
-	// Reached the last element in the tree without explicit configuration
-	// being set.
-	return schema.Config != yang.TSFalse
+func IsState(schema *yang.Entry) bool {
+	meta := GetSchemaMeta(schema)
+	return meta.IsState
 }
 
 // ExtractKeyValues extracts the list key values from keystr
