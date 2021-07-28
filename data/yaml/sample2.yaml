@@ -1,0 +1,29 @@
+# 2. RFC 7951 style
+sample:sample:
+  container-val:
+    a: A
+    enum-val: enum2
+    leaf-list-val:
+      - leaf-list-first
+      - leaf-list-fourth
+      - leaf-list-second
+      - leaf-list-third
+    test-default: 11
+  empty-val:
+  multiple-key-list:
+    - integer: 1
+      ok: true
+      str: first
+    - integer: 2
+      str: first
+  non-key-list:
+    - strval: "XYZ"
+      uintval: 10
+  single-key-list:
+    - "country-code": "KR"
+      "decimal-range": 1.01
+      "empty-node":
+      "list-key": "AAA"
+      "uint32-range": 100
+      "uint64-node": 1234567890
+  str-val: "abc"

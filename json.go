@@ -198,7 +198,8 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, confi
 		if jbytes == nil {
 			continue
 		}
-		keyval, err := ExtractKeyValues(keyname, jnode.Key())
+		key := jnode.Key()
+		keyval, err := ExtractKeyValues(keyname, &key)
 		if err != nil {
 			return i, comma, err
 		}
@@ -382,8 +383,8 @@ func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
 	return jnode.MarshalJSON()
 }
 
-// unmarshalList decode jval to the list that has the keys.
-func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
+// unmarshalJSONList decode jval to the list that has the keys.
+func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
 	jdata, ok := jval.(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", jval, jval, cschema.Name)
@@ -391,7 +392,7 @@ func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kva
 	if len(kname) != len(kval) {
 		for k, v := range jdata {
 			kval = append(kval, k)
-			err := branch.unmarshalList(cschema, kname, kval, v)
+			err := branch.unmarshalJSONList(cschema, kname, kval, v)
 			if err != nil {
 				return err
 			}
@@ -419,7 +420,7 @@ func (branch *DataBranch) unmarshalList(cschema *yang.Entry, kname []string, kva
 	return unmarshalJSON(child, jval)
 }
 
-func (branch *DataBranch) unmarshalListRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
+func (branch *DataBranch) unmarshalJSONListRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
 	for i := range listentry {
 		jentry, ok := listentry[i].(map[string]interface{})
 		if !ok {
@@ -479,7 +480,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 				switch {
 				case IsList(cschema):
 					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if err := n.unmarshalListRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
+						if err := n.unmarshalJSONListRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
 							return err
 						}
 					} else {
@@ -488,7 +489,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 						}
 						kname := GetKeynames(cschema)
 						kval := make([]string, 0, len(kname))
-						if err := n.unmarshalList(cschema, kname, kval, v); err != nil {
+						if err := n.unmarshalJSONList(cschema, kname, kval, v); err != nil {
 							return err
 						}
 					}

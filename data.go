@@ -59,8 +59,10 @@ type DataNode interface {
 
 	MarshalJSON() ([]byte, error)      // Encoding to JSON
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
+	UnmarshalJSON([]byte) error        // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
 
-	UnmarshalJSON([]byte) error // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
+	UnmarshalYAML([]byte) error
+	// MarshalYAML() (interface{}, error)
 }
 
 type Option interface {

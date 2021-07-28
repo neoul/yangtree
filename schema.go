@@ -680,11 +680,25 @@ func IsState(schema *yang.Entry) bool {
 	return meta.IsState
 }
 
+// ExtractSchemaName extracts the schema name from the keystr.
+func ExtractSchemaName(keystr *string) (string, bool, error) {
+	i := strings.IndexAny(*keystr, "[=]")
+	if i >= 0 {
+		switch (*keystr)[i] {
+		case '[':
+			return (*keystr)[:i], true, nil
+		default:
+			return "", false, fmt.Errorf("invalid keystr %q inserted", *keystr)
+		}
+	}
+	return *keystr, false, nil
+}
+
 // ExtractKeyValues extracts the list key values from keystr
-func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
-	length := len(keystr)
+func ExtractKeyValues(keys []string, keystr *string) ([]string, error) {
+	length := len(*keystr)
 	if length <= 0 {
-		return nil, fmt.Errorf("empty key string found")
+		return nil, fmt.Errorf("empty key string inserted")
 	}
 	index := 0
 	begin := 0
@@ -694,28 +708,28 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 	insideBrackets := 0
 	keyval := make([]string, len(keys))
 
-	switch keystr[end] {
+	switch (*keystr)[end] {
 	case '/':
 		begin = 1
 	case '[':
 		begin = 1
 		insideBrackets++
 	case ']', '=':
-		return nil, fmt.Errorf("key string %q starts with invalid char: ] or =", keystr)
+		return nil, fmt.Errorf("key string %q starts with invalid char: ] or =", *keystr)
 	}
 	end++
-	// fmt.Println(keys, keystr)
+	// fmt.Println(keys, (*keystr))
 
 	for end < length {
-		// fmt.Printf("%c, '%s', %d\n", keystr[end], keystr[begin:end], insideBrackets)
-		switch keystr[end] {
+		// fmt.Printf("%c, '%s', %d\n", (*keystr)[end], (*keystr)[begin:end], insideBrackets)
+		switch (*keystr)[end] {
 		case '/':
 			if insideBrackets <= 0 {
 				begin = end + 1
 			}
 			end++
 		case '[':
-			if keystr[end-1] != '\\' {
+			if (*keystr)[end-1] != '\\' {
 				if insideBrackets <= 0 {
 					begin = end + 1
 				}
@@ -723,22 +737,22 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 			}
 			end++
 		case ']':
-			if keystr[end-1] != '\\' {
+			if (*keystr)[end-1] != '\\' {
 				insideBrackets--
 				if insideBrackets <= 0 {
-					// fmt.Println(keystr[begin:end])
-					keyval[index-1] = keystr[begin:end]
+					// fmt.Println((*keystr)[begin:end])
+					keyval[index-1] = (*keystr)[begin:end]
 					begin = end + 1
 				}
 			}
 			end++
 		case '=':
 			if insideBrackets <= 0 {
-				return nil, fmt.Errorf("invalid key format %q", keystr[begin:end])
+				return nil, fmt.Errorf("invalid key format %q", (*keystr)[begin:end])
 			} else if insideBrackets == 1 {
 				if begin < end {
-					if keys[index] != keystr[begin:end] {
-						return nil, fmt.Errorf("invalid key %q", keystr[begin:end])
+					if keys[index] != (*keystr)[begin:end] {
+						return nil, fmt.Errorf("invalid key %q", (*keystr)[begin:end])
 					}
 					index++
 					begin = end + 1
@@ -750,7 +764,7 @@ func ExtractKeyValues(keys []string, keystr string) ([]string, error) {
 		}
 	}
 	if len(keys) != index {
-		return nil, fmt.Errorf("invalid key %q", keystr)
+		return nil, fmt.Errorf("invalid key %q", (*keystr))
 	}
 	return keyval, nil
 }
