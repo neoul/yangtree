@@ -47,4 +47,9 @@ func TestUnmarshalYAML(t *testing.T) {
 			}
 		}
 	}
+	ybytes, err := root[0].MarshalYAML()
+	if err != nil {
+		t.Errorf("yaml marshalling error: %v\n", err)
+	}
+	fmt.Print(string(ybytes))
 }

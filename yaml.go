@@ -1,14 +1,16 @@
 package yangtree
 
 import (
+	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 	"gopkg.in/yaml.v2"
 )
 
-// unmarshalYAMLList decode yval to the list that has the keys.
+// unmarshalYAMLList constructs list entries of a data node using YAML values.
 func (branch *DataBranch) unmarshalYAMLList(cschema *yang.Entry, kname []string, kval []interface{}, yval interface{}) error {
 	jdata, ok := yval.(map[interface{}]interface{})
 	if !ok {
@@ -52,6 +54,7 @@ func (branch *DataBranch) unmarshalYAMLList(cschema *yang.Entry, kname []string,
 	return unmarshalYAML(child, yval)
 }
 
+// unmarshalYAMLListRFC7951 constructs list entries of a data node using YAML values.
 func (branch *DataBranch) unmarshalYAMLListRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
 	for i := range listentry {
 		entry, ok := listentry[i].(map[interface{}]interface{})
@@ -102,6 +105,7 @@ func (branch *DataBranch) unmarshalYAMLListRFC7951(cschema *yang.Entry, kname []
 	return nil
 }
 
+// unmarshalYAML updates a data node using YAML values.
 func unmarshalYAML(node DataNode, yval interface{}) error {
 	switch n := node.(type) {
 	case *DataBranch:
@@ -212,6 +216,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 	}
 }
 
+// UnmarshalYAML updates the branch data node using YAML-encoded data.
 func (branch *DataBranch) UnmarshalYAML(in []byte) error {
 	var ydata interface{}
 	err := yaml.Unmarshal(in, &ydata)
@@ -221,6 +226,7 @@ func (branch *DataBranch) UnmarshalYAML(in []byte) error {
 	return unmarshalYAML(branch, ydata)
 }
 
+// UnmarshalYAML updates the leaf data node using YAML-encoded data.
 func (leaf *DataLeaf) UnmarshalYAML(in []byte) error {
 	var ydata interface{}
 	err := yaml.Unmarshal(in, &ydata)
@@ -230,6 +236,7 @@ func (leaf *DataLeaf) UnmarshalYAML(in []byte) error {
 	return unmarshalYAML(leaf, ydata)
 }
 
+// UnmarshalYAML updates the leaf-list data node using YAML-encoded data.
 func (leaflist *DataLeafList) UnmarshalYAML(in []byte) error {
 	var ydata interface{}
 	err := yaml.Unmarshal(in, &ydata)
@@ -239,14 +246,385 @@ func (leaflist *DataLeafList) UnmarshalYAML(in []byte) error {
 	return unmarshalYAML(leaflist, ydata)
 }
 
-// func (branch *DataBranch) MarshalYAML() (interface{}, error) {
+type yDataNode struct {
+	DataNode        // Target data node to encode the data node
+	rfc7951s        // Modified RFC7951 format for YAML
+	iformat    bool // Interval YAML format
+	configOnly yang.TriState
+	indentStr  string // indent string used at YAML encoding
+}
 
-// }
+func (ynode *yDataNode) rfc7951() rfc7951s {
+	if ynode == nil {
+		return rfc7951Disabled
+	}
+	return ynode.rfc7951s
+}
 
-// func (leaf *DataLeaf) MarshalYAML() (interface{}, error) {
+func getQname(ynode *yDataNode) string {
+	switch ynode.rfc7951() {
+	case rfc7951InProgress, rfc7951Enabled:
+		ynode.rfc7951s = rfc7951InProgress
+		if qname, boundary := GetQName(ynode.Schema()); boundary ||
+			ynode.rfc7951() == rfc7951Enabled {
+			if ynode.iformat {
+				m := GetSchemaMeta(ynode.Schema())
+				return m.Module.Name + ":" + ynode.Key()
+			}
+			return qname
+		}
+	}
+	if ynode.iformat {
+		return ynode.Key()
+	}
+	return ynode.Schema().Name
+}
 
-// }
+func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode) (int, error) {
+	var ynode yDataNode
+	schema := node[i].Schema()
+	length := len(node)
+	ynode = *parent
+	ynode.DataNode = node[i]
+	m := GetSchemaMeta(schema)
+	switch ynode.configOnly {
+	case yang.TSTrue:
+		if m.IsState {
+			for ; i < length; i++ {
+				if schema != node[i].Schema() {
+					return i, nil
+				}
+			}
+		}
+	case yang.TSFalse: // stateOnly
+		if !m.IsState && !m.HasState {
+			for ; i < length; i++ {
+				if schema != node[i].Schema() {
+					return i, nil
+				}
+			}
+		}
+	}
+	if ynode.rfc7951() != rfc7951Disabled || IsDuplicatedList(ynode.Schema()) {
+		writeIndent(buffer, indent, ynode.indentStr)
+		buffer.WriteString(getQname(&ynode))
+		buffer.WriteString(":\n")
+		indent++
+		for ; i < length; i++ {
+			ynode.DataNode = node[i]
+			if schema != ynode.Schema() {
+				break
+			}
+			writeIndent(buffer, indent, ynode.indentStr)
+			buffer.WriteString("-")
+			writeIndent(buffer, 1, ynode.indentStr)
+			err := ynode.marshalYAML(buffer, indent+2, true)
+			if err != nil {
+				return i, err
+			}
+		}
+		return i, nil
+	}
+	var lastKeyval []string
+	if !ynode.iformat {
+		writeIndent(buffer, indent, ynode.indentStr)
+		buffer.WriteString(getQname(&ynode))
+		buffer.WriteString(":\n")
+		indent++
+	}
+	for ; i < length; i++ {
+		ynode.DataNode = node[i]
+		if schema != ynode.Schema() {
+			break
+		}
+		if ynode.iformat {
+			writeIndent(buffer, indent, ynode.indentStr)
+			buffer.WriteString(getQname(&ynode))
+			buffer.WriteString(":\n")
+			err := ynode.marshalYAML(buffer, indent+1, false)
+			if err != nil {
+				return i, err
+			}
+		} else {
+			keyname, keyval := GetKeyValues(ynode)
+			if len(keyname) != len(keyval) {
+				return i, fmt.Errorf("list %q doesn't have a key value", schema.Name)
+			}
+			for j := range keyval {
+				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
+					continue
+				}
+				writeIndent(buffer, indent+j, ynode.indentStr)
+				buffer.WriteString(keyval[j])
+				buffer.WriteString(":\n")
+			}
+			err := ynode.marshalYAML(buffer, indent+len(keyval), false)
+			if err != nil {
+				return i, err
+			}
+			lastKeyval = keyval
+		}
+	}
+	return i, nil
+}
 
-// func (leaflist *DataLeafList) MarshalYAML() (interface{}, error) {
+func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirstIndent bool) error {
+	if ynode == nil || ynode.DataNode == nil {
+		return nil
+	}
+	cynode := *ynode
+	switch datanode := ynode.DataNode.(type) {
+	case *DataBranch:
+		node := datanode.children
+		for i := 0; i < len(datanode.children); {
+			schema := node[i].Schema()
+			m := GetSchemaMeta(schema)
+			switch ynode.configOnly {
+			case yang.TSTrue:
+				if m.IsState {
+					continue
+				}
+			case yang.TSFalse: // stateOnly
+				if !m.IsState && !m.HasState {
+					continue
+				}
+			}
+			if IsList(schema) {
+				var err error
+				i, err = marshalYAMLList(buffer, node, i, indent+1, ynode)
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			// container, leaf and leaf-list
+			cynode.DataNode = node[i]
+			if disableFirstIndent {
+				disableFirstIndent = false
+			} else {
+				writeIndent(buffer, indent, ynode.indentStr)
+			}
+			buffer.WriteString(getQname(&cynode))
+			buffer.WriteString(":")
+			if cynode.IsLeaf() {
+				buffer.WriteString(" ")
+			} else {
+				buffer.WriteString("\n")
+			}
+			if err := cynode.marshalYAML(buffer, indent+1, false); err != nil {
+				return err
+			}
+			if cynode.IsLeaf() {
+				buffer.WriteString("\n")
+			}
+			i++
+		}
+	case *DataLeafList:
+		leaflist := datanode
+		if leaflist == nil {
+			return nil
+		}
+		rfc7951enabled := false
+		if ynode.rfc7951() != rfc7951Disabled {
+			rfc7951enabled = true
+		}
+		for i := 0; i < len(leaflist.value); i++ {
+			valbyte, err := ValueToYAMLBytes(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
+			if err != nil {
+				return err
+			}
+			if disableFirstIndent {
+				disableFirstIndent = false
+			} else {
+				writeIndent(buffer, indent, ynode.indentStr)
+			}
+			buffer.WriteString("- ")
+			buffer.Write(valbyte)
+			buffer.WriteString("\n")
+		}
+	case *DataLeaf:
+		leaf := datanode
+		if leaf == nil {
+			return nil
+		}
+		rfc7951enabled := false
+		if ynode.rfc7951() != rfc7951Disabled {
+			rfc7951enabled = true
+		}
+		valbyte, err := ValueToYAMLBytes(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
+		if err != nil {
+			return err
+		}
+		buffer.Write(valbyte)
+	}
+	return nil
+}
 
-// }
+// MarshalYAML encodes the branch data node to a YAML document.
+func (branch *DataBranch) MarshalYAML() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: branch, indentStr: " ", iformat: true}
+	// ynode := &yDataNode{DataNode: branch, indentStr: " "}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// MarshalYAML encodes the leaf data node to a YAML document.
+func (leaf *DataLeaf) MarshalYAML() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: leaf, indentStr: " "}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// MarshalYAML encodes the leaf-list data node to a YAML document.
+func (leaflist *DataLeafList) MarshalYAML() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: leaflist, indentStr: " "}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// MarshalYAML_RFC7951 encodes the branch data node to a YAML document using RFC7951 namespace-qualified name.
+// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
+func (branch *DataBranch) MarshalYAML_RFC7951() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: branch, indentStr: " ", rfc7951s: rfc7951Enabled}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// MarshalYAML_RFC7951 encodes the leaf data node to a YAML document using RFC7951 namespace-qualified name.
+// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
+func (leaf *DataLeaf) MarshalYAML_RFC7951() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: leaf, indentStr: " ", rfc7951s: rfc7951Enabled}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// MarshalYAML_RFC7951 encodes the leaf-list data node to a YAML document using RFC7951 namespace-qualified name.
+// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
+func (leaflist *DataLeafList) MarshalYAML_RFC7951() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: leaflist, indentStr: " ", rfc7951s: rfc7951Enabled}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// InternalFormat is an option to marshal a data node to an internal YAML format.
+type InternalFormat struct{}
+
+func (o InternalFormat) IsOption() {}
+
+// MarshalYAML encodes the data node to a YAML document with a number of options.
+// The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
+func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: node, indentStr: " "}
+	for i := range option {
+		switch option[i].(type) {
+		case HasState:
+			return nil, fmt.Errorf("%v option is is available to find nodes", option[i])
+		case ConfigOnly:
+			ynode.configOnly = yang.TSTrue
+		case StateOnly:
+			ynode.configOnly = yang.TSFalse
+		case RFC7951Format:
+			ynode.rfc7951s = rfc7951Enabled
+		case InternalFormat:
+			ynode.iformat = true
+		}
+	}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func writeIndent(buffer *bytes.Buffer, indent int, indentStr string) {
+	for i := 0; i < indent; i++ {
+		buffer.WriteString(indentStr)
+	}
+}
+
+// ValueToYAMLBytes encodes the value to a YAML-encoded data. the schema and the type of the value must be set.
+func ValueToYAMLBytes(schema *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
+	switch typ.Kind {
+	case yang.Yunion:
+		for i := range typ.Type {
+			v, err := ValueToYAMLBytes(schema, typ.Type[i], value, rfc7951)
+			if err == nil {
+				return v, nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+	case yang.YinstanceIdentifier:
+		// [FIXME] The leftmost (top-level) data node name is always in the
+		//   namespace-qualified form (qname).
+	case yang.Ydecimal64:
+		switch v := value.(type) {
+		case yang.Number:
+			return []byte(v.String()), nil
+		case string:
+			return []byte(v), nil
+		}
+	}
+	if rfc7951 {
+		switch typ.Kind {
+		// case yang.Ystring, yang.Ybinary:
+		// case yang.Ybool:
+		// case yang.Yleafref:
+		// case yang.Ynone:
+		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
+		// case yang.Ybits, yang.Yenum:
+		case yang.Yempty:
+			return []byte(""), nil
+		case yang.Yidentityref:
+			if s, ok := value.(string); ok {
+				imap := getIdentityref(schema)
+				qvalue, ok := imap[s]
+				if !ok {
+					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
+				}
+				value = qvalue
+			}
+		case yang.Yint64:
+			if v, ok := value.(int64); ok {
+				str := strconv.FormatInt(v, 10)
+				return []byte(str), nil
+			}
+		case yang.Yuint64:
+			if v, ok := value.(uint64); ok {
+				str := strconv.FormatUint(v, 10)
+				return []byte(str), nil
+			}
+		}
+	}
+	// else {
+	// 	switch typ.Kind {
+	// 	case yang.Yempty:
+	// 		return []byte("null"), nil
+	// 	}
+	// }
+	out, err := yaml.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	if strings.HasSuffix(string(out), "\n") {
+		return out[:len(out)-1], nil
+	}
+	return out, err
+}

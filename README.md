@@ -69,3 +69,7 @@ yangtree is a Go utilities that can be used to:
             exist, the "remove" operation is silently ignored by the
             server.
 ```
+
+## ToDo
+
+JSON encoding - QName for list node

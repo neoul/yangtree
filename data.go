@@ -61,8 +61,8 @@ type DataNode interface {
 	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
 	UnmarshalJSON([]byte) error        // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
 
-	UnmarshalYAML([]byte) error
-	// MarshalYAML() (interface{}, error)
+	MarshalYAML() ([]byte, error)
+	UnmarshalYAML([]byte) error // Assembling DataNode using YAML input
 }
 
 type Option interface {
@@ -1867,4 +1867,18 @@ func Map(node []DataNode) map[string]DataNode {
 // The path must indicate an unique node. (not support wildcard and multiple node selection)
 func FindAllInRoute(path string) []DataNode {
 	return nil
+}
+
+// Get KeyValues if a key list.
+func GetKeyValues(node DataNode) ([]string, []string) {
+	keynames := GetKeynames(node.Schema())
+	keyvals := make([]string, 0, len(keynames))
+	for i := range keynames {
+		keynode := node.Get(keynames[i])
+		if keynode == nil {
+			return keynames, keyvals
+		}
+		keyvals = append(keyvals, keynode.ValueString())
+	}
+	return keynames, keyvals
 }

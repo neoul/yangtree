@@ -599,7 +599,7 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 	return jnode.MarshalJSON()
 }
 
-// MarshalJSON_IETF is like Marshal but applies Indent to format the output.
+// MarshalJSONIndent is like Marshal but applies an indent and a prefix to format the output.
 func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) ([]byte, error) {
 	jnode := &jsonDataNode{DataNode: node}
 	for i := range option {
@@ -617,6 +617,7 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 	return json.MarshalIndent(jnode, prefix, indent)
 }
 
+// UnmarshalJSON parses the JSON-encoded data and stores the result in the data node.
 func UnmarshalJSON(node DataNode, jbytes []byte) error {
 	var jval interface{}
 	err := json.Unmarshal(jbytes, &jval)
