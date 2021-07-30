@@ -10,26 +10,27 @@ import (
 )
 
 var (
-	// LeafListValueAsKey - leaf-list value can be represented to the path if it is set to true.
+	// LeafListValueAsKey - leaf-list value can be represented to a path or a key if it is set to true.
 	LeafListValueAsKey bool = true
 )
 
 type DataNode interface {
 	IsYangDataNode()
-	IsNil() bool // IsNil() is used to check the data node is null.
-	IsBranch() bool
-	IsLeaf() bool
-	IsLeafList() bool
-	Key() string
-	Schema() *yang.Entry
-	Parent() DataNode
+	IsNil() bool      // IsNil() is used to check the data node is null.
+	IsBranch() bool   // IsBranch() returns true if the data node is a branch.
+	IsLeaf() bool     // IsLeaf() returns true if the data node is a leaf.
+	IsLeafList() bool // IsLeafList() returns true if the data node is a leaf-list.
+	Key() string      // Key() returns the key string of the data node. The key is an XPath element combined with XPath predicates.
 
-	Insert(child DataNode) error // Insert a child node. It replaces the old child node.
-	Delete(child DataNode) error // Delete a child node.
+	Schema() *yang.Entry // Schema() returns the schema of the data node.
+	Parent() DataNode    // Parent() returns the parent if it is present.
+
+	Insert(child DataNode) error // Insert() inserts a new child node. It replaces the old one.
+	Delete(child DataNode) error // Delete() deletes the child node if it is present.
 	Replace(src DataNode) error  // Replace() replaces itself to the src node.
-	Merge(src DataNode) error    // Merge() merges the src to the current data node.
+	Merge(src DataNode) error    // Merge() merges the src node including all children to the current data node.
 
-	Set(value ...string) error
+	Set(value ...string) error    // Set() writes the values to the data node. The value must be string.
 	Remove(value ...string) error // Remote() removes the value if the value is inserted or itself if the value is not specified.
 
 	// New() creates a cild using the key and values.
@@ -37,42 +38,44 @@ type DataNode interface {
 	// For example, interface[name=VALUE]
 	New(key string, value ...string) (DataNode, error)
 
-	// Update() updates a existent child using the key and values.
+	// Update() updates a child that can be identified by the key using the input values.
 	Update(key string, value ...string) error
 
-	Exist(key string) bool
-	Get(key string) DataNode          // Get the child having the key.
-	GetAll(key string) []DataNode     // Get children having the key.
-	GetValue(key string) interface{}  // Get the value of the child having the key.
-	GetValueString(key string) string // Get the value (converted to string) of the child having the key.
-	Lookup(prefix string) []DataNode  // Get all children that starts with prefix.
+	Exist(key string) bool            // Exist() is used to check a data node is present.
+	Get(key string) DataNode          // Get() is used to get the first child has the key.
+	GetValue(key string) interface{}  // GetValue() is used to get the value of the child that has the key.
+	GetValueString(key string) string // GetValueString() is used to get the value, converted to string, of the child that has the key.
+
+	GetAll(key string) []DataNode    // GetAll() is used to get all children that have the key.
+	Lookup(prefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix.
 
 	Len() int                    // Len() returns the length of children.
-	Index(key string) (int, int) // Index() finds all children and returns the indexes of them.
+	Index(key string) (int, int) // Index() finds all children by the key and returns the range found.
 	Child(index int) DataNode    // Child() gets the child of the index.
 
 	String() string
-	Path() string                      // Path() returns the path from the root data node.
-	PathTo(descendant DataNode) string // PathTo() returns the relative path to an descendant node.
-	Value() interface{}                // Value() returns the raw data of the node.
-	ValueString() string               // ValueString() returns the value string of the node.
+	Path() string                      // Path() returns the path from the root to the current data node.
+	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
+	Value() interface{}                // Value() returns the raw data of the data node.
+	ValueString() string               // ValueString() returns the string value of the data node.
 
-	MarshalJSON() ([]byte, error)      // Encoding to JSON
-	MarshalJSON_IETF() ([]byte, error) // Encoding to JSON_IETF (rfc7951)
-	UnmarshalJSON([]byte) error        // Assembling DataNode using JSON or JSON_IETF (rfc7951) input
+	MarshalJSON() ([]byte, error)      // MarshalJSON() encodes the data node to JSON bytes.
+	MarshalJSON_IETF() ([]byte, error) // MarshalJSON_IETF() encodes the data node to JSON_IETF (RFC7951) bytes.
+	UnmarshalJSON([]byte) error        // UnmarshalJSON() assembles the data node using JSON or JSON_IETF (rfc7951) bytes.
 
-	MarshalYAML() ([]byte, error)
-	UnmarshalYAML([]byte) error // Assembling DataNode using YAML input
+	MarshalYAML() ([]byte, error)         // MarshalYAML() encodes the data node to a YAML bytes.
+	MarshalYAML_RFC7951() ([]byte, error) // MarshalYAML_RFC7951() encodes the data node to a YAML bytes.
+	UnmarshalYAML([]byte) error           // UnmarshalYAML() assembles the data node using a YAML bytes
 }
 
 type Option interface {
 	IsOption()
 }
 
-// ConfigOnly option is used to find config data nodes that have "config false" statement.
+// ConfigOnly option is used to find config data nodes that have "config true" statement.
 type ConfigOnly struct{}
 
-// StateOnly option is used to find state data nodes.
+// StateOnly option is used to find state data nodes that have "config false" statement.
 type StateOnly struct{}
 
 // HasState option is used to find state data nodes and data nodes having state data nodes.

@@ -246,6 +246,16 @@ func (leaflist *DataLeafList) UnmarshalYAML(in []byte) error {
 	return unmarshalYAML(leaflist, ydata)
 }
 
+// UnmarshalYAML updates the data node using YAML-encoded data.
+func UnmarshalYAML(node DataNode, in []byte) error {
+	var ydata interface{}
+	err := yaml.Unmarshal(in, &ydata)
+	if err != nil {
+		return err
+	}
+	return unmarshalYAML(node, ydata)
+}
+
 type yDataNode struct {
 	DataNode        // Target data node to encode the data node
 	rfc7951s        // Modified RFC7951 format for YAML
