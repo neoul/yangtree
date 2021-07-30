@@ -277,12 +277,9 @@ func getQname(ynode *yDataNode) string {
 		ynode.rfc7951s = rfc7951InProgress
 		if qname, boundary := GetQName(ynode.Schema()); boundary ||
 			ynode.rfc7951() == rfc7951Enabled {
-			if ynode.iformat {
-				m := GetSchemaMeta(ynode.Schema())
-				return m.Module.Name + ":" + ynode.Key()
-			}
 			return qname
 		}
+		return ynode.Schema().Name
 	}
 	if ynode.iformat {
 		return ynode.Key()
@@ -401,7 +398,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			}
 			if IsList(schema) {
 				var err error
-				i, err = marshalYAMLList(buffer, node, i, indent+1, ynode)
+				i, err = marshalYAMLList(buffer, node, i, indent, ynode)
 				if err != nil {
 					return err
 				}
@@ -591,6 +588,8 @@ func ValueToYAMLBytes(schema *yang.Entry, typ *yang.YangType, value interface{},
 		case string:
 			return []byte(v), nil
 		}
+	case yang.Yempty:
+		return []byte(""), nil
 	}
 	if rfc7951 {
 		switch typ.Kind {
@@ -600,8 +599,8 @@ func ValueToYAMLBytes(schema *yang.Entry, typ *yang.YangType, value interface{},
 		// case yang.Ynone:
 		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
 		// case yang.Ybits, yang.Yenum:
-		case yang.Yempty:
-			return []byte(""), nil
+		// case yang.Yempty:
+		// 	return []byte(""), nil
 		case yang.Yidentityref:
 			if s, ok := value.(string); ok {
 				imap := getIdentityref(schema)
