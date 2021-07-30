@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )
@@ -35,6 +36,19 @@ func (jnode *jsonDataNode) rfc7951() rfc7951s {
 		return rfc7951Disabled
 	}
 	return jnode.rfc7951s
+}
+
+func (jnode *jsonDataNode) getQname() string {
+	switch jnode.rfc7951() {
+	case rfc7951InProgress, rfc7951Enabled:
+		jnode.rfc7951s = rfc7951InProgress
+		if qname, boundary := GetQName(jnode.Schema()); boundary ||
+			jnode.rfc7951() == rfc7951Enabled {
+			return qname
+		}
+		return jnode.Schema().Name
+	}
+	return jnode.Key()
 }
 
 func isEmptyJSONBytes(s string) bool {
@@ -78,6 +92,7 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 	if jnode == nil || jnode.DataNode == nil {
 		return []byte("null"), nil
 	}
+	cjnode := *jnode
 	switch datanode := jnode.DataNode.(type) {
 	case *DataBranch:
 		comma := false
@@ -104,16 +119,8 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 			// container, leaf or leaflist
 			var err error
 			var jbytes []byte
-			var qname interface{} // namespace-qualified name
-			cjnode := &jsonDataNode{DataNode: node[i], config: jnode.config}
-			switch jnode.rfc7951() {
-			case rfc7951InProgress, rfc7951Enabled:
-				cjnode.rfc7951s = rfc7951InProgress
-				if qn, boundary := GetQName(cjnode.Schema()); boundary ||
-					jnode.rfc7951() == rfc7951Enabled {
-					qname = qn
-				}
-			}
+			cjnode.DataNode = node[i]
+			qname := cjnode.getQname() // namespace-qualified name
 			if jbytes, err = cjnode.marshalJSON(); err != nil {
 				return nil, err
 			}
@@ -124,11 +131,7 @@ func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
 			if comma {
 				buffer.WriteString(",")
 			}
-			if qname != nil {
-				buffer.WriteString("\"" + qname.(string) + "\":" + string(jbytes))
-			} else {
-				buffer.WriteString("\"" + cjnode.Key() + "\":" + string(jbytes))
-			}
+			buffer.WriteString("\"" + qname + "\":" + string(jbytes))
 			comma = true
 			i++
 		}
@@ -402,15 +405,19 @@ func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string,
 	}
 	// check existent DataNode
 	var err error
-	var key string
-	for i := range kval {
-		key = key + "[" + kname[i] + "=" + kval[i] + "]"
+	var key strings.Builder
+	key.WriteString(cschema.Name)
+	for i := range kname {
+		key.WriteString("[")
+		key.WriteString(kname[i])
+		key.WriteString("=")
+		key.WriteString(kval[i])
+		key.WriteString("]")
 	}
-	key = cschema.Name + key
 	var child DataNode
-	found := branch.Get(key)
+	found := branch.Get(key.String())
 	if found == nil {
-		if child, err = branch.New(key); err != nil {
+		if child, err = branch.New(key.String()); err != nil {
 			return err
 		}
 	} else {
@@ -428,30 +435,25 @@ func (branch *DataBranch) unmarshalJSONListRFC7951(cschema *yang.Entry, kname []
 		}
 		// check existent DataNode
 		var err error
-		var key string
+		var key strings.Builder
+		key.WriteString(cschema.Name)
 		for i := range kname {
-			found := GetSchema(cschema, kname[i])
-			if found == nil {
-				return fmt.Errorf("schema %q not found", kname[i])
-			}
-			kval := fmt.Sprint(jentry[kname[i]])
-			// [FIXME] need to check key validation
-			// kchild, err := New(kschema, kval)
-			// if err != nil {
-			// 	return err
-			// }
-			key = key + "[" + kname[i] + "=" + kval + "]"
+			key.WriteString("[")
+			key.WriteString(kname[i])
+			key.WriteString("=")
+			key.WriteString(fmt.Sprint(jentry[kname[i]]))
+			key.WriteString("]")
 		}
-		key = cschema.Name + key
+
 		var child DataNode
 		if IsDuplicatedList(cschema) {
-			if child, err = branch.New(key); err != nil {
+			if child, err = branch.New(key.String()); err != nil {
 				return err
 			}
 		} else {
-			found := branch.Get(key)
+			found := branch.Get(key.String())
 			if found == nil {
-				if child, err = branch.New(key); err != nil {
+				if child, err = branch.New(key.String()); err != nil {
 					return err
 				}
 			} else {

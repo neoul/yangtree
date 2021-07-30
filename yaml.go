@@ -66,10 +66,6 @@ func (branch *DataBranch) unmarshalYAMLListRFC7951(cschema *yang.Entry, kname []
 		var key strings.Builder
 		key.WriteString(cschema.Name)
 		for i := range kname {
-			found := GetSchema(cschema, kname[i])
-			if found == nil {
-				return fmt.Errorf("schema %q not found", kname[i])
-			}
 			key.WriteString("[")
 			key.WriteString(kname[i])
 			key.WriteString("=")
@@ -271,7 +267,7 @@ func (ynode *yDataNode) rfc7951() rfc7951s {
 	return ynode.rfc7951s
 }
 
-func getQname(ynode *yDataNode) string {
+func (ynode *yDataNode) getQname() string {
 	switch ynode.rfc7951() {
 	case rfc7951InProgress, rfc7951Enabled:
 		ynode.rfc7951s = rfc7951InProgress
@@ -314,7 +310,7 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 	}
 	if ynode.rfc7951() != rfc7951Disabled || IsDuplicatedList(ynode.Schema()) {
 		writeIndent(buffer, indent, ynode.indentStr)
-		buffer.WriteString(getQname(&ynode))
+		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
 		indent++
 		for ; i < length; i++ {
@@ -335,7 +331,7 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 	var lastKeyval []string
 	if !ynode.iformat {
 		writeIndent(buffer, indent, ynode.indentStr)
-		buffer.WriteString(getQname(&ynode))
+		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
 		indent++
 	}
@@ -346,7 +342,7 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 		}
 		if ynode.iformat {
 			writeIndent(buffer, indent, ynode.indentStr)
-			buffer.WriteString(getQname(&ynode))
+			buffer.WriteString(ynode.getQname())
 			buffer.WriteString(":\n")
 			err := ynode.marshalYAML(buffer, indent+1, false)
 			if err != nil {
@@ -411,7 +407,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			} else {
 				writeIndent(buffer, indent, ynode.indentStr)
 			}
-			buffer.WriteString(getQname(&cynode))
+			buffer.WriteString(cynode.getQname())
 			buffer.WriteString(":")
 			if cynode.IsLeaf() {
 				buffer.WriteString(" ")
