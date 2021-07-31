@@ -25,190 +25,184 @@ const (
 	rfc7951Enabled
 )
 
-type jsonDataNode struct {
+func (s rfc7951s) String() string {
+	switch s {
+	case rfc7951Disabled:
+		return "rfc7951.disabled"
+	case rfc7951InProgress:
+		return "rfc7951.in-progress"
+	case rfc7951Enabled:
+		return "rfc7951.enabled"
+	}
+	return "rfc7951.unknown"
+}
+
+type jDataNode struct {
 	DataNode
 	rfc7951s
-	config yang.TriState
+	configOnly yang.TriState
 }
 
-func (jnode *jsonDataNode) rfc7951() rfc7951s {
-	if jnode == nil {
-		return rfc7951Disabled
-	}
-	return jnode.rfc7951s
-}
-
-func (jnode *jsonDataNode) getQname() string {
-	switch jnode.rfc7951() {
+func (jnode *jDataNode) getQname() string {
+	switch jnode.rfc7951s {
 	case rfc7951InProgress, rfc7951Enabled:
-		jnode.rfc7951s = rfc7951InProgress
 		if qname, boundary := GetQName(jnode.Schema()); boundary ||
-			jnode.rfc7951() == rfc7951Enabled {
+			jnode.rfc7951s == rfc7951Enabled {
+			jnode.rfc7951s = rfc7951InProgress
 			return qname
 		}
 		return jnode.Schema().Name
 	}
-	return jnode.Key()
+	return jnode.Schema().Name
 }
 
-func isEmptyJSONBytes(s string) bool {
-	for _, r := range s {
-		switch r {
-		case '[', ']', '{', '}', ',', ' ', '\t', '\n', '\r':
-		default:
-			return false
-		}
+func (jnode *jDataNode) MarshalJSON() ([]byte, error) {
+	var buffer bytes.Buffer
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
 	}
-	return true
+	return buffer.Bytes(), nil
 }
 
-func (jnode *jsonDataNode) marshalJSON() ([]byte, error) {
-	var err error
-	var jbytes []byte
-	switch jnode.config {
-	case yang.TSFalse: // state retrieval
-		if IsConfig(jnode.Schema()) {
-			if !jnode.Schema().IsDir() {
-				return nil, nil
-			}
-			jbytes, err = json.Marshal(jnode)
-			if err != nil {
-				return nil, err
-			}
-			if isEmptyJSONBytes(string(jbytes)) {
-				return nil, nil
-			}
-			return jbytes, err
-		}
-	case yang.TSTrue:
-		if !IsConfig(jnode.Schema()) {
-			return nil, nil
-		}
-	}
-	return json.Marshal(jnode)
-}
-
-func (jnode *jsonDataNode) MarshalJSON() ([]byte, error) {
+func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 	if jnode == nil || jnode.DataNode == nil {
-		return []byte("null"), nil
+		buffer.WriteString(`null`)
+		return nil
 	}
 	cjnode := *jnode
 	switch datanode := jnode.DataNode.(type) {
 	case *DataBranch:
 		comma := false
 		node := datanode.children
-		length := len(datanode.children)
-		buffer := bytes.NewBufferString("{")
-		for i := 0; i < length; {
-			if IsList(node[i].Schema()) {
+		buffer.WriteString(`{`)
+		for i := 0; i < len(datanode.children); {
+			schema := node[i].Schema()
+			if IsList(schema) {
 				var err error
-				if jnode.rfc7951() != rfc7951Disabled {
-					i, comma, err = marshalListRFC7951(buffer, node, i, comma, jnode.rfc7951(), jnode.config)
-				} else {
-					if IsDuplicatedList(node[i].Schema()) {
-						i, comma, err = marshalDuplicatedList(buffer, node, i, comma, jnode.config)
-					} else {
-						i, comma, err = marshalList(buffer, node, i, comma, jnode.config)
-					}
-				}
+				i, comma, err = marshalJSONList(buffer, node, i, comma, jnode)
 				if err != nil {
-					return nil, err
+					return err
 				}
 				continue
 			}
 			// container, leaf or leaflist
-			var err error
-			var jbytes []byte
-			cjnode.DataNode = node[i]
-			qname := cjnode.getQname() // namespace-qualified name
-			if jbytes, err = cjnode.marshalJSON(); err != nil {
-				return nil, err
-			}
-			if jbytes == nil {
+			m := GetSchemaMeta(schema)
+			if (jnode.configOnly == yang.TSTrue && m.IsState) ||
+				(jnode.configOnly == yang.TSFalse && !m.IsState && !m.HasState) {
 				i++
 				continue
 			}
+			cjnode.DataNode = node[i]
+			cjnode.rfc7951s = jnode.rfc7951s
 			if comma {
 				buffer.WriteString(",")
 			}
-			buffer.WriteString("\"" + qname + "\":" + string(jbytes))
 			comma = true
+			buffer.WriteString(`"`)
+			buffer.WriteString(cjnode.getQname()) // namespace-qualified name
+			buffer.WriteString(`":`)
+			if err := cjnode.marshalJSON(buffer); err != nil {
+				return err
+			}
 			i++
 		}
-		buffer.WriteString("}")
-		return buffer.Bytes(), nil
+		buffer.WriteString(`}`)
+		return nil
 	case *DataLeafList:
-		leaflist := datanode
-		if leaflist == nil {
-			return nil, nil
-		}
 		rfc7951enabled := false
-		if jnode.rfc7951() != rfc7951Disabled {
+		if jnode.rfc7951s != rfc7951Disabled {
 			rfc7951enabled = true
 		}
-		var b bytes.Buffer
-		b.WriteString("[")
-		length := len(leaflist.value)
+		buffer.WriteString(`[`)
+		length := len(datanode.value)
 		for i := 0; i < length; i++ {
-			valbyte, err := ValueToJSONBytes(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
+			valbyte, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			b.Write(valbyte)
+			buffer.Write(valbyte)
 			if i < length-1 {
-				b.WriteString(",")
+				buffer.WriteString(`,`)
 			}
 		}
-		b.WriteString("]")
-		return b.Bytes(), nil
+		buffer.WriteString(`]`)
+		return nil
 	case *DataLeaf:
-		leaf := datanode
-		if leaf == nil {
-			return nil, nil
-		}
 		rfc7951enabled := false
-		if jnode.rfc7951() != rfc7951Disabled {
+		if jnode.rfc7951s != rfc7951Disabled {
 			rfc7951enabled = true
 		}
-		return ValueToJSONBytes(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
+		b, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
+		if err != nil {
+			return err
+		}
+		buffer.Write(b)
 	}
-	return nil, nil
+	return nil
 }
 
-type jsonbytes struct {
-	bytes []byte
-}
+func marshalJSONList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, parent *jDataNode) (int, bool, error) {
+	first := *parent
+	first.DataNode = node[i]
+	schema := first.Schema()
+	m := GetSchemaMeta(schema)
+	switch first.configOnly {
+	case yang.TSTrue:
+		if m.IsState {
+			for ; i < len(node); i++ {
+				if schema != node[i].Schema() {
+					return i, comma, nil
+				}
+			}
+		}
+	case yang.TSFalse: // stateOnly
+		if !m.IsState && !m.HasState {
+			for ; i < len(node); i++ {
+				if schema != node[i].Schema() {
+					return i, comma, nil
+				}
+			}
+		}
+	}
+	if comma {
+		buffer.WriteString(",")
+	}
+	comma = true
+	buffer.WriteString(`"`)
+	buffer.WriteString(first.getQname())
+	buffer.WriteString(`":`)
+	if first.rfc7951s != rfc7951Disabled || IsDuplicatedList(schema) {
+		ii := i
+		for ; i < len(node); i++ {
+			if schema != node[i].Schema() {
+				break
+			}
+		}
+		nodelist := make([]interface{}, 0, i-ii)
+		for ; ii < i; ii++ {
+			jnode := &jDataNode{DataNode: node[ii],
+				configOnly: first.configOnly, rfc7951s: first.rfc7951s}
+			nodelist = append(nodelist, jnode)
+		}
+		err := marshalJNodeTree(buffer, nodelist)
+		return i, comma, err
+	}
 
-func (jb *jsonbytes) MarshalJSON() ([]byte, error) {
-	return jb.bytes, nil
-}
-
-func marshalList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, config yang.TriState) (int, bool, error) {
-	schema := node[i].Schema()
-	keyname := GetKeynames(schema)
-	keynamelen := len(keyname)
-	keymap := map[string]interface{}{}
-	length := len(node)
-	for ; i < length; i++ {
-		jnode := &jsonDataNode{DataNode: node[i], config: config}
+	nodemap := map[string]interface{}{}
+	for ; i < len(node); i++ {
+		jnode := &jDataNode{DataNode: node[i],
+			configOnly: first.configOnly, rfc7951s: first.rfc7951s}
 		if schema != jnode.Schema() {
 			break
 		}
-		jbytes, err := jnode.marshalJSON()
-		if err != nil {
-			return i, comma, err
+		keyname, keyval := GetKeyValues(jnode.DataNode)
+		if len(keyname) != len(keyval) {
+			return i, comma, fmt.Errorf("list %q doesn't have a key value", schema.Name)
 		}
-		if jbytes == nil {
-			continue
-		}
-		key := jnode.Key()
-		keyval, err := ExtractKeyValues(keyname, &key)
-		if err != nil {
-			return i, comma, err
-		}
-		m := keymap
+		m := nodemap
 		for x := range keyval {
-			if x < keynamelen-1 {
+			if x < len(keyname)-1 {
 				if n := m[keyval[x]]; n == nil {
 					n := map[string]interface{}{}
 					m[keyval[x]] = n
@@ -217,173 +211,113 @@ func marshalList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, confi
 					m = n.(map[string]interface{})
 				}
 			} else {
-				m[keyval[x]] = &jsonbytes{bytes: jbytes}
+				m[keyval[x]] = jnode
 			}
 		}
 	}
-	if config == yang.TSFalse { // state retrieval
-		if IsConfig(schema) {
-			if len(keymap) == 0 {
-				return i, comma, nil
-			}
-		}
-	} else { // config or all node retrieval
-		if config == yang.TSTrue { // config retrieval
-			if !IsConfig(schema) {
-				return i, comma, nil
-			}
-		}
-	}
-	jbytes, err := json.Marshal(keymap)
-	if err != nil {
-		return i, comma, err
-	}
-	if comma {
-		buffer.WriteString(",")
-	}
-	buffer.WriteString("\"" + schema.Name + "\":")
-	buffer.WriteString(string(jbytes))
-	comma = true
-	return i, comma, nil
+	err := marshalJNodeTree(buffer, nodemap)
+	return i, comma, err
 }
 
-func marshalDuplicatedList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, config yang.TriState) (int, bool, error) {
-	schema := node[i].Schema()
-
-	j := i
-	length := len(node)
-	for ; j < length; j++ {
-		if schema != node[j].Schema() {
-			break
-		}
-	}
-	keylist := make([]*jsonbytes, 0, j-i)
-	for ; i < j; i++ {
-		if schema != node[i].Schema() {
-			break
-		}
-		jnode := &jsonDataNode{DataNode: node[i], config: config}
-		jbytes, err := jnode.marshalJSON()
-		if err != nil {
-			return i, comma, err
-		}
-		if jbytes == nil {
-			continue
-		}
-		keylist = append(keylist, &jsonbytes{bytes: jbytes})
-	}
-	if config == yang.TSFalse { // state retrieval
-		if IsConfig(schema) {
-			if len(keylist) == 0 {
-				return j, comma, nil
+func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
+	comma := false
+	switch jj := jnodeTree.(type) {
+	case map[string]interface{}:
+		buffer.WriteString(`{`)
+		for key, val := range jj {
+			if comma {
+				buffer.WriteString(",")
+			}
+			comma = true
+			buffer.WriteString(`"`)
+			buffer.WriteString(key)
+			buffer.WriteString(`":`)
+			if err := marshalJNodeTree(buffer, val); err != nil {
+				return err
 			}
 		}
-	} else { // config or all node retrieval
-		if config == yang.TSTrue { // config retrieval
-			if !IsConfig(schema) {
-				return j, comma, nil
+		buffer.WriteString(`}`)
+	case []interface{}:
+		buffer.WriteString(`[`)
+		for i := range jj {
+			if comma {
+				buffer.WriteString(",")
+			}
+			comma = true
+			if err := marshalJNodeTree(buffer, jj[i]); err != nil {
+				return err
 			}
 		}
-	}
-	jsonValue, err := json.Marshal(keylist)
-	if err != nil {
-		return j, comma, err
-	}
-	if comma {
-		buffer.WriteString(",")
-	}
-	buffer.WriteString("\"" + schema.Name + "\":")
-	buffer.WriteString(string(jsonValue))
-	comma = true
-	return j, comma, nil
-}
-
-func marshalListRFC7951(buffer *bytes.Buffer, node []DataNode, i int, comma bool, rfc7951 rfc7951s, config yang.TriState) (int, bool, error) {
-	schema := node[i].Schema()
-	j := i
-	length := len(node)
-	for ; j < length; j++ {
-		if schema != node[j].Schema() {
-			break
+		buffer.WriteString(`]`)
+	case *jDataNode:
+		if err := jj.marshalJSON(buffer); err != nil {
+			return err
 		}
 	}
-	keylist := make([]*jsonbytes, 0, j-i)
-	for ; i < j; i++ {
-		if schema != node[i].Schema() {
-			break
-		}
-		jnode := &jsonDataNode{
-			DataNode: node[i],
-			config:   config,
-			rfc7951s: rfc7951InProgress,
-		}
-		jbytes, err := jnode.marshalJSON()
-		if err != nil {
-			return i, comma, err
-		}
-		if jbytes == nil {
-			continue
-		}
-		keylist = append(keylist, &jsonbytes{bytes: jbytes})
-	}
-	if config == yang.TSFalse { // state retrieval
-		if IsConfig(schema) {
-			if len(keylist) == 0 {
-				return j, comma, nil
-			}
-		}
-	} else { // config or all node retrieval
-		if config == yang.TSTrue { // config retrieval
-			if !IsConfig(schema) {
-				return j, comma, nil
-			}
-		}
-	}
-	jbytes, err := json.Marshal(keylist)
-	if err != nil {
-		return j, comma, err
-	}
-	if comma {
-		buffer.WriteString(",")
-	}
-	if qname, boundary := GetQName(schema); boundary || rfc7951 == rfc7951Enabled {
-		buffer.WriteString("\"" + qname + "\":")
-	} else {
-		buffer.WriteString("\"" + schema.Name + "\":")
-	}
-	buffer.WriteString(string(jbytes))
-	comma = true
-	return j, comma, nil
+	return nil
 }
 
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: branch, rfc7951s: rfc7951Disabled}
-	return jnode.MarshalJSON()
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: branch}
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: leaf, rfc7951s: rfc7951Disabled}
-	return jnode.MarshalJSON()
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: leaf}
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: leaflist, rfc7951s: rfc7951Disabled}
-	return jnode.MarshalJSON()
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: leaflist}
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: branch, rfc7951s: rfc7951Enabled}
-	return jnode.MarshalJSON()
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: branch}
+	jnode.rfc7951s = rfc7951Enabled
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: leaf, rfc7951s: rfc7951Enabled}
-	return jnode.MarshalJSON()
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: leaf}
+	jnode.rfc7951s = rfc7951Enabled
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: leaflist, rfc7951s: rfc7951Enabled}
-	return jnode.MarshalJSON()
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: leaflist}
+	jnode.rfc7951s = rfc7951Enabled
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 // unmarshalJSONList decode jval to the list that has the keys.
@@ -585,38 +519,53 @@ func (leaflist *DataLeafList) UnmarshalJSON(jbytes []byte) error {
 //
 // Marshal traverses the value v recursively.
 func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: node}
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
 			return nil, fmt.Errorf("%v is not allowed for marshaling", option[i])
 		case ConfigOnly:
-			jnode.config = yang.TSTrue
+			jnode.configOnly = yang.TSTrue
 		case StateOnly:
-			jnode.config = yang.TSFalse
+			jnode.configOnly = yang.TSFalse
 		case RFC7951Format:
 			jnode.rfc7951s = rfc7951Enabled
 		}
 	}
-	return jnode.MarshalJSON()
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 // MarshalJSONIndent is like Marshal but applies an indent and a prefix to format the output.
 func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) ([]byte, error) {
-	jnode := &jsonDataNode{DataNode: node}
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
 			return nil, fmt.Errorf("%v is not allowed for marshaling", option[i])
 		case ConfigOnly:
-			jnode.config = yang.TSTrue
+			jnode.configOnly = yang.TSTrue
 		case StateOnly:
-			jnode.config = yang.TSFalse
+			jnode.configOnly = yang.TSFalse
 		case RFC7951Format:
 			jnode.rfc7951s = rfc7951Enabled
 		}
 	}
-	return json.MarshalIndent(jnode, prefix, indent)
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	err = json.Indent(&buf, buffer.Bytes(), prefix, indent)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // UnmarshalJSON parses the JSON-encoded data and stores the result in the data node.

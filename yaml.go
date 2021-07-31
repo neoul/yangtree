@@ -284,16 +284,14 @@ func (ynode *yDataNode) getQname() string {
 }
 
 func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode) (int, error) {
-	var ynode yDataNode
 	schema := node[i].Schema()
-	length := len(node)
-	ynode = *parent
+	ynode := *parent
 	ynode.DataNode = node[i]
 	m := GetSchemaMeta(schema)
 	switch ynode.configOnly {
 	case yang.TSTrue:
 		if m.IsState {
-			for ; i < length; i++ {
+			for ; i < len(node); i++ {
 				if schema != node[i].Schema() {
 					return i, nil
 				}
@@ -301,19 +299,19 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 		}
 	case yang.TSFalse: // stateOnly
 		if !m.IsState && !m.HasState {
-			for ; i < length; i++ {
+			for ; i < len(node); i++ {
 				if schema != node[i].Schema() {
 					return i, nil
 				}
 			}
 		}
 	}
-	if ynode.rfc7951() != rfc7951Disabled || IsDuplicatedList(ynode.Schema()) {
+	if ynode.rfc7951() != rfc7951Disabled || IsDuplicatedList(schema) {
 		writeIndent(buffer, indent, ynode.indentStr)
 		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
 		indent++
-		for ; i < length; i++ {
+		for ; i < len(node); i++ {
 			ynode.DataNode = node[i]
 			if schema != ynode.Schema() {
 				break
@@ -335,7 +333,7 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 		buffer.WriteString(":\n")
 		indent++
 	}
-	for ; i < length; i++ {
+	for ; i < len(node); i++ {
 		ynode.DataNode = node[i]
 		if schema != ynode.Schema() {
 			break
@@ -349,7 +347,7 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 				return i, err
 			}
 		} else {
-			keyname, keyval := GetKeyValues(ynode)
+			keyname, keyval := GetKeyValues(ynode.DataNode)
 			if len(keyname) != len(keyval) {
 				return i, fmt.Errorf("list %q doesn't have a key value", schema.Name)
 			}
@@ -381,17 +379,6 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 		node := datanode.children
 		for i := 0; i < len(datanode.children); {
 			schema := node[i].Schema()
-			m := GetSchemaMeta(schema)
-			switch ynode.configOnly {
-			case yang.TSTrue:
-				if m.IsState {
-					continue
-				}
-			case yang.TSFalse: // stateOnly
-				if !m.IsState && !m.HasState {
-					continue
-				}
-			}
 			if IsList(schema) {
 				var err error
 				i, err = marshalYAMLList(buffer, node, i, indent, ynode)
@@ -401,11 +388,17 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 				continue
 			}
 			// container, leaf and leaf-list
+			m := GetSchemaMeta(schema)
+			if (ynode.configOnly == yang.TSTrue && m.IsState) ||
+				(ynode.configOnly == yang.TSFalse && !m.IsState && !m.HasState) {
+				i++
+				continue
+			}
 			cynode.DataNode = node[i]
 			if disableFirstIndent {
 				disableFirstIndent = false
 			} else {
-				writeIndent(buffer, indent, ynode.indentStr)
+				writeIndent(buffer, indent, cynode.indentStr)
 			}
 			buffer.WriteString(cynode.getQname())
 			buffer.WriteString(":")
@@ -423,16 +416,12 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			i++
 		}
 	case *DataLeafList:
-		leaflist := datanode
-		if leaflist == nil {
-			return nil
-		}
 		rfc7951enabled := false
 		if ynode.rfc7951() != rfc7951Disabled {
 			rfc7951enabled = true
 		}
-		for i := 0; i < len(leaflist.value); i++ {
-			valbyte, err := ValueToYAMLBytes(leaflist.schema, leaflist.schema.Type, leaflist.value[i], rfc7951enabled)
+		for i := 0; i < len(datanode.value); i++ {
+			valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
 			if err != nil {
 				return err
 			}
@@ -446,15 +435,11 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			buffer.WriteString("\n")
 		}
 	case *DataLeaf:
-		leaf := datanode
-		if leaf == nil {
-			return nil
-		}
 		rfc7951enabled := false
 		if ynode.rfc7951() != rfc7951Disabled {
 			rfc7951enabled = true
 		}
-		valbyte, err := ValueToYAMLBytes(leaf.schema, leaf.schema.Type, leaf.value, rfc7951enabled)
+		valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
 		if err != nil {
 			return err
 		}

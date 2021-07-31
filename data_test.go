@@ -294,22 +294,24 @@ func TestDataNode(t *testing.T) {
 	if node, err := Find(RootData, "/sample"); err != nil {
 		t.Errorf("Find() path %v error = %v", "/sample", err)
 	} else {
+		y, _ := MarshalYAML(node[0])
+		fmt.Println(string(y))
 		if b, err := MarshalJSON(node[0], StateOnly{}); err != nil {
-			t.Errorf("MarshalJSON() state-only error = %v", err)
+			t.Errorf("MarshalJSON() StateOnly error = %v", err)
 		} else {
-			t.Logf("marshalled %s", string(b))
 			j := `{"single-key-list":{"AAA":{"uint32-range":100},"BBB":{"uint32-range":200},"CCC":{"uint32-range":300},"DDD":{"uint32-range":400}}}`
 			if string(b) != j {
-				t.Errorf("MarshalJSON(state-only) returns unexpected json  = %v", string(b))
+				t.Errorf("MarshalJSON(StateOnly) returns unexpected json  = %v", string(b))
+				t.Logf(" Required json: %s", string(j))
 			}
 		}
 		if b, err := MarshalJSON(node[0], RFC7951Format{}, StateOnly{}); err != nil {
-			t.Errorf("MarshalJSON() state-only error = %v", err)
+			t.Errorf("MarshalJSON(RFC7951Format) StateOnly error = %v", err)
 		} else {
-			t.Logf("marshalled %s", string(b))
 			j := `{"sample:single-key-list":[{"uint32-range":100},{"uint32-range":200},{"uint32-range":300},{"uint32-range":400}]}`
 			if string(b) != j {
-				t.Errorf("MarshalJSON(state-only) returns unexpected json  = %v", string(b))
+				t.Errorf("MarshalJSON(RFC7951Format, StateOnly) returns unexpected json  = %v", string(b))
+				t.Logf(" Required json: %s", string(j))
 			}
 		}
 	}
@@ -339,11 +341,11 @@ func TestDataNode(t *testing.T) {
 	// t.Log(nodes[0].Get("single-key-list[list-key=AAA]"))
 	// t.Log(nodes[0].Lookup("s"))
 
-	jj, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(string(jj))
+	// jj, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
+	// if err != nil {
+	// 	t.Error(err)
+	// }
+	// t.Log(string(jj))
 
 	for i := len(tests) - 1; i >= 0; i-- {
 		tt := tests[i]
@@ -361,8 +363,11 @@ func TestDataNode(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(string(jsonietf))
-	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	if string(jsonietf) != "{}" {
+		t.Error("all nodes are not removed")
+		t.Log(string(jsonietf))
+		// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	}
 }
 
 func TestComplexModel(t *testing.T) {
