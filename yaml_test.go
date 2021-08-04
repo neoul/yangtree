@@ -8,7 +8,7 @@ import (
 )
 
 func TestYAML(t *testing.T) {
-	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatalf("model open err: %v\n", err)
 	}
@@ -19,7 +19,7 @@ func TestYAML(t *testing.T) {
 		if err != nil {
 			t.Errorf("yangtree creation error: %v\n", err)
 		}
-		file, err := os.Open(fmt.Sprint("data/yaml/sample", i+1, ".yaml"))
+		file, err := os.Open(fmt.Sprint("testdata/yaml/sample", i+1, ".yaml"))
 		if err != nil {
 			t.Errorf("file open err: %v\n", err)
 		}
@@ -62,7 +62,6 @@ func TestYAML(t *testing.T) {
 		if err != nil {
 			t.Errorf("yangtree creation error: %v\n", err)
 		}
-		// fmt.Println(string(b))
 		if err := reversed[i].UnmarshalYAML(b); err != nil {
 			t.Errorf("unmarshalling error: %v\n", err)
 		}

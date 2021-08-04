@@ -7,7 +7,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestChildDataNodeListing(t *testing.T) {
-	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestChildDataNodeListing(t *testing.T) {
 }
 
 func TestDataNode(t *testing.T) {
-	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,8 +294,6 @@ func TestDataNode(t *testing.T) {
 	if node, err := Find(RootData, "/sample"); err != nil {
 		t.Errorf("Find() path %v error = %v", "/sample", err)
 	} else {
-		y, _ := MarshalYAML(node[0])
-		fmt.Println(string(y))
 		if b, err := MarshalJSON(node[0], StateOnly{}); err != nil {
 			t.Errorf("MarshalJSON() StateOnly error = %v", err)
 		} else {
@@ -373,10 +371,10 @@ func TestDataNode(t *testing.T) {
 func TestComplexModel(t *testing.T) {
 	rootschema, err := Load(
 		[]string{
-			"data/modules/choice-case-example.yang",
-			"data/modules/pattern.yang",
-			"data/modules/openconfig-simple-target.yang",
-			"data/modules/openconfig-simple-augment.yang",
+			"testdata/modules/choice-case-example.yang",
+			"testdata/modules/pattern.yang",
+			"testdata/modules/openconfig-simple-target.yang",
+			"testdata/modules/openconfig-simple-augment.yang",
 		}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -454,7 +452,7 @@ func TestComplexModel(t *testing.T) {
 func TestCreatedWithDefault(t *testing.T) {
 	rootschema, err := Load(
 		[]string{
-			"data/modules/default.yang",
+			"testdata/modules/default.yang",
 		}, nil, nil, SchemaOption{CreatedWithDefault: true})
 	if err != nil {
 		t.Fatal(err)

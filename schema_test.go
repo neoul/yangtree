@@ -14,10 +14,10 @@ func TestLoad(t *testing.T) {
 		"../../openconfig/public/release/models/openflow/openconfig-openflow.yang",
 		"../../openconfig/public/release/models/platform/openconfig-platform.yang",
 		"../../openconfig/public/release/models/system/openconfig-system.yang",
-		"data/modules/openconfig-simple-target.yang",
-		"data/modules/openconfig-simple-augment.yang",
-		"data/modules/openconfig-simple-deviation.yang",
-		"yang/ietf-yang-library@2016-06-21.yang",
+		"testdata/modules/openconfig-simple-target.yang",
+		"testdata/modules/openconfig-simple-augment.yang",
+		"testdata/modules/openconfig-simple-deviation.yang",
+		"modules/ietf-yang-library@2016-06-21.yang",
 	}
 	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}

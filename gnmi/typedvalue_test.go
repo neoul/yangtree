@@ -10,7 +10,7 @@ import (
 )
 
 func TestValueToTypedValue(t *testing.T) {
-	RootSchema, err := yangtree.Load([]string{"../data/sample"}, nil, nil)
+	RootSchema, err := yangtree.Load([]string{"../testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

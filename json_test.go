@@ -9,7 +9,7 @@ import (
 )
 
 func TestDataNode_JSON(t *testing.T) {
-	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestDataNode_JSON(t *testing.T) {
 }
 
 func TestDataNode_JSON_IETF(t *testing.T) {
-	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 }
 
 func TestDataNode_FindState(t *testing.T) {
-	RootSchema, err := Load([]string{"data/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
