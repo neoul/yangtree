@@ -907,7 +907,7 @@ func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
-				return nil, fmt.Errorf("%q doesn't have a key %q", cschema.Name, keyname[i])
+				continue
 			}
 			delete(pmap, keyname[i])
 			kn, err := New(GetSchema(cschema, keyname[i]), v.(string))
@@ -1116,16 +1116,23 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	}
 	// newly adds a node
 	if first == last {
-		child, err := newChild(branch, cschema, pmap)
-		if err != nil {
-			return err
-		}
-		err = setValue(child, pathnode[1:], value...)
-		if err != nil {
-			child.Remove()
+		var child DataNode
+		if len(pathnode)-1 == 0 {
+			_, err = newChild(branch, cschema, pmap, value...)
+		} else {
+			child, err = newChild(branch, cschema, pmap)
+			if err != nil {
+				return err
+			}
+			err = setValue(child, pathnode[1:], value...)
+			if err != nil {
+				child.Remove()
+			}
 		}
 		return err
 	}
+	_, needToUpdate := pmap["@need-to-update"]
+
 	// updates existent nodes
 	if !cschema.IsDir() { // predicate for self value ==> [.=VALUE]
 		if v, ok := pmap["."]; ok {
@@ -1133,7 +1140,13 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		}
 	}
 	for ; first < last; first++ {
-		if err := setValue(root.Child(first), pathnode[1:], value...); err != nil {
+		child := root.Child(first)
+		if needToUpdate {
+			if err := UpdateChild(child, pmap); err != nil {
+				return err
+			}
+		}
+		if err := setValue(child, pathnode[1:], value...); err != nil {
 			return err
 		}
 	}
@@ -1449,7 +1462,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	}
 	_, prefixsearch := pmap["@prefix"]
 	first, last = indexRange(branch, key, prefixsearch)
-	if _, ok := pmap["@findbypredicates"]; ok {
+	if _, ok := pmap["@find-in-order"]; ok {
 		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
 	} else {
 		if index, ok := pmap["@index"]; ok {
@@ -1551,7 +1564,7 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	}
 	_, prefixsearch := pmap["@prefix"]
 	first, last = indexRange(branch, key, prefixsearch)
-	if _, ok := pmap["@findbypredicates"]; ok {
+	if _, ok := pmap["@find-in-order"]; ok {
 		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
 	} else {
 		if index, ok := pmap["@index"]; ok {

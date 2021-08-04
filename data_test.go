@@ -333,7 +333,7 @@ func TestDataNode(t *testing.T) {
 		}
 		for j := range value {
 			v := value[j]
-			t.Log(" - Find", j, "", ValueToString(v))
+			t.Log(" - Find", j+1, "", ValueToString(v))
 		}
 	}
 

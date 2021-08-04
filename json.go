@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
@@ -224,15 +225,20 @@ func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
 	switch jj := jnodeTree.(type) {
 	case map[string]interface{}:
 		buffer.WriteString(`{`)
-		for key, val := range jj {
+		k := make([]string, 0, len(jj))
+		for key := range jj {
+			k = append(k, key)
+		}
+		sort.Slice(k, func(i, j int) bool { return k[i] < k[j] })
+		for i := range k {
 			if comma {
 				buffer.WriteString(",")
 			}
 			comma = true
 			buffer.WriteString(`"`)
-			buffer.WriteString(key)
+			buffer.WriteString(k[i])
 			buffer.WriteString(`":`)
-			if err := marshalJNodeTree(buffer, val); err != nil {
+			if err := marshalJNodeTree(buffer, jj[k[i]]); err != nil {
 				return err
 			}
 		}

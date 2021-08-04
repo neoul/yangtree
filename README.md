@@ -72,4 +72,5 @@ yangtree is a Go utilities that can be used to:
 
 ## ToDo
 
-JSON encoding - QName for list node
+- RFC7952 - Defining and Using Metadata with YANG
+  - Check extension for YANG metadata

@@ -1,0 +1,12 @@
+module openconfig-simple-deviation {
+  prefix "oc-simple-deviation";
+  namespace "urn:oc-simple-deviation";
+
+  import openconfig-simple-target { prefix "t"; }
+
+  deviation /t:native/t:state/t:b {
+    description "Not supported";
+    deviate not-supported;
+  }
+}
+

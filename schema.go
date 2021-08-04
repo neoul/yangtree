@@ -222,7 +222,7 @@ func setIdentityref(schema *yang.Entry, identityref map[string]string) error {
 	return fmt.Errorf("no schema meta data for setting identityref")
 }
 
-func getModule(schema *yang.Entry) *yang.Module {
+func GetModule(schema *yang.Entry) *yang.Module {
 	if data, ok := schema.Annotation["meta"]; ok {
 		if m, ok := data.(*SchemaMetadata); ok {
 			return m.Module
@@ -323,6 +323,16 @@ func IsRootSchema(schema *yang.Entry) bool {
 	return false
 }
 
+func GetRootSchema(schema *yang.Entry) *yang.Entry {
+	for schema != nil {
+		if IsRootSchema(schema) {
+			return schema
+		}
+		schema = schema.Parent
+	}
+	return nil
+}
+
 // IsDuplicatedList() checks the data nodes can be duplicated.
 func IsDuplicatedList(schema *yang.Entry) bool {
 	return schema.IsList() && schema.Key == ""
@@ -382,8 +392,8 @@ func updateSchemaEntry(parent, schema *yang.Entry, current *yang.Module, modules
 	meta.Module = module
 
 	// namespace-qualified name of RFC 7951
-	nsname := strings.Join([]string{module.Name, ":", schema.Name}, "")
-	meta.QName = nsname
+	qname := strings.Join([]string{module.Name, ":", schema.Name}, "")
+	meta.QName = qname
 	if current != module {
 		meta.Qboundary = true
 	}
@@ -471,9 +481,17 @@ func (me MultipleError) Error() string {
 	return errstr.String()
 }
 
-func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, error) {
+func generateSchemaTree(d, f, e []string, option ...Option) (*yang.Entry, error) {
 	if len(f) == 0 {
 		return nil, fmt.Errorf("no yang file")
+	}
+
+	var schemaOption SchemaOption
+	for i := range option {
+		switch o := option[i].(type) {
+		case SchemaOption:
+			schemaOption = o
+		}
 	}
 
 	ms := yang.NewModules()
@@ -504,7 +522,7 @@ func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, err
 	for x, n := range names {
 		entries[x] = yang.ToEntry(mods[n])
 	}
-	root := buildRootEntry(mods, option)
+	root := buildRootEntry(mods, schemaOption)
 	for _, mentry := range entries {
 		skip := false
 		for i := range e {
@@ -515,7 +533,7 @@ func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, err
 		if !skip {
 			for _, schema := range mentry.Dir {
 				if same, ok := root.Dir[schema.Name]; ok {
-					mo := getModule(same)
+					mo := GetModule(same)
 					return nil, fmt.Errorf(
 						"duplicated schema found: %q, %q",
 						mentry.Name, mo.Name)
@@ -526,6 +544,12 @@ func generateSchemaTree(d, f, e []string, option SchemaOption) (*yang.Entry, err
 					return nil, err
 				}
 			}
+		}
+	}
+	if _, ok := mods["ietf-yang-library"]; ok {
+		err := loadYanglibrary(root, ms)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return root, nil
@@ -566,13 +590,8 @@ func Load(file, dir, excluded []string, option ...Option) (*yang.Entry, error) {
 	// for _, file := range file {
 	// 	fmt.Printf("loading %s yang file\n", file)
 	// }
-	var op SchemaOption
-	for i := range option {
-		if o, ok := option[i].(SchemaOption); ok {
-			op = o
-		}
-	}
-	return generateSchemaTree(dir, file, excluded, op)
+
+	return generateSchemaTree(dir, file, excluded, option...)
 }
 
 // GetAllChildSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
@@ -649,6 +668,14 @@ func FindSchema(schema *yang.Entry, path string) *yang.Entry {
 		}
 	}
 	return target
+}
+
+func FindModule(schema *yang.Entry, path string) *yang.Module {
+	e := FindSchema(schema, path)
+	if e == nil {
+		return nil
+	}
+	return GetModule(e)
 }
 
 func HasUniqueListParent(schema *yang.Entry) bool {

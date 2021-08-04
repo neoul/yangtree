@@ -1,0 +1,28 @@
+package yangtree
+
+import (
+	"testing"
+)
+
+func TestLoad(t *testing.T) {
+	file := []string{
+
+		"../../YangModels/yang/standard/ietf/RFC/iana-if-type@2017-01-19.yang",
+		"../../openconfig/public/release/models/interfaces/openconfig-interfaces.yang",
+		"../../openconfig/public/release/models/system/openconfig-messages.yang",
+		"../../openconfig/public/release/models/telemetry/openconfig-telemetry.yang",
+		"../../openconfig/public/release/models/openflow/openconfig-openflow.yang",
+		"../../openconfig/public/release/models/platform/openconfig-platform.yang",
+		"../../openconfig/public/release/models/system/openconfig-system.yang",
+		"data/modules/openconfig-simple-target.yang",
+		"data/modules/openconfig-simple-augment.yang",
+		"data/modules/openconfig-simple-deviation.yang",
+		"yang/ietf-yang-library@2016-06-21.yang",
+	}
+	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
+	excluded := []string{"ietf-interfaces"}
+	_, err := Load(file, dir, excluded)
+	if err != nil {
+		t.Fatalf("error in loading: %v", err)
+	}
+}

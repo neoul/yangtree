@@ -180,27 +180,33 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 		if err != nil {
 			return "", nil, err
 		}
-		tokenlen := len(token)
-		if tokenlen != 3 || (tokenlen == 3 && token[1] != "=") {
-			p["@findbypredicates"] = true
+		if len(token) < 2 || len(token) > 3 ||
+			((len(token) == 2 || len(token) == 3) && token[1] != "=") {
+			p["@find-in-order"] = true
 			if IsUniqueList(schema) {
 				p["@prefix"] = true
 			}
-			return pathnode.Name, p, nil
+			continue
+		}
+		var value string
+		if len(token) > 2 {
+			value = token[2]
 		}
 		if token[0] == "." {
-			p["."] = token[2]
+			p["."] = value
 			continue
 		}
 		cschema, ok := meta.Dir[token[0]]
 		if !ok {
-			p["@findbypredicates"] = true
+			p["@find-in-order"] = true
 			if IsUniqueList(schema) {
 				p["@prefix"] = true
 			}
 			return pathnode.Name, p, nil
 		}
-		value := token[2]
+		if !IsKeyNode(cschema) {
+			p["@need-to-update"] = true
+		}
 		if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
 			value = strings.Trim(value, "'")
 		}
@@ -251,12 +257,12 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 			}
 		}
 		if usedPredicates < numP {
-			p["@findbypredicates"] = true
+			p["@find-in-order"] = true
 		}
 		return key.String(), p, nil
 	}
 	if numP > 0 {
-		p["@findbypredicates"] = true
+		p["@find-in-order"] = true
 	}
 	return pathnode.Name, p, nil
 }
