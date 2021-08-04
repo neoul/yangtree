@@ -547,7 +547,7 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*yang.Entry, error)
 		}
 	}
 	if _, ok := mods["ietf-yang-library"]; ok {
-		err := loadYanglibrary(root, ms)
+		err := loadYanglibrary(root, mods, e)
 		if err != nil {
 			return nil, err
 		}

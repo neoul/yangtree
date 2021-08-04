@@ -113,7 +113,12 @@ func checkAccessableObjects(p yang.Node, nodelist interface{}) bool {
 	return false
 }
 
-func getConformanceType(m *yang.Module) (conformancetype string) {
+func getConformanceType(m *yang.Module, excluded []string) (conformancetype string) {
+	for i := range excluded {
+		if excluded[i] == m.Name {
+			return "import"
+		}
+	}
 	// check the module has protocol-accessible objects.
 	implement := false
 	if len(m.Augment) > 0 {
@@ -164,8 +169,8 @@ func getConformanceType(m *yang.Module) (conformancetype string) {
 	return
 }
 
-func loadYanglibrary(rootschema *yang.Entry, ms *yang.Modules) error {
-	ylib := ms.Modules["ietf-yang-library"]
+func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, excluded []string) error {
+	ylib := module["ietf-yang-library"]
 	var err error
 	var top DataNode
 	switch ylib.Current() {
@@ -176,7 +181,7 @@ func loadYanglibrary(rootschema *yang.Entry, ms *yang.Modules) error {
 		if err != nil {
 			return fmt.Errorf(`yanglibrary: "modules-state" not found`)
 		}
-		for _, m := range ms.Modules {
+		for _, m := range module {
 			name, revision, namespace := m.Name, m.Current(), ""
 			if m.Namespace != nil {
 				namespace = m.Namespace.Name
@@ -184,7 +189,7 @@ func loadYanglibrary(rootschema *yang.Entry, ms *yang.Modules) error {
 			// module
 			if m.BelongsTo == nil {
 				err := Set(top, fmt.Sprintf("module[name=%s][revision=%s][namespace=%s][conformance-type=%s]",
-					name, revision, namespace, getConformanceType(m)))
+					name, revision, namespace, getConformanceType(m, excluded)))
 				if err != nil {
 					return fmt.Errorf("yanglibrary: unable to add module %q in modules-state: %v", name, err)
 				}
@@ -206,7 +211,7 @@ func loadYanglibrary(rootschema *yang.Entry, ms *yang.Modules) error {
 				prefix := pathnode[len(pathnode)-1].Prefix
 				target := yang.FindModuleByPrefix(m, prefix)
 				if target == nil {
-					target = ms.Modules[prefix]
+					target = module[prefix]
 					if target == nil {
 						return fmt.Errorf("yanglibrary: deviation schema %q not found", m.Deviation[i].Name)
 					}
