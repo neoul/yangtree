@@ -16,7 +16,8 @@ import (
 
 // SchemaOption is the widely used option for the creation/deletion of the data tree.
 type SchemaOption struct {
-	CreatedWithDefault bool // DataNode (data node) is created with the default value of the schema if set.
+	CreatedWithDefault bool   // DataNode (data node) is created with the default value of the schema if set.
+	SchemaName         string // The name of the schema tree
 }
 
 func (schemaoption SchemaOption) IsOption() {}

@@ -1,6 +1,7 @@
 module openconfig-simple-target {
   prefix "t";
   namespace "urn:t";
+  revision "2021-08-05";
 
   container target {}
 

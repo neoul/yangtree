@@ -1,6 +1,7 @@
 module openconfig-simple-augment {
   prefix "a";
   namespace "urn:a";
+  revision "2021-08-05";
 
   import openconfig-simple-target { prefix "t"; }
 
