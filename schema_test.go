@@ -47,3 +47,19 @@ func TestYANGLibrary(t *testing.T) {
 		t.Fatalf("error in loading: %v", err)
 	}
 }
+func TestYANGMetaData(t *testing.T) {
+	file := []string{
+		"testdata/modules/example-last-modified.yang",
+		// "testdata/modules/openconfig-simple-target.yang",
+		// "testdata/modules/openconfig-simple-augment.yang",
+		// "testdata/modules/openconfig-simple-deviation.yang",
+		// "modules/ietf-yang-metadata@2016-08-05.yang",
+		// "modules/ietf-yang-metadata@2016-08-05.yang",
+	}
+	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
+	excluded := []string{"ietf-interfaces"}
+	_, err := Load(file, dir, excluded)
+	if err != nil {
+		t.Fatalf("error in loading: %v", err)
+	}
+}
