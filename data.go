@@ -401,6 +401,16 @@ func (branch *DataBranch) Delete(child DataNode) error {
 	return fmt.Errorf("%q not found on %q", child, branch)
 }
 
+// [FIXME] - metadata
+// SetMeta() sets metadata key-value pairs.
+// The odd arguments must be the key names of the metadata.
+// The even arguments must be the value of the metadata.
+//   e.g. node.SetMeta("operation", "replace", "last-modified", "2015-06-18T17:01:14+02:00")
+//   // metadata["operation"]="replace", metadata["last-modified"]="2015-06-18T17:01:14+02:00"
+func (branch *DataBranch) SetMeta(meta ...string) error {
+	return nil
+}
+
 func (branch *DataBranch) Exist(key string) bool {
 	length := len(branch.children)
 	i := sort.Search(length,
@@ -656,6 +666,16 @@ func (leaf *DataLeaf) Delete(child DataNode) error {
 	return fmt.Errorf("delete is not supported on %q", leaf)
 }
 
+// [FIXME] - metadata
+// SetMeta() sets metadata key-value pairs.
+// The odd arguments must be the key names of the metadata.
+// The even arguments must be the value of the metadata.
+//   e.g. node.SetMeta("operation", "replace", "last-modified", "2015-06-18T17:01:14+02:00")
+//   // metadata["operation"]="replace", metadata["last-modified"]="2015-06-18T17:01:14+02:00"
+func (leaf *DataLeaf) SetMeta(meta ...string) error {
+	return nil
+}
+
 func (leaf *DataLeaf) Exist(key string) bool {
 	return false
 }
@@ -843,6 +863,16 @@ func (leaflist *DataLeafList) Insert(child DataNode) error {
 
 func (leaflist *DataLeafList) Delete(child DataNode) error {
 	return fmt.Errorf("delete is not supported on %q", leaflist)
+}
+
+// [FIXME] - metadata
+// SetMeta() sets metadata key-value pairs.
+// The odd arguments must be the key names of the metadata.
+// The even arguments must be the value of the metadata.
+//   e.g. node.SetMeta("operation", "replace", "last-modified", "2015-06-18T17:01:14+02:00")
+//   // metadata["operation"]="replace", metadata["last-modified"]="2015-06-18T17:01:14+02:00"
+func (leaflist *DataLeafList) SetMeta(meta ...string) error {
+	return nil
 }
 
 func (leaflist *DataLeafList) Get(key string) DataNode {
@@ -1081,6 +1111,11 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	if pathnode[0].Name == "" {
 		return root.Set(value...)
 	}
+	// [FIXME] - metadata
+	// if strings.HasPrefix(pathnode[0].Name, "@") {
+	// 	return root.SetMeta(value...)
+	// }
+
 	if LeafListValueAsKey {
 		if root.Schema().IsLeafList() {
 			value = append(value, pathnode[0].Name)
