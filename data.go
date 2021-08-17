@@ -1382,8 +1382,11 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 			value = append(value, v.(string))
 		}
 	}
-	for ; first < last; first++ {
-		if err := deleteValue(root.Child(first), pathnode[1:], value...); err != nil {
+	if first >= last {
+		return nil
+	}
+	for _, node := range branch.children[first:last] {
+		if err := deleteValue(node, pathnode[1:], value...); err != nil {
 			return err
 		}
 	}

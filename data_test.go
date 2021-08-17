@@ -205,6 +205,7 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample/str-val", value: []string{"abc"}},
 		{wantInsertErr: false, path: "/sample/empty-val", value: []string{"true"}},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list", value: []string{`{"list-key": "ZZZ"}`}},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/country-code", value: []string{"KR"}},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"100"}},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: []string{"1.01"}},
@@ -232,7 +233,6 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: nil},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: []string{"/sample:sample/sample:container-val/a"}},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: []string{"5"}},
-
 		{wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: []string{"true"}},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"493"}},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: []string{"500"}},
