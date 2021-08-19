@@ -142,3 +142,17 @@ func TestYANGMetaData(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestYANGExtension(t *testing.T) {
+	yangfiles := []string{
+		"testdata/sample/sample.yang",
+		"testdata/modules/example-last-modified.yang",
+		"modules/ietf-restconf@2017-01-26.yang",
+	}
+	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
+	excluded := []string{"ietf-interfaces"}
+	_, err := Load(yangfiles, dir, excluded)
+	if err != nil {
+		t.Fatalf("error in loading: %v", err)
+	}
+}

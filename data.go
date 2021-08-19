@@ -172,6 +172,7 @@ type DataBranch struct {
 	parent   *DataBranch
 	key      string
 	children []DataNode
+	metadata map[string]DataNode
 }
 
 func (branch *DataBranch) IsYangDataNode()     {}
@@ -403,11 +404,30 @@ func (branch *DataBranch) Delete(child DataNode) error {
 
 // [FIXME] - metadata
 // SetMeta() sets metadata key-value pairs.
-// The odd arguments must be the key names of the metadata.
-// The even arguments must be the value of the metadata.
-//   e.g. node.SetMeta("operation", "replace", "last-modified", "2015-06-18T17:01:14+02:00")
-//   // metadata["operation"]="replace", metadata["last-modified"]="2015-06-18T17:01:14+02:00"
-func (branch *DataBranch) SetMeta(meta ...string) error {
+//   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
+func (branch *DataBranch) SetMeta(meta ...map[string]string) error {
+	sm := GetSchemaMeta(branch.schema)
+	if sm.Option == nil {
+		return fmt.Errorf("no metadata schema")
+	}
+	// metaschema := sm.Option.ExtensionSchema
+	// for i := range meta {
+	// 	for name, value := range meta[i] {
+	// 		schema := metaschema[name]
+	// 		if schema == nil {
+	// 			return fmt.Errorf("metadata schema %q not found", name)
+	// 		}
+	// 		if branch.metadata == nil {
+	// 			branch.metadata = map[string]DataNode{}
+	// 		}
+
+	// 		metanode, err := New(schema, value)
+	// 		if err != nil {
+	// 			return fmt.Errorf("error in seting metadata: %v", err)
+	// 		}
+	// 		branch.metadata[name] = metanode
+	// 	}
+	// }
 	return nil
 }
 
@@ -668,11 +688,8 @@ func (leaf *DataLeaf) Delete(child DataNode) error {
 
 // [FIXME] - metadata
 // SetMeta() sets metadata key-value pairs.
-// The odd arguments must be the key names of the metadata.
-// The even arguments must be the value of the metadata.
-//   e.g. node.SetMeta("operation", "replace", "last-modified", "2015-06-18T17:01:14+02:00")
-//   // metadata["operation"]="replace", metadata["last-modified"]="2015-06-18T17:01:14+02:00"
-func (leaf *DataLeaf) SetMeta(meta ...string) error {
+//   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
+func (leaf *DataLeaf) SetMeta(meta ...map[string]string) error {
 	return nil
 }
 
@@ -867,11 +884,8 @@ func (leaflist *DataLeafList) Delete(child DataNode) error {
 
 // [FIXME] - metadata
 // SetMeta() sets metadata key-value pairs.
-// The odd arguments must be the key names of the metadata.
-// The even arguments must be the value of the metadata.
-//   e.g. node.SetMeta("operation", "replace", "last-modified", "2015-06-18T17:01:14+02:00")
-//   // metadata["operation"]="replace", metadata["last-modified"]="2015-06-18T17:01:14+02:00"
-func (leaflist *DataLeafList) SetMeta(meta ...string) error {
+//   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
+func (leaflist *DataLeafList) SetMeta(meta ...map[string]string) error {
 	return nil
 }
 

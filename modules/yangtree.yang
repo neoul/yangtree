@@ -1,0 +1,14 @@
+module yangtree {
+  prefix "yangtree";
+  namespace "https://github.com/neoul/yangtree/modules/yangtree.yang";
+  organization "yangtree";
+  contact "neoul@ymail.com";
+  description "fake root for generating single schema yangtree";
+
+  revision "2020-08-18" {
+    description "Inital model";
+  }
+
+  container root {
+  }
+}

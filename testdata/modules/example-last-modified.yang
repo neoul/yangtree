@@ -13,11 +13,5 @@ module example-last-modified {
             "This annotation contains the date and time when the
             annotated instance was last modified (or created).";
     }
-
-    md:annotation operations {
-        type string;
-        description
-            "This annotation contains the date and time when the
-            annotated instance was last modified (or created).";
     }
 }

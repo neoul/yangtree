@@ -23,7 +23,7 @@ func main() {
 	}
 	dir := []string{"../../../openconfig/public/", "../../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
-	schema, err := yangtree.Load(file, dir, excluded)
+	schema, err := yangtree.Load(file, dir, excluded, yangtree.SchemaOption{YANGLibrary2019: true})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error in loading: %v", err)
 		os.Exit(1)

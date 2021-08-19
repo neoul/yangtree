@@ -621,9 +621,7 @@ func findAllPossiblePath(schema *yang.Entry, prefix []string, pathnode []*PathNo
 		}
 		return findAllPossiblePath(schema.Parent, []string{".."}, pathnode[1:])
 	case NodeSelectFromRoot:
-		for schema.Parent != nil {
-			schema = schema.Parent
-		}
+		schema = GetRootSchema(schema)
 	case NodeSelectAllChildren:
 		cschema := GetAllChildSchema(schema)
 		if len(cschema) == 0 {
