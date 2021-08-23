@@ -505,6 +505,10 @@ func (branch *DataBranch) Len() int {
 	return len(branch.children)
 }
 
+func (branch *DataBranch) Name() string {
+	return branch.schema.Name
+}
+
 func (branch *DataBranch) Key() string {
 	if branch.parent != nil {
 		if branch.key == "" {
@@ -675,6 +679,10 @@ func (leaf *DataLeaf) Len() int {
 		return 0
 	}
 	return 1
+}
+
+func (leaf *DataLeaf) Name() string {
+	return leaf.schema.Name
 }
 
 func (leaf *DataLeaf) Key() string {
@@ -876,6 +884,10 @@ func (leaflist *DataLeafList) Exist(key string) bool {
 		return i < length && ValueToString(leaflist.value[i]) == key
 	}
 	return false
+}
+
+func (leaflist *DataLeafList) Name() string {
+	return leaflist.schema.Name
 }
 
 func (leaflist *DataLeafList) Key() string {
