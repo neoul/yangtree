@@ -45,6 +45,9 @@ module sample {
         type uint64;
       }
     }
+    list ordered-by-user-list {
+      ordered-by user;
+    }
 
     list non-key-list {
       leaf uintval { type uint32; }

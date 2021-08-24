@@ -29,20 +29,21 @@ func (schemaoption SchemaOption) IsOption() {}
 
 // SchemaMetadata is used to keep the additional data for each schema entry.
 type SchemaMetadata struct {
-	Module      *yang.Module // used to store the module of the schema entry
-	Child       []*yang.Entry
-	Dir         map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
-	Enum        map[string]int64       // used to store all enumeration string
-	Identityref map[string]string      // used to store all identity values of the schema entry
-	Keyname     []string               // used to store key list
-	QName       string                 // namespace-qualified name of RFC 7951
-	Qboundary   bool                   // used to indicate the boundary of the namespace-qualified name of RFC 7951
-	IsRoot      bool                   // used to indicate the schema is the root of the schema tree.
-	IsKey       bool                   // used to indicate the schema entry is a key node of a list.
-	IsState     bool                   // used to indicate the schema entry is state node.
-	HasState    bool                   // used to indicate the schema entry has a state node at least.
-	Option      *SchemaOption
-	Extension   map[string]*yang.Entry
+	Module        *yang.Module // used to store the module of the schema entry
+	Child         []*yang.Entry
+	Dir           map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
+	Enum          map[string]int64       // used to store all enumeration string
+	Identityref   map[string]string      // used to store all identity values of the schema entry
+	Keyname       []string               // used to store key list
+	QName         string                 // namespace-qualified name of RFC 7951
+	Qboundary     bool                   // used to indicate the boundary of the namespace-qualified name of RFC 7951
+	IsRoot        bool                   // used to indicate the schema is the root of the schema tree.
+	IsKey         bool                   // used to indicate the schema entry is a key node of a list.
+	IsState       bool                   // used to indicate the schema entry is state node.
+	HasState      bool                   // used to indicate the schema entry has a state node at least.
+	OrderedByUser bool
+	Option        *SchemaOption
+	Extension     map[string]*yang.Entry
 }
 
 func newSchemaAnnotation(schema *yang.Entry, option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) {
@@ -349,6 +350,11 @@ func IsList(schema *yang.Entry) bool {
 	return schema.IsList()
 }
 
+func IsDuplicatable(schema *yang.Entry) bool {
+	return (schema.IsList() && schema.Key == "") ||
+		(schema.IsLeafList() && IsState(schema))
+}
+
 func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
 	if schema == nil {
 		return nil
@@ -405,6 +411,16 @@ func updateSchemaEntry(parent, child *yang.Entry, pmodule *yang.Module, option *
 	meta := GetSchemaMeta(child)
 	module := GetModule(child)
 	meta.Module = module
+
+	orderedByUser := false
+	if child.ListAttr != nil {
+		if child.ListAttr.OrderedBy != nil {
+			if child.ListAttr.OrderedBy.Name == "user" {
+				orderedByUser = true
+			}
+		}
+		meta.OrderedByUser = orderedByUser
+	}
 
 	// namespace-qualified name of RFC 7951
 	qname := strings.Join([]string{module.Name, ":", child.Name}, "")
