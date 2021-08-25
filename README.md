@@ -74,3 +74,15 @@ yangtree is a Go utilities that can be used to:
 
 - RFC7952 - Defining and Using Metadata with YANG
   - Check extension for YANG metadata
+
+# ordered-by
+
+yangtree supports `ordered-by` statement that is used for the ordering of the list and leaf-list entries.
+
+- The `ordered-by` statement can be present in lists and leaf-lists with the following types.
+  - `system`: Sorted by the system
+  - `user`: Sorted by the user
+- This statement is ignored if the list represents state data, RPC output parameters, or notification content.
+- The list and leaf-list are defined to `ordered-by system` by default.
+- `insert` attribute (metadata) is used for the data node set operation if the list or leaf-list nodes are defined with `ordered-by user`.
+- The `insert` attribute has {`first`, `last`, `before`, `after`}.

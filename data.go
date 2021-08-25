@@ -58,6 +58,18 @@ func setParent(node DataNode, parent *DataBranch, key string) {
 	}
 }
 
+func resetParent(node DataNode) {
+	switch c := node.(type) {
+	case *DataBranch:
+		c.parent = nil
+		c.key = ""
+	case *DataLeaf:
+		c.parent = nil
+	case *DataLeafList:
+		c.parent = nil
+	}
+}
+
 // indexRange() returns the index of a child related to the key
 func indexRange(parent *DataBranch, key string, prefixKey bool) (i, max int) {
 	length := len(parent.children)
@@ -270,16 +282,47 @@ func (branch *DataBranch) Remove(value ...string) error {
 	return nil
 }
 
-func (branch *DataBranch) Insert(child DataNode) error {
+type InsertToFirst struct{}
+type InsertToLast struct{}
+type InsertToBefore struct {
+	Key string
+}
+type InsertToAfter struct {
+	Key string
+}
+
+func (o InsertToFirst) IsOption()  {}
+func (o InsertToLast) IsOption()   {}
+func (o InsertToBefore) IsOption() {}
+func (o InsertToAfter) IsOption()  {}
+
+func (branch *DataBranch) Insert(child DataNode, option ...Option) error {
 	if !IsValid(child) {
 		return fmt.Errorf("invalid child data node")
 	}
 	if child.Parent() != nil {
 		return fmt.Errorf("%q is already inserted", child)
 	}
-	if branch.Schema() != GetPresentParentSchema(child.Schema()) {
+	schema := child.Schema()
+	if branch.Schema() != GetPresentParentSchema(schema) {
 		return fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
 	}
+	duplicatable := IsDuplicatable(schema)
+	orderedbyuser := IsOrderedByUser(schema)
+
+	var insertOption Option
+	if orderedbyuser || duplicatable {
+		insertOption = InsertToLast{}
+		for i := range option {
+			switch option[i].(type) {
+			case InsertToFirst, InsertToAfter, InsertToBefore:
+				insertOption = option[i]
+			}
+		}
+	}
+	// meta := GetSchemaMeta(schema)
+	// index := 0
+
 	length := len(branch.children)
 	key := child.Key()
 	if key == "" {
@@ -289,17 +332,42 @@ func (branch *DataBranch) Insert(child DataNode) error {
 		func(j int) bool {
 			return key <= branch.children[j].Key()
 		})
-	// replace the data node if it is exists or add the child.
-	if i < length && branch.children[i].Key() == key &&
-		!IsDuplicatedList(branch.children[i].Schema()) {
-		setParent(branch.children[i], nil, "")
-		branch.children[i] = child
-		setParent(child, branch, key)
-		return nil
+
+	// replace the existent data node if it is not a duplicatable node.
+	if !duplicatable {
+		if i < length && branch.children[i].Key() == key {
+			resetParent(branch.children[i])
+			branch.children[i] = child
+			setParent(child, branch, key)
+			return nil
+		}
 	}
-	for ; i < length; i++ {
-		if key < branch.children[i].Key() {
-			break
+	// insert the new child data node.
+	switch o := insertOption.(type) {
+	case nil:
+		// get the best position
+		for ; i < length; i++ {
+			if key < branch.children[i].Key() {
+				break
+			}
+		}
+	case InsertToLast:
+		for ; i < length; i++ {
+			if schema != branch.children[i].Schema() {
+				break
+			}
+		}
+	case InsertToFirst:
+		name := child.Name()
+		i = sort.Search(length, func(j int) bool { return name <= branch.children[j].Key() })
+	case InsertToBefore:
+		target := child.Name() + o.Key
+		i = sort.Search(length, func(j int) bool { return target <= branch.children[j].Key() })
+	case InsertToAfter:
+		target := child.Name() + o.Key
+		i = sort.Search(length, func(j int) bool { return target <= branch.children[j].Key() })
+		if i < length {
+			i++
 		}
 	}
 	branch.children = append(branch.children, nil)
@@ -624,7 +692,7 @@ func (leaf *DataLeaf) Remove(value ...string) error {
 	return nil
 }
 
-func (leaf *DataLeaf) Insert(child DataNode) error {
+func (leaf *DataLeaf) Insert(child DataNode, option ...Option) error {
 	return fmt.Errorf("insert is not supported on %q", leaf)
 }
 
@@ -824,7 +892,7 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 	return nil
 }
 
-func (leaflist *DataLeafList) Insert(child DataNode) error {
+func (leaflist *DataLeafList) Insert(child DataNode, option ...Option) error {
 	return fmt.Errorf("insert is not supported on %q", leaflist)
 }
 

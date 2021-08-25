@@ -355,6 +355,14 @@ func IsDuplicatable(schema *yang.Entry) bool {
 		(schema.IsLeafList() && IsState(schema))
 }
 
+func IsOrderedByUser(schema *yang.Entry) bool {
+	if m, ok := schema.Annotation["meta"]; ok {
+		meta := m.(*SchemaMetadata)
+		return meta.OrderedByUser
+	}
+	return false
+}
+
 func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
 	if schema == nil {
 		return nil
