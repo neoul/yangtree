@@ -212,8 +212,6 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 		default:
 			return fmt.Errorf("unexpected yaml value \"%v\" (%T) inserted for %q", yval, yval, n)
 		}
-	case *DataLeafList:
-		return n.Set(ValueToString(yval))
 	case *DataLeaf:
 		return n.Set(ValueToString(yval))
 	default:
@@ -239,16 +237,6 @@ func (leaf *DataLeaf) UnmarshalYAML(in []byte) error {
 		return err
 	}
 	return unmarshalYAML(leaf, ydata)
-}
-
-// UnmarshalYAML updates the leaf-list data node using YAML-encoded data.
-func (leaflist *DataLeafList) UnmarshalYAML(in []byte) error {
-	var ydata interface{}
-	err := yaml.Unmarshal(in, &ydata)
-	if err != nil {
-		return err
-	}
-	return unmarshalYAML(leaflist, ydata)
 }
 
 // UnmarshalYAML updates the data node using YAML-encoded data.
@@ -429,34 +417,6 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			}
 			i++
 		}
-	case *DataLeafList:
-		rfc7951enabled := false
-		if ynode.rfc7951() != rfc7951Disabled {
-			rfc7951enabled = true
-		}
-		valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
-		if err != nil {
-			return err
-		}
-		buffer.Write(valbyte)
-		// rfc7951enabled := false
-		// if ynode.rfc7951() != rfc7951Disabled {
-		// 	rfc7951enabled = true
-		// }
-		// for i := 0; i < len(datanode.value); i++ {
-		// 	valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	if disableFirstIndent {
-		// 		disableFirstIndent = false
-		// 	} else {
-		// 		writeIndent(buffer, indent, ynode.indentStr)
-		// 	}
-		// 	buffer.WriteString("- ")
-		// 	buffer.Write(valbyte)
-		// 	buffer.WriteString("\n")
-		// }
 	case *DataLeaf:
 		rfc7951enabled := false
 		if ynode.rfc7951() != rfc7951Disabled {
@@ -492,16 +452,6 @@ func (leaf *DataLeaf) MarshalYAML() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// MarshalYAML encodes the leaf-list data node to a YAML document.
-func (leaflist *DataLeafList) MarshalYAML() ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	ynode := &yDataNode{DataNode: leaflist, indentStr: " "}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
 // MarshalYAML_RFC7951 encodes the branch data node to a YAML document using RFC7951 namespace-qualified name.
 // RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
 func (branch *DataBranch) MarshalYAML_RFC7951() ([]byte, error) {
@@ -518,17 +468,6 @@ func (branch *DataBranch) MarshalYAML_RFC7951() ([]byte, error) {
 func (leaf *DataLeaf) MarshalYAML_RFC7951() ([]byte, error) {
 	buffer := bytes.NewBufferString("")
 	ynode := &yDataNode{DataNode: leaf, indentStr: " ", rfc7951s: rfc7951Enabled}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-// MarshalYAML_RFC7951 encodes the leaf-list data node to a YAML document using RFC7951 namespace-qualified name.
-// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (leaflist *DataLeafList) MarshalYAML_RFC7951() ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	ynode := &yDataNode{DataNode: leaflist, indentStr: " ", rfc7951s: rfc7951Enabled}
 	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
 		return nil, err
 	}

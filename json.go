@@ -110,34 +110,6 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 		}
 		buffer.WriteString(`}`)
 		return nil
-	case *DataLeafList:
-		rfc7951enabled := false
-		if jnode.rfc7951s != rfc7951Disabled {
-			rfc7951enabled = true
-		}
-		b, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
-		if err != nil {
-			return err
-		}
-		buffer.Write(b)
-		// rfc7951enabled := false
-		// if jnode.rfc7951s != rfc7951Disabled {
-		// 	rfc7951enabled = true
-		// }
-		// buffer.WriteString(`[`)
-		// length := len(datanode.value)
-		// for i := 0; i < length; i++ {
-		// 	valbyte, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	buffer.Write(valbyte)
-		// 	if i < length-1 {
-		// 		buffer.WriteString(`,`)
-		// 	}
-		// }
-		// buffer.WriteString(`]`)
-		return nil
 	case *DataLeaf:
 		rfc7951enabled := false
 		if jnode.rfc7951s != rfc7951Disabled {
@@ -292,16 +264,6 @@ func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: leaflist}
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
 func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jDataNode{DataNode: branch}
@@ -316,17 +278,6 @@ func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
 func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jDataNode{DataNode: leaf}
-	jnode.rfc7951s = rfc7951Enabled
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: leaflist}
 	jnode.rfc7951s = rfc7951Enabled
 	err := jnode.marshalJSON(&buffer)
 	if err != nil {
@@ -488,12 +439,6 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 		default:
 			return fmt.Errorf("unexpected json value \"%v\" (%T) inserted for %q", jval, jval, n)
 		}
-	case *DataLeafList:
-		valstr, err := JSONValueToString(jval)
-		if err != nil {
-			return err
-		}
-		return n.Set(valstr)
 	case *DataLeaf:
 		valstr, err := JSONValueToString(jval)
 		if err != nil {
@@ -521,15 +466,6 @@ func (leaf *DataLeaf) UnmarshalJSON(jbytes []byte) error {
 		return err
 	}
 	return unmarshalJSON(leaf, jval)
-}
-
-func (leaflist *DataLeafList) UnmarshalJSON(jbytes []byte) error {
-	var jval interface{}
-	err := json.Unmarshal(jbytes, &jval)
-	if err != nil {
-		return err
-	}
-	return unmarshalJSON(leaflist, jval)
 }
 
 // MarshalJSON returns the JSON encoding of DataNode.

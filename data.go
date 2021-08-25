@@ -53,8 +53,6 @@ func setParent(node DataNode, parent *DataBranch, key *string) {
 		}
 	case *DataLeaf:
 		c.parent = parent
-	case *DataLeafList:
-		c.parent = parent
 		c.key = *key
 	}
 }
@@ -65,8 +63,6 @@ func resetParent(node DataNode) {
 		c.parent = nil
 		c.key = ""
 	case *DataLeaf:
-		c.parent = nil
-	case *DataLeafList:
 		c.parent = nil
 		c.key = ""
 	}
@@ -614,13 +610,14 @@ type DataLeaf struct {
 	schema *yang.Entry
 	parent *DataBranch
 	value  interface{}
+	key    string
 }
 
 func (leaf *DataLeaf) IsYangDataNode()     {}
 func (leaf *DataLeaf) IsNil() bool         { return leaf == nil }
 func (leaf *DataLeaf) IsBranch() bool      { return false }
-func (leaf *DataLeaf) IsLeaf() bool        { return true }
-func (leaf *DataLeaf) IsLeafList() bool    { return false }
+func (leaf *DataLeaf) IsLeaf() bool        { return leaf.schema.IsLeaf() }
+func (leaf *DataLeaf) IsLeafList() bool    { return leaf.schema.IsLeafList() }
 func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
 func (leaf *DataLeaf) Parent() DataNode {
 	if leaf.parent == nil {
@@ -756,241 +753,17 @@ func (leaf *DataLeaf) Name() string {
 }
 
 func (leaf *DataLeaf) Key() string {
-	return leaf.schema.Name
-}
-
-// DataLeafList (leaf-list data node)
-// It can be set by the key
-type DataLeafList struct {
-	schema *yang.Entry
-	parent *DataBranch
-	key    string
-	value  interface{}
-}
-
-func (leaflist *DataLeafList) IsYangDataNode()     {}
-func (leaflist *DataLeafList) IsNil() bool         { return leaflist == nil }
-func (leaflist *DataLeafList) IsBranch() bool      { return false }
-func (leaflist *DataLeafList) IsLeaf() bool        { return false }
-func (leaflist *DataLeafList) IsLeafList() bool    { return true }
-func (leaflist *DataLeafList) Schema() *yang.Entry { return leaflist.schema }
-func (leaflist *DataLeafList) Parent() DataNode {
-	if leaflist.parent == nil {
-		return nil
+	if leaf.schema.IsLeaf() {
+		return leaf.schema.Name
 	}
-	return leaflist.parent
-}
-func (leaflist *DataLeafList) String() string { return leaflist.schema.Name }
-
-func (leaflist *DataLeafList) Path() string {
-	if leaflist == nil {
-		return ""
-	}
-	if leaflist.parent != nil {
-		return leaflist.parent.Path() + "/" + leaflist.Key()
-	}
-	return "/" + leaflist.Key()
-}
-
-func (leaflist *DataLeafList) PathTo(descendant DataNode) string {
-	return ""
-}
-
-func (leaflist *DataLeafList) Value() interface{} {
-	return leaflist.value
-}
-
-func (leaflist *DataLeafList) ValueString() string {
-	b, _ := leaflist.MarshalJSON_IETF()
-	return string(b)
-}
-
-func (leaflist *DataLeafList) New(key string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("new is not supported on %q", leaflist)
-}
-
-func (leaflist *DataLeafList) Update(key string, value ...string) error {
-	return fmt.Errorf("update is not supported %q", leaflist)
-}
-
-func (leaflist *DataLeafList) Set(value ...string) error {
-	if IsKeyNode(leaflist.schema) && leaflist.parent != nil {
-		return nil
-		// [FIXME]
-		// ignore key update
-		// return fmt.Errorf("unable to update key node %q if used", leaflist)
-	}
-	if len(value) == 0 && leaflist.schema.Default != "" {
-		if err := leaflist.Set(leaflist.schema.Default); err != nil {
-			return err
+	// leaf-list key format LEAF[.=VALUE]
+	if leaf.parent != nil {
+		if leaf.key == "" {
+			return leaf.schema.Name
 		}
+		return leaf.key
 	}
-	for i := range value {
-		v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
-		if err != nil {
-			return err
-		}
-		leaflist.value = v
-	}
-	// fmt.Printf("\n##leaflist.value Type %T %v\n", leaflist.value, leaflist.value)
-
-	// [FIXME] - how to process it if the value is the list string?
-	// if len(value) == 2 && value[1] == "" {
-	// 	if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
-	// 		return leaflist.UnmarshalJSON([]byte(value[0]))
-	// 	}
-	// }
-	// if len(value) == 1 {
-	// 	if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
-	// 		return leaflist.UnmarshalJSON([]byte(value[0]))
-	// 	}
-	// }
-	// for i := range value {
-	// 	length := len(leaflist.value)
-	// 	index := sort.Search(length,
-	// 		func(j int) bool {
-	// 			return ValueToString(leaflist.value[j]) >= value[i]
-	// 		})
-	// 	if index < length && ValueToString(leaflist.value[index]) == value[i] {
-	// 		continue
-	// 	}
-	// 	v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	leaflist.value = append(leaflist.value, nil)
-	// 	copy(leaflist.value[index+1:], leaflist.value[index:])
-	// 	leaflist.value[index] = v
-	// }
-	return nil
-}
-
-func (leaflist *DataLeafList) setListValue(value ...interface{}) error {
-	if IsKeyNode(leaflist.schema) && leaflist.parent != nil {
-		return nil
-		// [FIXME]
-		// ignore key update
-		// return fmt.Errorf("unable to update key node %q if used", leaflist)
-	}
-	for i := range value {
-		vstr := ValueToString(value[i])
-		if !leaflist.Exist(vstr) {
-			if err := leaflist.Set(vstr); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (leaflist *DataLeafList) Remove(value ...string) error {
-	if leaflist.parent == nil {
-		return nil
-	}
-	if branch := leaflist.parent; branch != nil {
-		return branch.Delete(leaflist)
-	}
-	// for i := range value {
-	// 	length := len(leaflist.value)
-	// 	index := sort.Search(length,
-	// 		func(j int) bool {
-	// 			return ValueToString(leaflist.value[j]) >= value[i]
-	// 		})
-	// 	if index < length && ValueToString(leaflist.value[index]) == value[i] {
-	// 		leaflist.value = append(leaflist.value[:index], leaflist.value[index+1:]...)
-	// 	}
-	// }
-	// // remove itself if there is no value inserted.
-	// if len(value) == 0 {
-	// 	if leaflist.parent == nil {
-	// 		return nil
-	// 	}
-	// 	if branch := leaflist.parent; branch != nil {
-	// 		branch.Delete(leaflist)
-	// 	}
-	// }
-	return nil
-}
-
-func (leaflist *DataLeafList) Insert(child DataNode, option ...Option) error {
-	return fmt.Errorf("insert is not supported on %q", leaflist)
-}
-
-func (leaflist *DataLeafList) Delete(child DataNode) error {
-	return fmt.Errorf("delete is not supported on %q", leaflist)
-}
-
-// [FIXME] - metadata
-// SetMeta() sets metadata key-value pairs.
-//   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
-func (leaflist *DataLeafList) SetMeta(meta ...map[string]string) error {
-	return nil
-}
-
-func (leaflist *DataLeafList) Get(key string) DataNode {
-	return nil
-}
-
-func (leaflist *DataLeafList) GetAll(key string) []DataNode {
-	return nil
-}
-
-func (leaflist *DataLeafList) GetValue(key string) interface{} {
-	return nil
-}
-
-func (leaflist *DataLeafList) GetValueString(key string) string {
-	return ""
-}
-
-func (leaflist *DataLeafList) Lookup(prefix string) []DataNode {
-	return nil
-}
-
-func (leaflist *DataLeafList) Child(index int) DataNode {
-	return nil
-}
-
-// [FIXME] Should it be supported?
-func (leaflist *DataLeafList) Index(key string) (int, int) {
-	return 0, 0
-}
-
-// [FIXME] Should it be supported?
-func (leaflist *DataLeafList) Len() int {
-	if leaflist.schema.Type.Kind == yang.Yempty {
-		return 1
-	}
-	if leaflist.value == nil {
-		return 0
-	}
-	return 1
-}
-
-// Get finds the key from its value.
-func (leaflist *DataLeafList) Exist(key string) bool {
-	// if LeafListValueAsKey {
-	// 	length := len(leaflist.value)
-	// 	i := sort.Search(length,
-	// 		func(j int) bool {
-	// 			return ValueToString(leaflist.value[j]) >= key
-	// 		})
-	// 	return i < length && ValueToString(leaflist.value[i]) == key
-	// }
-	return false
-}
-
-func (leaflist *DataLeafList) Name() string {
-	return leaflist.schema.Name
-}
-
-func (leaflist *DataLeafList) Key() string {
-	if leaflist.parent != nil {
-		if leaflist.key != "" {
-			return leaflist.key
-		}
-	}
-	return leaflist.schema.Name + "[.=" + ValueToString(leaflist.value) + "]"
+	return leaf.schema.Name + `[.=` + ValueToString(leaf.value) + `]`
 }
 
 func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface{}, value ...string) (DataNode, error) {
@@ -1097,16 +870,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 	var err error
 	var newdata DataNode
 	switch {
-	case schema.Dir == nil && schema.ListAttr != nil: // leaf-list
-		leaflist := &DataLeafList{
-			schema: schema,
-		}
-		err = leaflist.Set(value...)
-		if err != nil {
-			return nil, err
-		}
-		newdata = leaflist
-	case schema.Dir == nil: // leaf
+	case schema.Dir == nil: // leaf, leaf-list
 		leaf := &DataLeaf{
 			schema: schema,
 		}
@@ -1115,9 +879,7 @@ func New(schema *yang.Entry, value ...string) (DataNode, error) {
 			return nil, err
 		}
 		newdata = leaf
-	case schema.ListAttr != nil: // list
-		fallthrough
-	default: // container, case, etc.
+	default: // list, container
 		branch := &DataBranch{
 			schema:   schema,
 			children: []DataNode{},
@@ -1183,12 +945,6 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	// 	return root.SetMeta(value...)
 	// }
 
-	if LeafListValueAsKey {
-		if root.Schema().IsLeafList() {
-			value = append(value, pathnode[0].Name)
-			return root.Set(value...)
-		}
-	}
 	branch, ok := root.(*DataBranch)
 	if !ok {
 		return fmt.Errorf("unable to find children from %q", root)
@@ -1196,6 +952,17 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+	}
+
+	if LeafListValueAsKey && cschema.IsLeafList() {
+		if len(pathnode) == 2 {
+			value = append(value, pathnode[1].Name)
+			child, err := New(cschema, value...)
+			if err != nil {
+				return err
+			}
+			return root.Insert(child)
+		}
 	}
 
 	var first, last int
@@ -1545,12 +1312,12 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	}
 	// [FIXME]
 	if LeafListValueAsKey {
-		if leaflist, ok := root.(*DataLeafList); ok {
-			if leaflist.Exist(pathnode[0].Name) {
-				return returnFound(root, option...)
-			}
-			return nil
-		}
+		// if leaflist, ok := root.(*DataLeafList); ok {
+		// 	if leaflist.Exist(pathnode[0].Name) {
+		// 		return returnFound(root, option...)
+		// 	}
+		// 	return nil
+		// }
 	}
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
 	if cschema == nil {
@@ -1647,12 +1414,12 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	}
 	// [FIXME]
 	if LeafListValueAsKey {
-		if leaflist, ok := root.(*DataLeafList); ok {
-			if leaflist.Exist(pathnode[0].Name) {
-				return []interface{}{pathnode[0].Name}
-			}
-			return nil
-		}
+		// if leaflist, ok := root.(*DataLeafList); ok {
+		// 	if leaflist.Exist(pathnode[0].Name) {
+		// 		return []interface{}{pathnode[0].Name}
+		// 	}
+		// 	return nil
+		// }
 	}
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
 	if cschema == nil {
@@ -1682,23 +1449,10 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	}
 
 	for i := range node {
-		switch {
-		case node[i].IsLeaf():
+		if node[i].IsLeaf() {
 			if v, ok := pmap["."]; ok {
 				if node[i].ValueString() == v {
 					childvalues = append(childvalues, node[i].ValueString())
-				}
-				return childvalues
-			}
-		case node[i].IsLeafList():
-			leaflist := node[i].(*DataLeafList)
-			if v, ok := pmap["."]; ok {
-				if leaflist.Exist(v.(string)) {
-					value, err := StringToValue(leaflist.schema, leaflist.schema.Type, v.(string))
-					if err != nil {
-						return nil
-					}
-					childvalues = append(childvalues, value)
 				}
 				return childvalues
 			}
@@ -1756,22 +1510,6 @@ func clone(destParent *DataBranch, src DataNode) (DataNode, error) {
 			schema: node.schema,
 			value:  node.value,
 		}
-	case *DataLeafList:
-		dest = &DataLeafList{
-			schema: node.schema,
-			value:  node.value,
-		}
-		// var copied []interface{}
-		// if node.value != nil {
-		// 	copied = make([]interface{}, len(node.value))
-		// 	copy(copied, node.value)
-		// } else {
-		// 	copied = nil
-		// }
-		// dest = &DataLeafList{
-		// 	schema: node.schema,
-		// 	value:  copied,
-		// }
 	}
 	if destParent != nil {
 		err := destParent.Insert(dest)
@@ -1820,23 +1558,6 @@ func Equal(node1, node2 DataNode) bool {
 			return cmp.Equal(d1.value, d2.value)
 		}
 		return d1.value == d2.value
-	case *DataLeafList:
-		d2 := node2.(*DataLeafList)
-		if _, ok := d2.value.(yang.Number); ok {
-			return cmp.Equal(d1.value, d2.value)
-		}
-		return d1.value == d2.value
-		// d2 := node2.(*DataLeafList)
-		// if d1.Len() != d2.Len() {
-		// 	return false
-		// }
-		// equal := true
-		// for i := range d1.value {
-		// 	if d1.value[i] != d2.value[i] {
-		// 		equal = false
-		// 	}
-		// }
-		// return equal
 	}
 	return false
 }
@@ -1872,13 +1593,6 @@ func merge(dest, src DataNode) error {
 	case *DataLeaf:
 		d := dest.(*DataLeaf)
 		d.value = s.value
-	case *DataLeafList:
-		d := dest.(*DataLeafList)
-		d.value = s.value
-		// d := dest.(*DataLeafList)
-		// if err := d.setListValue(s.value...); err != nil {
-		// 	return err
-		// }
 	default:
 		return fmt.Errorf("invalid data node type: %T", s)
 	}
@@ -1933,14 +1647,6 @@ func (leaf *DataLeaf) Merge(src DataNode) error {
 	return merge(leaf, src)
 }
 
-// Merge() merges the src data node to the leaflist data node.
-func (leaflist *DataLeafList) Merge(src DataNode) error {
-	if !IsValid(src) {
-		return fmt.Errorf("invalid src data node")
-	}
-	return merge(leaflist, src)
-}
-
 // Replace() replaces itself to the src node.
 func (branch *DataBranch) Replace(src DataNode) error {
 	if !IsValid(src) {
@@ -1970,20 +1676,6 @@ func (leaf *DataLeaf) Replace(src DataNode) error {
 		return fmt.Errorf("no parent node")
 	}
 	return leaf.parent.Insert(src)
-}
-
-// Replace() replaces itself to the src node.
-func (leaflist *DataLeafList) Replace(src DataNode) error {
-	if !IsValid(src) {
-		return fmt.Errorf("invalid src data node")
-	}
-	if leaflist.schema != src.Schema() {
-		return fmt.Errorf("unable to replace the different schema nodes")
-	}
-	if leaflist.parent == nil {
-		return fmt.Errorf("no parent node")
-	}
-	return leaflist.parent.Insert(src)
 }
 
 // Map converts the data node list to a map using the path.

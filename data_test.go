@@ -546,3 +546,45 @@ func TestReplace(t *testing.T) {
 	b, _ := root.MarshalJSON()
 	t.Log(string(b))
 }
+
+func TestLeafList(t *testing.T) {
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	RootData, err := New(RootSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		path          string
+		value         []string
+		wantInsertErr bool
+		wantDeleteErr bool
+	}{
+		// Read-write leaf-list
+		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: nil},
+		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: []string{"leaf-list-1", "leaf-list-2"}},
+		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: []string{"leaf-list-3"}},
+		{wantInsertErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: nil},
+		{wantInsertErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: nil},
+		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: []string{"leaf-list-3"}},
+		// Read-only leaf-list
+		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: []string{"leaf-list-1", "leaf-list-2"}},
+		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: []string{"leaf-list-3"}},
+		{wantInsertErr: false, path: "/sample/leaf-list-ro/leaf-list-4", value: nil},
+		{wantInsertErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: nil},
+		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: []string{"leaf-list-3"}},
+		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: nil},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("Set.%s %v", tt.path, tt.value), func(t *testing.T) {
+			err := Set(RootData, tt.path, tt.value...)
+			if (err != nil) != tt.wantInsertErr {
+				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+			}
+		})
+	}
+	fmt.Println(RootData)
+}

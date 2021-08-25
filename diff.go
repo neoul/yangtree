@@ -60,12 +60,6 @@ func DiffUpdated(node1, node2 DataNode) ([]DataNode, []DataNode) {
 			return nil, nil
 		}
 		return nil, []DataNode{d2}
-	case *DataLeafList:
-		d2 := node2.(*DataLeafList)
-		if Equal(d1, d2) {
-			return nil, nil
-		}
-		return nil, []DataNode{d2}
 	}
 	return nil, nil
 }
@@ -115,8 +109,6 @@ func DiffCreated(node1, node2 DataNode) []DataNode {
 		}
 		return created
 	case *DataLeaf:
-		return nil
-	case *DataLeafList:
 		return nil
 	}
 	return nil

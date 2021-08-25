@@ -110,6 +110,12 @@ module sample {
         }
       }
     }
+    leaf-list leaf-list-ro {
+      config false;
+      type string;
+    }
+    leaf-list leaf-list-rw {
+      type string;
+    }
   }
-  
 }
