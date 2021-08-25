@@ -161,6 +161,23 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 							return err
 						}
 					}
+				case cschema.IsLeafList():
+					vv, ok := v.([]interface{})
+					if !ok {
+						return fmt.Errorf("unexpected type inserted for %q", cschema.Name)
+					}
+					for i := range vv {
+						child, err := New(cschema)
+						if err != nil {
+							return err
+						}
+						if err := unmarshalYAML(child, vv[i]); err != nil {
+							return err
+						}
+						if err := n.Insert(child); err != nil {
+							return err
+						}
+					}
 				default:
 					var child DataNode
 					i, _ := n.Index(keystr)
@@ -196,15 +213,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 			return fmt.Errorf("unexpected yaml value \"%v\" (%T) inserted for %q", yval, yval, n)
 		}
 	case *DataLeafList:
-		if vslice, ok := yval.([]interface{}); ok {
-			for i := range vslice {
-				if err := n.Set(ValueToString(vslice[i])); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-		return fmt.Errorf("unexpected yaml value %q for %s", yval, n)
+		return n.Set(ValueToString(yval))
 	case *DataLeaf:
 		return n.Set(ValueToString(yval))
 	default:
@@ -277,13 +286,15 @@ func (ynode *yDataNode) getQname() string {
 		}
 		return ynode.Schema().Name
 	}
-	if ynode.iformat {
-		return ynode.Key()
+	if ynode.IsBranch() {
+		if ynode.iformat {
+			return ynode.Key()
+		}
 	}
 	return ynode.Schema().Name
 }
 
-func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode) (int, error) {
+func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode) (int, error) {
 	schema := node[i].Schema()
 	ynode := *parent
 	ynode.DataNode = node[i]
@@ -306,7 +317,7 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 			}
 		}
 	}
-	if ynode.rfc7951() != rfc7951Disabled || IsDuplicatedList(schema) {
+	if ynode.rfc7951() != rfc7951Disabled || IsDuplicatedList(schema) || schema.IsLeafList() {
 		writeIndent(buffer, indent, ynode.indentStr)
 		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
@@ -322,6 +333,9 @@ func marshalYAMLList(buffer *bytes.Buffer, node []DataNode, i int, indent int, p
 			err := ynode.marshalYAML(buffer, indent+2, true)
 			if err != nil {
 				return i, err
+			}
+			if ynode.IsLeafList() {
+				buffer.WriteString("\n")
 			}
 		}
 		return i, nil
@@ -379,15 +393,15 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 		node := datanode.children
 		for i := 0; i < len(datanode.children); {
 			schema := node[i].Schema()
-			if IsList(schema) {
+			if IsListable(schema) {
 				var err error
-				i, err = marshalYAMLList(buffer, node, i, indent, ynode)
+				i, err = marshalYAMLListableNode(buffer, node, i, indent, ynode)
 				if err != nil {
 					return err
 				}
 				continue
 			}
-			// container, leaf and leaf-list
+			// container, leaf
 			m := GetSchemaMeta(schema)
 			if (ynode.configOnly == yang.TSTrue && m.IsState) ||
 				(ynode.configOnly == yang.TSFalse && !m.IsState && !m.HasState) {
@@ -420,20 +434,29 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 		if ynode.rfc7951() != rfc7951Disabled {
 			rfc7951enabled = true
 		}
-		for i := 0; i < len(datanode.value); i++ {
-			valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
-			if err != nil {
-				return err
-			}
-			if disableFirstIndent {
-				disableFirstIndent = false
-			} else {
-				writeIndent(buffer, indent, ynode.indentStr)
-			}
-			buffer.WriteString("- ")
-			buffer.Write(valbyte)
-			buffer.WriteString("\n")
+		valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
+		if err != nil {
+			return err
 		}
+		buffer.Write(valbyte)
+		// rfc7951enabled := false
+		// if ynode.rfc7951() != rfc7951Disabled {
+		// 	rfc7951enabled = true
+		// }
+		// for i := 0; i < len(datanode.value); i++ {
+		// 	valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	if disableFirstIndent {
+		// 		disableFirstIndent = false
+		// 	} else {
+		// 		writeIndent(buffer, indent, ynode.indentStr)
+		// 	}
+		// 	buffer.WriteString("- ")
+		// 	buffer.Write(valbyte)
+		// 	buffer.WriteString("\n")
+		// }
 	case *DataLeaf:
 		rfc7951enabled := false
 		if ynode.rfc7951() != rfc7951Disabled {

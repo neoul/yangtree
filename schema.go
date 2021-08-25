@@ -350,6 +350,10 @@ func IsList(schema *yang.Entry) bool {
 	return schema.IsList()
 }
 
+func IsListable(schema *yang.Entry) bool {
+	return schema.ListAttr != nil
+}
+
 func IsDuplicatable(schema *yang.Entry) bool {
 	return (schema.IsList() && schema.Key == "") ||
 		(schema.IsLeafList() && IsState(schema))

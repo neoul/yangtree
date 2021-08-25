@@ -85,8 +85,8 @@ func TestDataNode_JSON(t *testing.T) {
 	}
 	if !reflect.DeepEqual(jdata1, jdata2) {
 		t.Errorf("unmarshaled data is not equal.")
-		t.Log(jdata1)
-		t.Log(jdata2)
+		t.Log("json output    :", jdata1)
+		t.Log("yangtree output:", jdata2)
 	}
 }
 

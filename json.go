@@ -79,7 +79,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 		buffer.WriteString(`{`)
 		for i := 0; i < len(datanode.children); {
 			schema := node[i].Schema()
-			if IsList(schema) {
+			if IsListable(schema) {
 				var err error
 				i, comma, err = marshalJSONList(buffer, node, i, comma, jnode)
 				if err != nil {
@@ -87,7 +87,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 				}
 				continue
 			}
-			// container, leaf or leaflist
+			// container, leaf
 			m := GetSchemaMeta(schema)
 			if (jnode.configOnly == yang.TSTrue && m.IsState) ||
 				(jnode.configOnly == yang.TSFalse && !m.IsState && !m.HasState) {
@@ -115,19 +115,28 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 		if jnode.rfc7951s != rfc7951Disabled {
 			rfc7951enabled = true
 		}
-		buffer.WriteString(`[`)
-		length := len(datanode.value)
-		for i := 0; i < length; i++ {
-			valbyte, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
-			if err != nil {
-				return err
-			}
-			buffer.Write(valbyte)
-			if i < length-1 {
-				buffer.WriteString(`,`)
-			}
+		b, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
+		if err != nil {
+			return err
 		}
-		buffer.WriteString(`]`)
+		buffer.Write(b)
+		// rfc7951enabled := false
+		// if jnode.rfc7951s != rfc7951Disabled {
+		// 	rfc7951enabled = true
+		// }
+		// buffer.WriteString(`[`)
+		// length := len(datanode.value)
+		// for i := 0; i < length; i++ {
+		// 	valbyte, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	buffer.Write(valbyte)
+		// 	if i < length-1 {
+		// 		buffer.WriteString(`,`)
+		// 	}
+		// }
+		// buffer.WriteString(`]`)
 		return nil
 	case *DataLeaf:
 		rfc7951enabled := false
@@ -173,7 +182,7 @@ func marshalJSONList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, p
 	buffer.WriteString(`"`)
 	buffer.WriteString(first.getQname())
 	buffer.WriteString(`":`)
-	if first.rfc7951s != rfc7951Disabled || IsDuplicatedList(schema) {
+	if first.rfc7951s != rfc7951Disabled || IsDuplicatedList(schema) || schema.IsLeafList() {
 		ii := i
 		for ; i < len(node); i++ {
 			if schema != node[i].Schema() {
@@ -367,43 +376,53 @@ func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string,
 	return unmarshalJSON(child, jval)
 }
 
-func (branch *DataBranch) unmarshalJSONListRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
+func (branch *DataBranch) unmarshalJSONListableNodeRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
 	for i := range listentry {
-		jentry, ok := listentry[i].(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("unexpected json type '%T' for %s", listentry[i], cschema.Name)
-		}
-		// check existent DataNode
 		var err error
 		var key strings.Builder
 		key.WriteString(cschema.Name)
-		for i := range kname {
-			key.WriteString("[")
-			key.WriteString(kname[i])
-			key.WriteString("=")
-			key.WriteString(fmt.Sprint(jentry[kname[i]]))
-			key.WriteString("]")
-		}
-
-		var child DataNode
-		if IsDuplicatedList(cschema) {
-			if child, err = branch.New(key.String()); err != nil {
-				return err
-			}
-		} else {
-			found := branch.Get(key.String())
-			if found == nil {
-				if child, err = branch.New(key.String()); err != nil {
+		switch jentry := listentry[i].(type) {
+		case map[string]interface{}:
+			for i := range kname {
+				valstr, err := JSONValueToString(jentry[kname[i]])
+				if err != nil {
 					return err
 				}
-			} else {
-				child = found
+				key.WriteString(`[`)
+				key.WriteString(kname[i])
+				key.WriteString(`=`)
+				key.WriteString(valstr)
+				key.WriteString(`]`)
 			}
+		// case []interface{}:
+		// 	return fmt.Errorf("unexpected json type '%T' for %s", listentry[i], cschema.Name)
+		default:
+			valstr, err := JSONValueToString(jentry)
+			if err != nil {
+				return err
+			}
+			key.WriteString(`[.=` + valstr + `]`)
 		}
 
-		// Update DataNode
-		if err := unmarshalJSON(child, jentry); err != nil {
-			return err
+		var child, created DataNode
+		if !IsDuplicatable(cschema) {
+			child = branch.Get(key.String())
+		}
+		if child == nil {
+			if created, err = branch.New(key.String()); err != nil {
+				return err
+			}
+			child = created
+		}
+
+		// Update DataNode if it is a list node.
+		if IsList(cschema) {
+			if err := unmarshalJSON(child, listentry[i]); err != nil {
+				if created != nil {
+					branch.Delete(created)
+				}
+				return err
+			}
 		}
 	}
 	return nil
@@ -420,9 +439,9 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 					return fmt.Errorf("schema %q not found from %q", k, n.schema.Name)
 				}
 				switch {
-				case IsList(cschema):
+				case IsListable(cschema):
 					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if err := n.unmarshalJSONListRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
+						if err := n.unmarshalJSONListableNodeRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
 							return err
 						}
 					} else {
@@ -470,19 +489,11 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 			return fmt.Errorf("unexpected json value \"%v\" (%T) inserted for %q", jval, jval, n)
 		}
 	case *DataLeafList:
-		if vslice, ok := jval.([]interface{}); ok {
-			for i := range vslice {
-				valstr, err := JSONValueToString(vslice[i])
-				if err != nil {
-					return err
-				}
-				if err = n.Set(valstr); err != nil {
-					return err
-				}
-			}
-			return nil
+		valstr, err := JSONValueToString(jval)
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("unexpected json value %q for %s", jval, n)
+		return n.Set(valstr)
 	case *DataLeaf:
 		valstr, err := JSONValueToString(jval)
 		if err != nil {

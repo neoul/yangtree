@@ -44,17 +44,18 @@ func IsValid(node DataNode) bool {
 	return true
 }
 
-func setParent(node DataNode, parent *DataBranch, key string) {
+func setParent(node DataNode, parent *DataBranch, key *string) {
 	switch c := node.(type) {
 	case *DataBranch:
 		c.parent = parent
 		if IsUniqueList(c.schema) {
-			c.key = key
+			c.key = *key
 		}
 	case *DataLeaf:
 		c.parent = parent
 	case *DataLeafList:
 		c.parent = parent
+		c.key = *key
 	}
 }
 
@@ -67,6 +68,7 @@ func resetParent(node DataNode) {
 		c.parent = nil
 	case *DataLeafList:
 		c.parent = nil
+		c.key = ""
 	}
 }
 
@@ -269,13 +271,13 @@ func (branch *DataBranch) Remove(value ...string) error {
 		})
 	if i < length && branch == parent.children[i] {
 		parent.children = append(parent.children[:i], parent.children[i+1:]...)
-		setParent(branch, nil, "")
+		resetParent(branch)
 		return nil
 	}
 	for i := range parent.children {
 		if parent.children[i] == branch {
 			parent.children = append(parent.children[:i], parent.children[i+1:]...)
-			setParent(branch, nil, "")
+			resetParent(branch)
 			return nil
 		}
 	}
@@ -338,14 +340,14 @@ func (branch *DataBranch) Insert(child DataNode, option ...Option) error {
 		if i < length && branch.children[i].Key() == key {
 			resetParent(branch.children[i])
 			branch.children[i] = child
-			setParent(child, branch, key)
+			setParent(child, branch, &key)
 			return nil
 		}
 	}
 	// insert the new child data node.
 	switch o := insertOption.(type) {
 	case nil:
-		// get the best position
+		// get the best position (ordered-by system)
 		for ; i < length; i++ {
 			if key < branch.children[i].Key() {
 				break
@@ -373,7 +375,7 @@ func (branch *DataBranch) Insert(child DataNode, option ...Option) error {
 	branch.children = append(branch.children, nil)
 	copy(branch.children[i+1:], branch.children[i:])
 	branch.children[i] = child
-	setParent(child, branch, key)
+	setParent(child, branch, &key)
 	return nil
 }
 
@@ -399,13 +401,13 @@ func (branch *DataBranch) Delete(child DataNode) error {
 	if i < length && branch.children[i] == child {
 		c := branch.children[i]
 		branch.children = append(branch.children[:i], branch.children[i+1:]...)
-		setParent(c, nil, "")
+		resetParent(c)
 		return nil
 	}
 	for i := range branch.children {
 		if branch.children[i] == child {
 			branch.children = append(branch.children[:i], branch.children[i+1:]...)
-			setParent(child, nil, "")
+			resetParent(child)
 			return nil
 		}
 	}
@@ -762,7 +764,8 @@ func (leaf *DataLeaf) Key() string {
 type DataLeafList struct {
 	schema *yang.Entry
 	parent *DataBranch
-	value  []interface{}
+	key    string
+	value  interface{}
 }
 
 func (leaflist *DataLeafList) IsYangDataNode()     {}
@@ -817,34 +820,48 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 		// ignore key update
 		// return fmt.Errorf("unable to update key node %q if used", leaflist)
 	}
+	if len(value) == 0 && leaflist.schema.Default != "" {
+		if err := leaflist.Set(leaflist.schema.Default); err != nil {
+			return err
+		}
+	}
+	for i := range value {
+		v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
+		if err != nil {
+			return err
+		}
+		leaflist.value = v
+	}
+	// fmt.Printf("\n##leaflist.value Type %T %v\n", leaflist.value, leaflist.value)
+
 	// [FIXME] - how to process it if the value is the list string?
 	// if len(value) == 2 && value[1] == "" {
 	// 	if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
 	// 		return leaflist.UnmarshalJSON([]byte(value[0]))
 	// 	}
 	// }
-	if len(value) == 1 {
-		if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
-			return leaflist.UnmarshalJSON([]byte(value[0]))
-		}
-	}
-	for i := range value {
-		length := len(leaflist.value)
-		index := sort.Search(length,
-			func(j int) bool {
-				return ValueToString(leaflist.value[j]) >= value[i]
-			})
-		if index < length && ValueToString(leaflist.value[index]) == value[i] {
-			continue
-		}
-		v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
-		if err != nil {
-			return err
-		}
-		leaflist.value = append(leaflist.value, nil)
-		copy(leaflist.value[index+1:], leaflist.value[index:])
-		leaflist.value[index] = v
-	}
+	// if len(value) == 1 {
+	// 	if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
+	// 		return leaflist.UnmarshalJSON([]byte(value[0]))
+	// 	}
+	// }
+	// for i := range value {
+	// 	length := len(leaflist.value)
+	// 	index := sort.Search(length,
+	// 		func(j int) bool {
+	// 			return ValueToString(leaflist.value[j]) >= value[i]
+	// 		})
+	// 	if index < length && ValueToString(leaflist.value[index]) == value[i] {
+	// 		continue
+	// 	}
+	// 	v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	leaflist.value = append(leaflist.value, nil)
+	// 	copy(leaflist.value[index+1:], leaflist.value[index:])
+	// 	leaflist.value[index] = v
+	// }
 	return nil
 }
 
@@ -870,25 +887,28 @@ func (leaflist *DataLeafList) Remove(value ...string) error {
 	if leaflist.parent == nil {
 		return nil
 	}
-	for i := range value {
-		length := len(leaflist.value)
-		index := sort.Search(length,
-			func(j int) bool {
-				return ValueToString(leaflist.value[j]) >= value[i]
-			})
-		if index < length && ValueToString(leaflist.value[index]) == value[i] {
-			leaflist.value = append(leaflist.value[:index], leaflist.value[index+1:]...)
-		}
+	if branch := leaflist.parent; branch != nil {
+		return branch.Delete(leaflist)
 	}
-	// remove itself if there is no value inserted.
-	if len(value) == 0 {
-		if leaflist.parent == nil {
-			return nil
-		}
-		if branch := leaflist.parent; branch != nil {
-			branch.Delete(leaflist)
-		}
-	}
+	// for i := range value {
+	// 	length := len(leaflist.value)
+	// 	index := sort.Search(length,
+	// 		func(j int) bool {
+	// 			return ValueToString(leaflist.value[j]) >= value[i]
+	// 		})
+	// 	if index < length && ValueToString(leaflist.value[index]) == value[i] {
+	// 		leaflist.value = append(leaflist.value[:index], leaflist.value[index+1:]...)
+	// 	}
+	// }
+	// // remove itself if there is no value inserted.
+	// if len(value) == 0 {
+	// 	if leaflist.parent == nil {
+	// 		return nil
+	// 	}
+	// 	if branch := leaflist.parent; branch != nil {
+	// 		branch.Delete(leaflist)
+	// 	}
+	// }
 	return nil
 }
 
@@ -938,19 +958,25 @@ func (leaflist *DataLeafList) Index(key string) (int, int) {
 
 // [FIXME] Should it be supported?
 func (leaflist *DataLeafList) Len() int {
-	return len(leaflist.value)
+	if leaflist.schema.Type.Kind == yang.Yempty {
+		return 1
+	}
+	if leaflist.value == nil {
+		return 0
+	}
+	return 1
 }
 
 // Get finds the key from its value.
 func (leaflist *DataLeafList) Exist(key string) bool {
-	if LeafListValueAsKey {
-		length := len(leaflist.value)
-		i := sort.Search(length,
-			func(j int) bool {
-				return ValueToString(leaflist.value[j]) >= key
-			})
-		return i < length && ValueToString(leaflist.value[i]) == key
-	}
+	// if LeafListValueAsKey {
+	// 	length := len(leaflist.value)
+	// 	i := sort.Search(length,
+	// 		func(j int) bool {
+	// 			return ValueToString(leaflist.value[j]) >= key
+	// 		})
+	// 	return i < length && ValueToString(leaflist.value[i]) == key
+	// }
 	return false
 }
 
@@ -959,7 +985,12 @@ func (leaflist *DataLeafList) Name() string {
 }
 
 func (leaflist *DataLeafList) Key() string {
-	return leaflist.schema.Name
+	if leaflist.parent != nil {
+		if leaflist.key != "" {
+			return leaflist.key
+		}
+	}
+	return leaflist.schema.Name + "[.=" + ValueToString(leaflist.value) + "]"
 }
 
 func newChild(parent *DataBranch, cschema *yang.Entry, pmap map[string]interface{}, value ...string) (DataNode, error) {
@@ -1726,17 +1757,21 @@ func clone(destParent *DataBranch, src DataNode) (DataNode, error) {
 			value:  node.value,
 		}
 	case *DataLeafList:
-		var copied []interface{}
-		if node.value != nil {
-			copied = make([]interface{}, len(node.value))
-			copy(copied, node.value)
-		} else {
-			copied = nil
-		}
 		dest = &DataLeafList{
 			schema: node.schema,
-			value:  copied,
+			value:  node.value,
 		}
+		// var copied []interface{}
+		// if node.value != nil {
+		// 	copied = make([]interface{}, len(node.value))
+		// 	copy(copied, node.value)
+		// } else {
+		// 	copied = nil
+		// }
+		// dest = &DataLeafList{
+		// 	schema: node.schema,
+		// 	value:  copied,
+		// }
 	}
 	if destParent != nil {
 		err := destParent.Insert(dest)
@@ -1787,16 +1822,21 @@ func Equal(node1, node2 DataNode) bool {
 		return d1.value == d2.value
 	case *DataLeafList:
 		d2 := node2.(*DataLeafList)
-		if d1.Len() != d2.Len() {
-			return false
+		if _, ok := d2.value.(yang.Number); ok {
+			return cmp.Equal(d1.value, d2.value)
 		}
-		equal := true
-		for i := range d1.value {
-			if d1.value[i] != d2.value[i] {
-				equal = false
-			}
-		}
-		return equal
+		return d1.value == d2.value
+		// d2 := node2.(*DataLeafList)
+		// if d1.Len() != d2.Len() {
+		// 	return false
+		// }
+		// equal := true
+		// for i := range d1.value {
+		// 	if d1.value[i] != d2.value[i] {
+		// 		equal = false
+		// 	}
+		// }
+		// return equal
 	}
 	return false
 }
@@ -1834,9 +1874,11 @@ func merge(dest, src DataNode) error {
 		d.value = s.value
 	case *DataLeafList:
 		d := dest.(*DataLeafList)
-		if err := d.setListValue(s.value...); err != nil {
-			return err
-		}
+		d.value = s.value
+		// d := dest.(*DataLeafList)
+		// if err := d.setListValue(s.value...); err != nil {
+		// 	return err
+		// }
 	default:
 		return fmt.Errorf("invalid data node type: %T", s)
 	}

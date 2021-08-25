@@ -163,8 +163,8 @@ func ParsePath(path *string) ([]*PathNode, error) {
 }
 
 func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
-	p := map[string]interface{}{}
 	numP := 0
+	p := make(map[string]interface{})
 	if len(pathnode.Predicates) == 1 {
 		if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
 			if index <= 0 {
