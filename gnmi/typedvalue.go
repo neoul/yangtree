@@ -43,7 +43,7 @@ func ValueToTypedValue(val interface{}, enc gnmipb.Encoding) (*gnmipb.TypedValue
 	var tv *gnmipb.TypedValue
 	if node, ok := val.(yangtree.DataNode); ok {
 		switch {
-		case node.IsBranch():
+		case node.IsDataBranch():
 			switch enc {
 			case gnmipb.Encoding_JSON:
 				jbytes, err := node.MarshalJSON()
@@ -60,7 +60,7 @@ func ValueToTypedValue(val interface{}, enc gnmipb.Encoding) (*gnmipb.TypedValue
 			default:
 				return nil, fmt.Errorf("typed value encoding %q not supported", enc)
 			}
-		case node.IsLeaf():
+		case node.IsDataLeaf():
 			return value.FromScalar(val)
 		}
 	}
@@ -156,7 +156,7 @@ func ValueToTypedValue(val interface{}, enc gnmipb.Encoding) (*gnmipb.TypedValue
 }
 
 func DataNodeToTypedValue(node yangtree.DataNode, enc gnmipb.Encoding, option ...yangtree.Option) (*gnmipb.TypedValue, error) {
-	if node.IsBranch() {
+	if node.IsDataBranch() {
 		switch enc {
 		case gnmipb.Encoding_JSON:
 			jbytes, err := yangtree.MarshalJSON(node, option...)

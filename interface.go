@@ -4,12 +4,13 @@ import "github.com/openconfig/goyang/pkg/yang"
 
 type DataNode interface {
 	IsYangDataNode()
-	IsNil() bool      // IsNil() is used to check the data node is null.
-	IsBranch() bool   // IsBranch() returns true if the data node is a branch.
-	IsLeaf() bool     // IsLeaf() returns true if the data node is a leaf.
-	IsLeafList() bool // IsLeafList() returns true if the data node is a leaf-list.
-	Name() string     // Name() returns the name of the data node.
-	Key() string      // Key() returns the key string of the data node. The key is an XPath element combined with XPath predicates.
+	IsNil() bool        // IsNil() is used to check the data node is null.
+	IsDataBranch() bool // IsDataBranch() returns true if the data node is a DataBranch.
+	IsDataLeaf() bool   // IsDataLeaf() returns true if the data node is a DataLeaf.
+	IsLeaf() bool       // IsLeaf() returns true if the data node is a leaf.
+	IsLeafList() bool   // IsLeafList() returns true if the data node is a leaf-list.
+	Name() string       // Name() returns the name of the data node.
+	Key() string        // Key() returns the key string of the data node. The key is an XPath element combined with XPath predicates.
 
 	Schema() *yang.Entry // Schema() returns the schema of the data node.
 	Parent() DataNode    // Parent() returns the parent if it is present.

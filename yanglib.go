@@ -241,10 +241,13 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 							return fmt.Errorf("yanglib: deviation schema %q not found", m.Deviation[i].Name)
 						}
 					}
-					err = Set(top, fmt.Sprintf("module-set[name=%s]/%s[name=%s]/deviation",
-						moduleSetName, listname, target.Name), name)
-					if err != nil {
-						return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+					p := fmt.Sprintf("module-set[name=%s]/%s[name=%s]/deviation",
+						moduleSetName, listname, target.Name)
+					if n, err := Find(top, p+"[.="+name+"]"); err == nil && len(n) == 0 {
+						err = Set(top, p, name)
+						if err != nil {
+							return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+						}
 					}
 				}
 			}
@@ -265,7 +268,7 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 		}
 		var contentId strings.Builder
 		b, _ := MarshalYAML(top, InternalFormat{})
-		fmt.Println(string(b))
+		// fmt.Println(string(b))
 		h := sha1.New()
 		io.WriteString(h, string(b))
 		b = h.Sum(nil)

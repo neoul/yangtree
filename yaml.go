@@ -274,7 +274,7 @@ func (ynode *yDataNode) getQname() string {
 		}
 		return ynode.Schema().Name
 	}
-	if ynode.IsBranch() {
+	if ynode.IsDataBranch() {
 		if ynode.iformat {
 			return ynode.Key()
 		}

@@ -129,7 +129,8 @@ type DataBranch struct {
 
 func (branch *DataBranch) IsYangDataNode()     {}
 func (branch *DataBranch) IsNil() bool         { return branch == nil }
-func (branch *DataBranch) IsBranch() bool      { return true }
+func (branch *DataBranch) IsDataBranch() bool  { return true }
+func (branch *DataBranch) IsDataLeaf() bool    { return false }
 func (branch *DataBranch) IsLeaf() bool        { return false }
 func (branch *DataBranch) IsLeafList() bool    { return false }
 func (branch *DataBranch) Schema() *yang.Entry { return branch.schema }
@@ -203,7 +204,7 @@ func (branch *DataBranch) New(key string, value ...string) (DataNode, error) {
 	if cschema == nil {
 		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-	key, pmap, err := keyGen(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0], nil)
 	if err != nil {
 		return nil, err
 	}
@@ -615,7 +616,8 @@ type DataLeaf struct {
 
 func (leaf *DataLeaf) IsYangDataNode()     {}
 func (leaf *DataLeaf) IsNil() bool         { return leaf == nil }
-func (leaf *DataLeaf) IsBranch() bool      { return false }
+func (leaf *DataLeaf) IsDataBranch() bool  { return false }
+func (leaf *DataLeaf) IsDataLeaf() bool    { return true }
 func (leaf *DataLeaf) IsLeaf() bool        { return leaf.schema.IsLeaf() }
 func (leaf *DataLeaf) IsLeafList() bool    { return leaf.schema.IsLeafList() }
 func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
@@ -954,19 +956,27 @@ func setValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 
-	if LeafListValueAsKey && cschema.IsLeafList() {
-		if len(pathnode) == 2 {
-			value = append(value, pathnode[1].Name)
-			child, err := New(cschema, value...)
-			if err != nil {
-				return err
+	pmap := map[string]interface{}{}
+	if cschema.IsLeafList() {
+		if LeafListValueAsKey {
+			if len(pathnode) == 2 {
+				value = append(value, pathnode[1].Name)
+				child, err := New(cschema, value...)
+				if err != nil {
+					return err
+				}
+				return root.Insert(child)
 			}
-			return root.Insert(child)
+		}
+		for i := range value {
+			pmap["."] = value[i]
 		}
 	}
 
+	var key string
+	var err error
 	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0])
+	key, pmap, err = keyGen(cschema, pathnode[0], pmap)
 	if err != nil {
 		return err
 	}
@@ -1069,7 +1079,7 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 	}
 
 	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0], nil)
 	if err != nil {
 		return err
 	}
@@ -1192,7 +1202,7 @@ func deleteValue(root DataNode, pathnode []*PathNode, value ...string) error {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, root.Schema().Name)
 	}
 	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0], nil)
 	if err != nil {
 		return err
 	}
@@ -1328,15 +1338,17 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 		return nil
 	}
 	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0], nil)
 	if err != nil {
 		return nil
 	}
-	_, prefixsearch := pmap["@prefix"]
-	first, last = indexRange(branch, key, prefixsearch)
+
 	if _, ok := pmap["@find-in-order"]; ok {
+		first, last = indexRange(branch, key, true)
 		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
 	} else {
+		_, prefixsearch := pmap["@prefix"]
+		first, last = indexRange(branch, key, prefixsearch)
 		if index, ok := pmap["@index"]; ok {
 			first, last, err = jumpToIndex(branch, first, index.(int))
 			if err != nil {
@@ -1365,7 +1377,7 @@ func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
 
 func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	if len(pathnode) == 0 {
-		if root.IsBranch() {
+		if root.IsDataBranch() {
 			return nil
 		}
 		return []interface{}{root.Value()}
@@ -1407,7 +1419,7 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	}
 
 	if pathnode[0].Name == "" {
-		if root.IsBranch() {
+		if root.IsDataBranch() {
 			return nil
 		}
 		return []interface{}{root.Value()}
@@ -1430,15 +1442,16 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 		return nil
 	}
 	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0])
+	key, pmap, err := keyGen(cschema, pathnode[0], nil)
 	if err != nil {
 		return nil
 	}
-	_, prefixsearch := pmap["@prefix"]
-	first, last = indexRange(branch, key, prefixsearch)
 	if _, ok := pmap["@find-in-order"]; ok {
+		first, last = indexRange(branch, key, true)
 		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
 	} else {
+		_, prefixsearch := pmap["@prefix"]
+		first, last = indexRange(branch, key, prefixsearch)
 		if index, ok := pmap["@index"]; ok {
 			first, last, err = jumpToIndex(branch, first, index.(int))
 			if err != nil {
@@ -1449,7 +1462,7 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	}
 
 	for i := range node {
-		if node[i].IsLeaf() {
+		if node[i].IsDataLeaf() {
 			if v, ok := pmap["."]; ok {
 				if node[i].ValueString() == v {
 					childvalues = append(childvalues, node[i].ValueString())

@@ -162,17 +162,10 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	return node, nil
 }
 
-func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
+func keyGen(schema *yang.Entry, pathnode *PathNode, pmap map[string]interface{}) (string, map[string]interface{}, error) {
 	numP := 0
-	p := make(map[string]interface{})
-	if len(pathnode.Predicates) == 1 {
-		if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
-			if index <= 0 {
-				return "", nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
-			}
-			p["@index"] = index - 1
-			return pathnode.Name, p, nil
-		}
+	if pmap == nil {
+		pmap = make(map[string]interface{})
 	}
 	meta := GetSchemaMeta(schema)
 	for i := range pathnode.Predicates {
@@ -180,32 +173,44 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 		if err != nil {
 			return "", nil, err
 		}
-		if len(token) < 2 || len(token) > 3 ||
-			((len(token) == 2 || len(token) == 3) && token[1] != "=") {
-			p["@find-in-order"] = true
-			if IsUniqueList(schema) {
-				p["@prefix"] = true
-			}
+		switch len(token) {
+		case 0:
 			continue
+		case 1:
+			if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
+				if index <= 0 {
+					return "", nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
+				}
+				pmap["@index"] = index - 1
+				return pathnode.Name, pmap, nil
+			}
+			pmap["@find-in-order"] = true
+			return pathnode.Name, pmap, nil
+		case 2, 3:
+			if token[1] != "=" {
+				pmap["@find-in-order"] = true
+				return pathnode.Name, pmap, nil
+			}
+		default:
+			pmap["@find-in-order"] = true
+			return pathnode.Name, pmap, nil
 		}
 		var value string
 		if len(token) > 2 {
 			value = token[2]
 		}
 		if token[0] == "." {
-			p["."] = value
+			pmap["."] = value
 			continue
 		}
+
 		cschema, ok := meta.Dir[token[0]]
 		if !ok {
-			p["@find-in-order"] = true
-			if IsUniqueList(schema) {
-				p["@prefix"] = true
-			}
-			return pathnode.Name, p, nil
+			pmap["@find-in-order"] = true
+			return pathnode.Name, pmap, nil
 		}
 		if !IsKeyNode(cschema) {
-			p["@need-to-update"] = true
+			pmap["@need-to-update"] = true
 		}
 		if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
 			value = strings.Trim(value, "'")
@@ -213,17 +218,27 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
 			value = strings.Trim(value, "\"")
 		}
-		if v, exist := p[cschema.Name]; exist {
+		if v, exist := pmap[cschema.Name]; exist {
 			if v != value {
-				return "", nil, fmt.Errorf("invalid path predicates %q", pathnode.Predicates[i])
+				return "", nil, fmt.Errorf("duplicated path predicate %q found", cschema.Name)
 			}
 		}
-
 		numP++
-		p[cschema.Name] = value
+		pmap[cschema.Name] = value
 	}
 
 	switch {
+	case schema.IsLeafList():
+		if v, ok := pmap["."]; ok {
+			var key bytes.Buffer
+			key.WriteString(schema.Name)
+			key.WriteString(`[.=`)
+			key.WriteString(v.(string))
+			key.WriteString(`]`)
+			return key.String(), pmap, nil
+		} else {
+			pmap["@prefix"] = true
+		}
 	case IsUniqueList(schema):
 		var key bytes.Buffer
 		key.WriteString(schema.Name)
@@ -231,22 +246,22 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 		usedPredicates := 0
 	LOOP:
 		for i := range keyname {
-			v, ok := p[keyname[i]]
+			v, ok := pmap[keyname[i]]
 			if !ok {
-				p["@nokey"] = true
-				p["@prefix"] = true
+				pmap["@nokey"] = true
+				pmap["@prefix"] = true
 				break LOOP
 			}
 			usedPredicates++
-			// delete(p, keyname[i])
+			// delete(pmap, keyname[i])
 			value := v.(string)
 			// if value == "" || value == "*" {
-			// 	p["@present"] = true
+			// 	pmap["@present"] = true
 			// 	break LOOP
 			// }
 			switch value {
 			case "*":
-				p["@prefix"] = true
+				pmap["@prefix"] = true
 				break LOOP
 			default:
 				key.WriteString("[")
@@ -257,14 +272,14 @@ func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interfac
 			}
 		}
 		if usedPredicates < numP {
-			p["@find-in-order"] = true
+			pmap["@find-in-order"] = true
 		}
-		return key.String(), p, nil
+		return key.String(), pmap, nil
 	}
 	if numP > 0 {
-		p["@find-in-order"] = true
+		pmap["@find-in-order"] = true
 	}
-	return pathnode.Name, p, nil
+	return pathnode.Name, pmap, nil
 }
 
 func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error) {
@@ -584,7 +599,7 @@ func KeyGen(pschema *yang.Entry, pathnode *PathNode) (string, map[string]interfa
 	if cschema == nil {
 		return "", nil, fmt.Errorf("schema %q not found from %q", pathnode.Name, pschema.Name)
 	}
-	return keyGen(cschema, pathnode)
+	return keyGen(cschema, pathnode, nil)
 }
 
 // FindAllPossiblePath finds all possible paths. It resolves the gNMI path wildcards.

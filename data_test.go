@@ -2,6 +2,7 @@ package yangtree
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -201,40 +202,40 @@ func TestDataNode(t *testing.T) {
 		wantDeleteErr bool
 	}{
 		{wantInsertErr: false, path: "/sample"},
-		// {wantInsertErr: false, path: "/sample/str-val", value: []string{"abc"}},
-		// {wantInsertErr: false, path: "/sample/empty-val", value: []string{"true"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list", value: []string{`{"list-key": "ZZZ"}`}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/country-code", value: []string{"KR"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"100"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: []string{"1.01"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/empty-node", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint64-node[.=1234567890]", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint32-range", value: []string{"200"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=CCC]/uint32-range", value: []string{"300"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=DDD]/uint32-range", value: []string{"400"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=1]/ok", value: []string{"true"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=2]/str", value: []string{"first"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[str=second][integer=1]/str", value: []string{"second"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[sample:str=second][integer=2]/str", value: []string{"second"}},
+		{wantInsertErr: false, path: "/sample/str-val", value: []string{"abc"}},
+		{wantInsertErr: false, path: "/sample/empty-val", value: []string{"true"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list", value: []string{`{"list-key": "ZZZ"}`}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/country-code", value: []string{"KR"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"100"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: []string{"1.01"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/empty-node", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint64-node[.=1234567890]", value: nil},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint32-range", value: []string{"200"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=CCC]/uint32-range", value: []string{"300"}},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=DDD]/uint32-range", value: []string{"400"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=1]/ok", value: []string{"true"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=2]/str", value: []string{"first"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[str=second][integer=1]/str", value: []string{"second"}},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[sample:str=second][integer=2]/str", value: []string{"second"}},
 		{wantInsertErr: false, path: "/sample:sample/container-val", value: nil},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: nil},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: []string{"leaf-list-first", "leaf-list-second"}},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: []string{"leaf-list-third"}},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val/leaf-list-fourth", value: nil},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: nil},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:enum-val", value: []string{"enum2"}},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:test-default", value: []string{"11"}},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/a", value: []string{"A"}},
-		// {wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "11", "strval": "XYZ"}`}},
-		// {wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "12", "strval": "XYZ"}`}},
-		// {wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: nil},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: []string{"/sample:sample/sample:container-val/a"}},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: []string{"5"}},
-		// {wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: []string{"true"}},
-		// {wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"493"}},
-		// {wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: []string{"500"}},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:enum-val", value: []string{"enum2"}},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:test-default", value: []string{"11"}},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/a", value: []string{"A"}},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "11", "strval": "XYZ"}`}},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "12", "strval": "XYZ"}`}},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: nil},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: []string{"/sample:sample/sample:container-val/a"}},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: []string{"5"}},
+		{wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: []string{"true"}},
+		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"493"}},
+		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: []string{"500"}},
 	}
 	for _, tt := range tests {
 		t.Run("Set."+tt.path, func(t *testing.T) {
@@ -248,123 +249,124 @@ func TestDataNode(t *testing.T) {
 		t.Error(err)
 	}
 
-	// // gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
-	// testfinds := []struct {
-	// 	expectedNum int
-	// 	path        string
-	// 	findOption  Option
-	// }{
-	// 	{expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
-	// 	{expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
-	// 	{expectedNum: 1, path: "/sample/single-key-list[sample:list-key=AAA]/list-key"},
-	// 	{expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
-	// 	{expectedNum: 4, path: "/sample/single-key-list[list-key=*]"},
-	// 	{expectedNum: 13, path: "/sample/single-key-list/*"},
-	// 	{expectedNum: 14, path: "/sample/*"},
-	// 	{expectedNum: 49, path: "/sample/..."},
-	// 	{expectedNum: 4, path: "/sample/...", findOption: StateOnly{}},
-	// 	{expectedNum: 1, path: "/sample/.../enum-val"},
-	// 	{expectedNum: 34, path: "/sample/*/*/"},
-	// 	{expectedNum: 3, path: "/sample//non-key-list"},
-	// 	{expectedNum: 2, path: "/sample/multiple-key-list[str=first][integer=*]"},
-	// 	{expectedNum: 4, path: "/sample/multiple-key-list"},
-	// 	{expectedNum: 1, path: "/sample/non-key-list[2]"},
-	// 	{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
-	// }
-	// for _, tt := range testfinds {
-	// 	t.Run(fmt.Sprintf("Find(%s,%v)", tt.path, tt.findOption), func(t *testing.T) {
-	// 		var err error
-	// 		var node []DataNode
-	// 		node, err = Find(RootData, tt.path, tt.findOption)
-	// 		if err != nil {
-	// 			t.Errorf("Find() path %v error = %v", tt.path, err)
-	// 		}
-	// 		t.Logf("Find %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
-	// 		for j := range node {
-	// 			jj, _ := MarshalJSON(node[j], RFC7951Format{})
-	// 			t.Log(" - found", j+1, "", node[j].Path(), string(jj))
-	// 		}
-	// 		if tt.expectedNum != len(node) {
-	// 			t.Errorf("find error for %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
-	// 		}
-	// 	})
-	// }
+	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	testfinds := []struct {
+		expectedNum int
+		path        string
+		findOption  Option
+	}{
+		// {expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
+		// {expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
+		// {expectedNum: 1, path: "/sample/single-key-list[sample:list-key=AAA]/list-key"},
+		// {expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
+		// {expectedNum: 4, path: "/sample/single-key-list[list-key=*]"},
+		// {expectedNum: 13, path: "/sample/single-key-list/*"},
+		// {expectedNum: 14, path: "/sample/*"},
+		// {expectedNum: 53, path: "/sample/..."},
+		// {expectedNum: 4, path: "/sample/...", findOption: StateOnly{}},
+		// {expectedNum: 1, path: "/sample/.../enum-val"},
+		// {expectedNum: 38, path: "/sample/*/*/"},
+		// {expectedNum: 3, path: "/sample//non-key-list"},
+		// {expectedNum: 2, path: "/sample/multiple-key-list[str=first][integer=*]"},
+		// {expectedNum: 4, path: "/sample/multiple-key-list"},
+		// {expectedNum: 1, path: "/sample/non-key-list[2]"},
+		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
+		// {expectedNum: 5, path: "/sample/container-val/leaf-list-val"},
+	}
+	for _, tt := range testfinds {
+		t.Run(fmt.Sprintf("Find(%s,%v)", tt.path, tt.findOption), func(t *testing.T) {
+			var err error
+			var node []DataNode
+			node, err = Find(RootData, tt.path, tt.findOption)
+			if err != nil {
+				t.Errorf("Find() path %v error = %v", tt.path, err)
+			}
+			t.Logf("Find %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
+			for j := range node {
+				jj, _ := MarshalJSON(node[j], RFC7951Format{})
+				t.Log(" - found", j+1, "", node[j].Path(), string(jj))
+			}
+			if tt.expectedNum != len(node) {
+				t.Errorf("find error for %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
+			}
+		})
+	}
 
-	// if node, err := Find(RootData, "/sample"); err != nil {
-	// 	t.Errorf("Find() path %v error = %v", "/sample", err)
-	// } else {
-	// 	if b, err := MarshalJSON(node[0], StateOnly{}); err != nil {
-	// 		t.Errorf("MarshalJSON() StateOnly error = %v", err)
-	// 	} else {
-	// 		j := `{"single-key-list":{"AAA":{"uint32-range":100},"BBB":{"uint32-range":200},"CCC":{"uint32-range":300},"DDD":{"uint32-range":400}}}`
-	// 		if string(b) != j {
-	// 			t.Errorf("MarshalJSON(StateOnly) returns unexpected json  = %v", string(b))
-	// 			t.Logf(" Required json: %s", string(j))
-	// 		}
-	// 	}
-	// 	if b, err := MarshalJSON(node[0], RFC7951Format{}, StateOnly{}); err != nil {
-	// 		t.Errorf("MarshalJSON(RFC7951Format) StateOnly error = %v", err)
-	// 	} else {
-	// 		j := `{"sample:single-key-list":[{"uint32-range":100},{"uint32-range":200},{"uint32-range":300},{"uint32-range":400}]}`
-	// 		if string(b) != j {
-	// 			t.Errorf("MarshalJSON(RFC7951Format, StateOnly) returns unexpected json  = %v", string(b))
-	// 			t.Logf(" Required json: %s", string(j))
-	// 		}
-	// 	}
-	// }
+	if node, err := Find(RootData, "/sample"); err != nil {
+		t.Errorf("Find() path %v error = %v", "/sample", err)
+	} else {
+		if b, err := MarshalJSON(node[0], StateOnly{}); err != nil {
+			t.Errorf("MarshalJSON() StateOnly error = %v", err)
+		} else {
+			j := `{"single-key-list":{"AAA":{"uint32-range":100},"BBB":{"uint32-range":200},"CCC":{"uint32-range":300},"DDD":{"uint32-range":400}}}`
+			if string(b) != j {
+				t.Errorf("MarshalJSON(StateOnly) returns unexpected json  = %v", string(b))
+				t.Logf(" Required json: %s", string(j))
+			}
+		}
+		if b, err := MarshalJSON(node[0], RFC7951Format{}, StateOnly{}); err != nil {
+			t.Errorf("MarshalJSON(RFC7951Format) StateOnly error = %v", err)
+		} else {
+			j := `{"sample:single-key-list":[{"uint32-range":100},{"uint32-range":200},{"uint32-range":300},{"uint32-range":400}]}`
+			if string(b) != j {
+				t.Errorf("MarshalJSON(RFC7951Format, StateOnly) returns unexpected json  = %v", string(b))
+				t.Logf(" Required json: %s", string(j))
+			}
+		}
+	}
 
-	// path := []string{
-	// 	"/sample/container-val/leaf-list-val[.=leaf-list-fourth]",
-	// }
-	// result := []interface{}{
-	// 	[]string{"leaf-list-fourth"},
-	// }
-	// for i := range path {
-	// 	value, err := FindValueString(RootData, path[i])
-	// 	if err != nil {
-	// 		t.Errorf("Find() path %v error = %v", path[i], err)
-	// 	}
-	// 	t.Logf("FindValue %s", path[i])
-	// 	if !reflect.DeepEqual(value, result[i]) {
-	// 		t.Error("not equal", value, result[i])
-	// 	}
-	// 	for j := range value {
-	// 		v := value[j]
-	// 		t.Log(" - Find", j+1, "", ValueToString(v))
-	// 	}
-	// }
+	path := []string{
+		"/sample/container-val/leaf-list-val[.=leaf-list-fourth]",
+	}
+	result := []interface{}{
+		[]string{"leaf-list-fourth"},
+	}
+	for i := range path {
+		value, err := FindValueString(RootData, path[i])
+		if err != nil {
+			t.Errorf("Find() path %v error = %v", path[i], err)
+		}
+		t.Logf("FindValue %s", path[i])
+		if !reflect.DeepEqual(value, result[i]) {
+			t.Error("not equal", value, result[i])
+		}
+		for j := range value {
+			v := value[j]
+			t.Log(" - Find", j+1, "", ValueToString(v))
+		}
+	}
 
-	// // nodes := RootData.Get("sample")
-	// // t.Log(nodes[0].Get("single-key-list[list-key=AAA]"))
-	// // t.Log(nodes[0].Lookup("s"))
+	// nodes := RootData.Get("sample")
+	// t.Log(nodes[0].Get("single-key-list[list-key=AAA]"))
+	// t.Log(nodes[0].Lookup("s"))
 
-	// // jj, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
-	// // if err != nil {
-	// // 	t.Error(err)
-	// // }
-	// // t.Log(string(jj))
-
-	// for i := len(tests) - 1; i >= 0; i-- {
-	// 	tt := tests[i]
-	// 	if tt.wantInsertErr {
-	// 		continue
-	// 	}
-	// 	t.Run("Delete."+tt.path, func(t *testing.T) {
-	// 		if err := Delete(RootData, tt.path, tt.value...); (err != nil) != tt.wantDeleteErr {
-	// 			t.Errorf("Delete() error = %v, wantDeleteErr %v", err, tt.wantDeleteErr)
-	// 		}
-	// 	})
-	// }
-
-	// jsonietf, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
+	// jj, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
 	// if err != nil {
 	// 	t.Error(err)
 	// }
-	// if string(jsonietf) != "{}" {
-	// 	t.Error("all nodes are not removed")
-	// 	t.Log(string(jsonietf))
-	// 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
-	// }
+	// t.Log(string(jj))
+
+	for i := len(tests) - 1; i >= 0; i-- {
+		tt := tests[i]
+		if tt.wantInsertErr {
+			continue
+		}
+		t.Run("Delete."+tt.path, func(t *testing.T) {
+			if err := Delete(RootData, tt.path, tt.value...); (err != nil) != tt.wantDeleteErr {
+				t.Errorf("Delete() error = %v, wantDeleteErr %v", err, tt.wantDeleteErr)
+			}
+		})
+	}
+
+	jsonietf, err := MarshalJSONIndent(RootData, "", " ", RFC7951Format{})
+	if err != nil {
+		t.Error(err)
+	}
+	if string(jsonietf) != "{}" {
+		t.Error("all nodes are not removed")
+		t.Log(string(jsonietf))
+		// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
+	}
 }
 
 func TestComplexModel(t *testing.T) {
@@ -586,5 +588,4 @@ func TestLeafList(t *testing.T) {
 			}
 		})
 	}
-	fmt.Println(RootData)
 }
