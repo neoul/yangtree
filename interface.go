@@ -20,16 +20,15 @@ type DataNode interface {
 	Replace(src DataNode) error                 // Replace() replaces itself to the src node.
 	Merge(src DataNode) error                   // Merge() merges the src node including all children to the current data node.
 
-	Set(value ...string) error    // Set() writes the values to the data node. The value must be string.
-	Remove(value ...string) error // Remote() removes the value if the value is inserted or itself if the value is not specified.
+	Set(value string) error // Set() writes the values to the data node. The value must be string.
+	Remove() error          // Remote() removes the value if the value is inserted or itself if the value is not specified.
 
-	// New() creates a cild using the key and values.
-	// key is an xpath element combined with xpath predicates.
-	// For example, interface[name=VALUE]
-	New(key string, value ...string) (DataNode, error)
-
+	// New() creates a cild using the key.
+	// The key is an XPath element combined with xpath predicates.
+	// For example, interface[KEY=VALUE]
+	New(key string) (DataNode, error)
 	// Update() updates a child that can be identified by the key using the input values.
-	Update(key string, value ...string) error
+	Update(key string, value string) (DataNode, error)
 
 	Exist(key string) bool            // Exist() is used to check a data node is present.
 	Get(key string) DataNode          // Get() is used to get the first child has the key.

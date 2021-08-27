@@ -206,14 +206,14 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 				listname = "import-only-module"
 				err := Set(top, fmt.Sprintf(
 					"module-set[name=%s]/%s[name=%s][revision=%s][namespace=%s]",
-					moduleSetName, listname, name, revision, namespace))
+					moduleSetName, listname, name, revision, namespace), "")
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
 				}
 			} else {
 				err := Set(top, fmt.Sprintf(
 					"module-set[name=%s]/%s[name=%s][revision=%s][namespace=%s]",
-					moduleSetName, listname, name, revision, namespace))
+					moduleSetName, listname, name, revision, namespace), "")
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
 				}
@@ -259,7 +259,7 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 					subname, subrevision := sm.Name, sm.Current()
 					err := Set(top, fmt.Sprintf(
 						"module-set[name=%s]/%s[name=%s]/submodule[name=%s][revision=%s]",
-						moduleSetName, listname, name, subname, subrevision))
+						moduleSetName, listname, name, subname, subrevision), "")
 					if err != nil {
 						return fmt.Errorf("yanglib: unable to add submodule %q: %v", name, err)
 					}
@@ -292,7 +292,7 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 			// module
 			if m.BelongsTo == nil {
 				err := Set(top, fmt.Sprintf("module[name=%s][revision=%s][namespace=%s][conformance-type=%s]",
-					name, revision, namespace, getConformanceType(m, excluded)))
+					name, revision, namespace, getConformanceType(m, excluded)), "")
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
 				}
@@ -320,7 +320,7 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 					}
 				}
 				err = Set(top, fmt.Sprintf("module[name=%s][revision=%s]/deviation[name=%s][revision=%s]",
-					target.Name, target.Current(), name, revision))
+					target.Name, target.Current(), name, revision), "")
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
 				}
@@ -331,7 +331,7 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 				if sm != nil {
 					subname, subrevision := sm.Name, sm.Current()
 					err := Set(top, fmt.Sprintf("module[name=%s][revision=%s]/submodule[name=%s][revision=%s]",
-						name, revision, subname, subrevision))
+						name, revision, subname, subrevision), "")
 					if err != nil {
 						return fmt.Errorf("yanglib: unable to add submodule %q: %v", name, err)
 					}

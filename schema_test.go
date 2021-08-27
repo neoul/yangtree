@@ -89,50 +89,15 @@ func TestYANGMetaData(t *testing.T) {
 
 	tests := []struct {
 		path          string
-		value         []string
+		value         string
 		wantInsertErr bool
 		wantDeleteErr bool
 	}{
-		{wantInsertErr: false, path: "/sample/@last-modified", value: []string{"2015-06-18T17:01:14+02:00"}},
-		// {wantInsertErr: true, path: "/sample/@last-modifiedx"}, // invalid
-		// {wantInsertErr: false, path: "/sample/str-val", value: []string{"abc"}},
-		// {wantInsertErr: false, path: "/sample/empty-val", value: []string{"true"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/country-code", value: []string{"KR"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"100"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: []string{"1.01"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/empty-node", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint64-node[.=1234567890]", value: nil},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint32-range", value: []string{"200"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=CCC]/uint32-range", value: []string{"300"}},
-		// {wantInsertErr: false, path: "/sample/single-key-list[list-key=DDD]/uint32-range", value: []string{"400"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=1]/ok", value: []string{"true"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=2]/str", value: []string{"first"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[str=second][integer=1]/str", value: []string{"second"}},
-		// {wantInsertErr: false, path: "/sample/multiple-key-list[sample:str=second][integer=2]/str", value: []string{"second"}},
-		// {wantInsertErr: false, path: "/sample:sample/container-val", value: nil},
-		// {wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: nil},
-		// {wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: []string{"leaf-list-first", "leaf-list-second"}},
-		// {wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: []string{"leaf-list-third"}},
-		// {wantInsertErr: false, path: "/sample/container-val/leaf-list-val/leaf-list-fourth", value: nil},
-		// {wantInsertErr: false, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: nil},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:enum-val", value: []string{"enum2"}},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:test-default", value: []string{"11"}},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/a", value: []string{"A"}},
-		// {wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "11", "strval": "XYZ"}`}},
-		// {wantInsertErr: false, path: "/sample:sample/non-key-list", value: []string{`{"uintval": "12", "strval": "XYZ"}`}},
-		// {wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: nil},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: []string{"/sample:sample/sample:container-val/a"}},
-		// {wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: []string{"5"}},
-
-		// {wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: []string{"true"}},
-		// {wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: []string{"493"}},
-		// {wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: []string{"500"}},
+		{wantInsertErr: false, path: "/sample/@last-modified", value: "2015-06-18T17:01:14+02:00"},
 	}
 	for _, tt := range tests {
 		t.Run("Set."+tt.path, func(t *testing.T) {
-			err := Set(RootData, tt.path, tt.value...)
+			err := Set(RootData, tt.path, tt.value)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}

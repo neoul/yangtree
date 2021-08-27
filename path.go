@@ -239,7 +239,7 @@ func keyGen(schema *yang.Entry, pathnode *PathNode, pmap map[string]interface{})
 		} else {
 			pmap["@prefix"] = true
 		}
-	case IsUniqueList(schema):
+	case HasListKey(schema):
 		var key bytes.Buffer
 		key.WriteString(schema.Name)
 		keyname := GetKeynames(schema)

@@ -61,7 +61,7 @@ func Replace(root yangtree.DataNode, path string, new yangtree.DataNode) (yangtr
 	}
 	if err == nil {
 		if yangtree.IsEqualSchema(root, new) && len(pmap) > 0 {
-			yangtree.UpdateChild(new, pmap)
+			yangtree.UpdateByMap(new, pmap)
 		}
 		err = root.Replace(new)
 	}

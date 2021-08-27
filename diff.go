@@ -123,7 +123,7 @@ func Diff(node1, node2 DataNode) ([]DataNode, []DataNode, []DataNode) {
 }
 
 // SetDiff() = Set() + Diff()
-func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNode, error) {
+func SetDiff(root DataNode, path string, value string) ([]DataNode, []DataNode, error) {
 	if !IsValid(root) {
 		return nil, nil, fmt.Errorf("invalid root node")
 	}
@@ -131,7 +131,7 @@ func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNod
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := Set(new, path, value...); err != nil {
+	if err := Set(new, path, value); err != nil {
 		return nil, nil, err
 	}
 	c, d := DiffUpdated(root, new)

@@ -341,8 +341,8 @@ func IsDuplicatedList(schema *yang.Entry) bool {
 	return schema.IsList() && schema.Key == ""
 }
 
-// IsUniqueList() checks the data nodes can be duplicated.
-func IsUniqueList(schema *yang.Entry) bool {
+// HasListKey() checks the data nodes can be duplicated.
+func HasListKey(schema *yang.Entry) bool {
 	return schema.IsList() && schema.Key != ""
 }
 
@@ -810,7 +810,7 @@ func FindModule(schema *yang.Entry, path string) *yang.Module {
 
 func HasUniqueListParent(schema *yang.Entry) bool {
 	for n := schema; n != nil; n = n.Parent {
-		if IsUniqueList(n) {
+		if HasListKey(n) {
 			return true
 		}
 	}
