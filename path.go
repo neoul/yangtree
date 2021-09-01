@@ -169,7 +169,7 @@ func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool)
 	return schema.Name, false // If it is a key for a container or a leaf node
 }
 
-func _findChildren(branch *DataBranch, cschema *yang.Entry, key *string, prefixmatch bool, pmap map[string]interface{}) []DataNode {
+func _find(branch *DataBranch, cschema *yang.Entry, key *string, prefixmatch bool, pmap map[string]interface{}) []DataNode {
 	i := indexFirst(branch, key)
 	if i >= len(branch.children) ||
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
@@ -238,7 +238,7 @@ func FindByPathNode(parent DataNode, pathnode *PathNode) ([]DataNode, error) {
 		}
 		return node, nil
 	}
-	return _findChildren(branch, cschema, &key, prefixmatch, pmap), nil
+	return _find(branch, cschema, &key, prefixmatch, pmap), nil
 }
 
 func UpdateByPathNode(parent DataNode, pathnode *PathNode, value string) ([]DataNode, error) {
@@ -256,7 +256,7 @@ func UpdateByPathNode(parent DataNode, pathnode *PathNode, value string) ([]Data
 	}
 	key, prefixmatch := GenerateKey(cschema, pmap)
 	if IsUpdatable(cschema) {
-		children := _findChildren(branch, cschema, &key, prefixmatch, pmap)
+		children := _find(branch, cschema, &key, prefixmatch, pmap)
 		if len(children) == 0 {
 			child, err := New(cschema)
 			if err != nil {
