@@ -1022,6 +1022,10 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
+	pmap, err := pathnode[0].PredicatesToMap()
+	if err != nil {
+		return err
+	}
 
 	switch {
 	case cschema.IsLeaf():
@@ -1041,17 +1045,19 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 		if len(pathnode) > 1 {
 			return fmt.Errorf("invalid path element %q", pathnode[1])
 		}
-		child, err := NewDataNode(cschema, value)
+		child, err := New(cschema)
 		if err != nil {
+			return err
+		}
+		if err = UpdateByMap(child, pmap); err != nil {
+			return err
+		}
+		if err = child.Set(value); err != nil {
 			return err
 		}
 		return root.Insert(child)
 	}
 
-	pmap, err := pathnode[0].PredicatesToMap()
-	if err != nil {
-		return err
-	}
 	key, prefixmatch := GenerateKey(cschema, pmap)
 	children := _findChildren(branch, cschema, &key, prefixmatch, pmap)
 	if len(children) == 0 {

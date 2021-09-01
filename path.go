@@ -111,12 +111,18 @@ LOOP:
 		case ".":
 			pmap["."] = value
 		default:
-			if v, exist := pmap[token[0]]; exist {
+			var name string
+			if j := strings.Index(token[0], ":"); j >= 0 {
+				name = token[0][j+1:]
+			} else {
+				name = token[0]
+			}
+			if v, exist := pmap[name]; exist {
 				if v != value {
-					return nil, fmt.Errorf("duplicated path predicate %q found", token[0])
+					return nil, fmt.Errorf("duplicated path predicate %q found", name)
 				}
 			}
-			pmap[token[0]] = value
+			pmap[name] = value
 		}
 	}
 	return pmap, nil

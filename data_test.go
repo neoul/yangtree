@@ -256,9 +256,9 @@ func TestDataNode(t *testing.T) {
 		path        string
 		findOption  Option
 	}{
-		{expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
+		// {expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
 		// {expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
-		// {expectedNum: 1, path: "/sample/single-key-list[sample:list-key=AAA]/list-key"},
+		{expectedNum: 1, path: "/sample/single-key-list[sample:list-key=AAA]/list-key"},
 		// {expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
 		// {expectedNum: 4, path: "/sample/single-key-list[list-key=*]"},
 		// {expectedNum: 13, path: "/sample/single-key-list/*"},
