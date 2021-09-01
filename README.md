@@ -10,6 +10,14 @@ yangtree is a Go utilities that can be used to:
 - Provide the retrieval of the config, state data nodes separately.
 - Supports the data node access and control using XPath.
 
+## Sorting by data node key
+
+- container: schemaname
+- list: schemaname + [key1=val1]
+- non-key-list: schemaname
+- leaf: schemaname
+- leaf-list: schemaname
+
 ## To be implemented
 
 - NewWithDefault(), Clone(), Merge(), Replace(), Update()

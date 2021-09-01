@@ -205,13 +205,13 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample/str-val", value: "abc"},
 		{wantInsertErr: false, path: "/sample/empty-val", value: "true"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/", value: ""},
-		{wantInsertErr: false, path: "/sample/single-key-list", value: `{"list-key": "ZZZ"}`},
+		// {wantInsertErr: false, path: "/sample/single-key-list", value: `{"list-key": "ZZZ"}`},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/country-code", value: "KR"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: "100"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: "1.01"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/empty-node", value: ""},
-		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: ""},
-		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint64-node[.=1234567890]", value: ""},
+		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: ""},
+		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint64-node", value: "1234567890"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint32-range", value: "200"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=CCC]/uint32-range", value: "300"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=DDD]/uint32-range", value: "400"},
@@ -256,7 +256,7 @@ func TestDataNode(t *testing.T) {
 		path        string
 		findOption  Option
 	}{
-		// {expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
+		{expectedNum: 1, path: "/sample/container-val/leaf-list-val[.=leaf-list-fourth]"},
 		// {expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
 		// {expectedNum: 1, path: "/sample/single-key-list[sample:list-key=AAA]/list-key"},
 		// {expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
@@ -271,7 +271,7 @@ func TestDataNode(t *testing.T) {
 		// {expectedNum: 2, path: "/sample/multiple-key-list[str=first][integer=*]"},
 		// {expectedNum: 4, path: "/sample/multiple-key-list"},
 		// {expectedNum: 1, path: "/sample/non-key-list[2]"},
-		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
+		// {expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
 		// {expectedNum: 5, path: "/sample/container-val/leaf-list-val"},
 	}
 	for _, tt := range testfinds {

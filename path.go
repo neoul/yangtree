@@ -68,6 +68,222 @@ var (
 	}
 )
 
+func (pathnode *PathNode) PredicatesToMap() (map[string]interface{}, error) {
+	pmap := make(map[string]interface{})
+LOOP:
+	for i := range pathnode.Predicates {
+		token, _, err := TokenizePathExpr(nil, &(pathnode.Predicates[i]), 0)
+		if err != nil {
+			return nil, err
+		}
+		switch len(token) {
+		case 0:
+			continue LOOP
+		case 1:
+			if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
+				if index <= 0 {
+					return nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
+				}
+				pmap["@index"] = index - 1
+			} else {
+				pmap["@evaluate-xpath"] = true
+			}
+			continue LOOP
+		case 2, 3:
+			if token[1] != "=" {
+				pmap["@evaluate-xpath"] = true
+			}
+		default:
+			pmap["@evaluate-xpath"] = true
+		}
+
+		var value string
+		if len(token) > 2 {
+			value = token[2]
+			if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+				value = strings.Trim(value, "'")
+			}
+			if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+				value = strings.Trim(value, "\"")
+			}
+		}
+		switch token[0] {
+		case ".":
+			pmap["."] = value
+		default:
+			if v, exist := pmap[token[0]]; exist {
+				if v != value {
+					return nil, fmt.Errorf("duplicated path predicate %q found", token[0])
+				}
+			}
+			pmap[token[0]] = value
+		}
+	}
+	return pmap, nil
+}
+
+// GenerateKey generates a key of the schema using the key value in the pmap.
+// It also returns a boolean value to true if the prefix matching is required for the target node search.
+func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool) {
+	switch {
+	case schema.IsList() && schema.Key != "":
+		var key bytes.Buffer
+		key.WriteString(schema.Name)
+		keyname := GetKeynames(schema)
+		for i := range keyname {
+			v, ok := pmap[keyname[i]]
+			if !ok {
+				return key.String(), true
+			}
+			value := v.(string)
+			switch value {
+			case "*":
+				return key.String(), true
+			default:
+				key.WriteString("[")
+				key.WriteString(keyname[i])
+				key.WriteString("=")
+				key.WriteString(value)
+				key.WriteString("]")
+			}
+		}
+		return key.String(), false
+	case schema.IsLeafList():
+		v, ok := pmap["."]
+		if !ok {
+			return schema.Name, true
+		}
+		var key bytes.Buffer
+		key.WriteString(schema.Name)
+		key.WriteString("[.=")
+		key.WriteString(v.(string))
+		key.WriteString("]")
+		return key.String(), false
+	}
+	return schema.Name, false // If it is a key for a container or a leaf node
+}
+
+func _findChildren(branch *DataBranch, cschema *yang.Entry, key *string, prefixmatch bool, pmap map[string]interface{}) []DataNode {
+	i := indexFirst(branch, key)
+	if i >= len(branch.children) ||
+		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
+		return nil
+	}
+	if index, ok := pmap["@index"]; ok {
+		j := i + index.(int)
+		if j >= len(branch.children) {
+			return nil
+		}
+		return branch.children[i : i+1]
+	}
+	max := i
+	if IsOrderedByUser(cschema) || IsDuplicatable(cschema) {
+		var node []DataNode
+		for ; max < len(branch.children); max++ {
+			if branch.children[i].Schema() != branch.children[max].Schema() {
+				break
+			}
+			if prefixmatch {
+				if strings.HasPrefix(branch.children[max].Key(), *key) {
+					node = append(node, branch.children[max])
+				}
+			} else if branch.children[max].Key() == *key {
+				node = append(node, branch.children[max])
+			}
+		}
+		return node
+	}
+	for ; max < len(branch.children); max++ {
+		if branch.children[i].Schema() != branch.children[max].Schema() {
+			break
+		}
+		if prefixmatch {
+			if !strings.HasPrefix(branch.children[max].Key(), *key) {
+				break
+			}
+		} else if branch.children[max].Key() != *key {
+			break
+		}
+	}
+	return branch.children[i:max]
+}
+
+// Find() returns children related to the PathNode
+func FindByPathNode(parent DataNode, pathnode *PathNode) ([]DataNode, error) {
+	branch, ok := parent.(*DataBranch)
+	if !ok {
+		return nil, fmt.Errorf("unable to find a child from %q", parent)
+	}
+	cschema := GetSchema(branch.schema, pathnode.Name)
+	if cschema == nil {
+		return nil, fmt.Errorf("schema %q not found from %q", pathnode.Name, branch.schema.Name)
+	}
+	pmap, err := pathnode.PredicatesToMap()
+	if err != nil {
+		return nil, err
+	}
+
+	key, prefixmatch := GenerateKey(cschema, pmap)
+	if _, ok := pmap["@evaluate-xpath"]; ok {
+		first, last := indexRangeBySchema(branch, &key)
+		node, err := findByPredicates(branch.children[first:last], pathnode.Predicates)
+		if err != nil {
+			return nil, err
+		}
+		return node, nil
+	}
+	return _findChildren(branch, cschema, &key, prefixmatch, pmap), nil
+}
+
+func UpdateByPathNode(parent DataNode, pathnode *PathNode, value string) ([]DataNode, error) {
+	branch, ok := parent.(*DataBranch)
+	if !ok {
+		return nil, fmt.Errorf("unable to find children from %q", parent)
+	}
+	cschema := GetSchema(parent.Schema(), pathnode.Name)
+	if cschema == nil {
+		return nil, fmt.Errorf("schema %q not found from %q", pathnode.Name, branch.schema.Name)
+	}
+	pmap, err := pathnode.PredicatesToMap()
+	if err != nil {
+		return nil, err
+	}
+	key, prefixmatch := GenerateKey(cschema, pmap)
+	if IsUpdatable(cschema) {
+		children := _findChildren(branch, cschema, &key, prefixmatch, pmap)
+		if len(children) == 0 {
+			child, err := New(cschema)
+			if err != nil {
+				return nil, err
+			}
+			err = UpdateByMap(child, pmap)
+			if err != nil {
+				return nil, err
+			}
+			err = branch.Insert(child)
+			if err != nil {
+				return nil, err
+			}
+			return []DataNode{child}, nil
+		}
+		for i := range children {
+			err = UpdateByMap(children[i], pmap)
+			if err != nil {
+				return nil, err
+			}
+			if err := children[i].Set(value); err != nil {
+				return nil, err
+			}
+			err = branch.Insert(children[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+		return children, nil
+	}
+	return nil, fmt.Errorf("%q is not updatable node", key)
+}
+
 func updateNodeSelect(pathnode *PathNode) *PathNode {
 	if s, ok := pathNodeKeyword[pathnode.Name]; ok {
 		pathnode.Select = s
@@ -162,11 +378,9 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	return node, nil
 }
 
-func keyGen(schema *yang.Entry, pathnode *PathNode, pmap map[string]interface{}) (string, map[string]interface{}, error) {
+func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
 	numP := 0
-	if pmap == nil {
-		pmap = make(map[string]interface{})
-	}
+	pmap := make(map[string]interface{})
 	meta := GetSchemaMeta(schema)
 	for i := range pathnode.Predicates {
 		token, _, err := TokenizePathExpr(nil, &(pathnode.Predicates[i]), 0)
@@ -184,15 +398,15 @@ func keyGen(schema *yang.Entry, pathnode *PathNode, pmap map[string]interface{})
 				pmap["@index"] = index - 1
 				return pathnode.Name, pmap, nil
 			}
-			pmap["@find-in-order"] = true
+			pmap["@evaluate-xpath"] = true
 			return pathnode.Name, pmap, nil
 		case 2, 3:
 			if token[1] != "=" {
-				pmap["@find-in-order"] = true
+				pmap["@evaluate-xpath"] = true
 				return pathnode.Name, pmap, nil
 			}
 		default:
-			pmap["@find-in-order"] = true
+			pmap["@evaluate-xpath"] = true
 			return pathnode.Name, pmap, nil
 		}
 		var value string
@@ -206,7 +420,7 @@ func keyGen(schema *yang.Entry, pathnode *PathNode, pmap map[string]interface{})
 
 		cschema, ok := meta.Dir[token[0]]
 		if !ok {
-			pmap["@find-in-order"] = true
+			pmap["@evaluate-xpath"] = true
 			return pathnode.Name, pmap, nil
 		}
 		if !IsKeyNode(cschema) {
@@ -228,18 +442,7 @@ func keyGen(schema *yang.Entry, pathnode *PathNode, pmap map[string]interface{})
 	}
 
 	switch {
-	case schema.IsLeafList():
-		if v, ok := pmap["."]; ok {
-			var key bytes.Buffer
-			key.WriteString(schema.Name)
-			key.WriteString(`[.=`)
-			key.WriteString(v.(string))
-			key.WriteString(`]`)
-			return key.String(), pmap, nil
-		} else {
-			pmap["@prefix"] = true
-		}
-	case HasListKey(schema):
+	case IsListHasKey(schema):
 		var key bytes.Buffer
 		key.WriteString(schema.Name)
 		keyname := GetKeynames(schema)
@@ -272,12 +475,12 @@ func keyGen(schema *yang.Entry, pathnode *PathNode, pmap map[string]interface{})
 			}
 		}
 		if usedPredicates < numP {
-			pmap["@find-in-order"] = true
+			pmap["@evaluate-xpath"] = true
 		}
 		return key.String(), pmap, nil
 	}
 	if numP > 0 {
-		pmap["@find-in-order"] = true
+		pmap["@evaluate-xpath"] = true
 	}
 	return pathnode.Name, pmap, nil
 }
@@ -599,7 +802,7 @@ func KeyGen(pschema *yang.Entry, pathnode *PathNode) (string, map[string]interfa
 	if cschema == nil {
 		return "", nil, fmt.Errorf("schema %q not found from %q", pathnode.Name, pschema.Name)
 	}
-	return keyGen(cschema, pathnode, nil)
+	return keyGen(cschema, pathnode)
 }
 
 // FindAllPossiblePath finds all possible paths. It resolves the gNMI path wildcards.

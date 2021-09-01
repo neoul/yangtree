@@ -48,12 +48,14 @@ func setParent(node DataNode, parent *DataBranch, key *string) {
 	switch c := node.(type) {
 	case *DataBranch:
 		c.parent = parent
-		if HasListKey(c.schema) {
+		if c.schema.Name != *key {
 			c.key = *key
 		}
 	case *DataLeaf:
 		c.parent = parent
-		c.key = *key
+		if c.schema.Name != *key {
+			c.key = *key
+		}
 	}
 }
 
@@ -61,55 +63,79 @@ func resetParent(node DataNode) {
 	switch c := node.(type) {
 	case *DataBranch:
 		c.parent = nil
-		c.key = ""
+		if c.key != "" {
+			c.key = ""
+		}
 	case *DataLeaf:
 		c.parent = nil
-		c.key = ""
-	}
-}
-
-// indexStart() returns the smallest index of a child related to the key
-func indexStart(parent *DataBranch, key *string) (i int) {
-	i = sort.Search(len(parent.children),
-		func(j int) bool {
-			return *key <= parent.children[j].Key()
-		})
-	return
-}
-
-// indexRange() returns the index of a child related to the key
-func indexRange(parent *DataBranch, key string, prefixKey bool) (i, max int) {
-	length := len(parent.children)
-	i = sort.Search(length,
-		func(j int) bool {
-			return key <= parent.children[j].Key()
-		})
-	if prefixKey {
-		max = i
-		for ; max < length; max++ {
-			if !strings.HasPrefix(parent.children[max].Key(), key) {
-				break
-			}
+		if c.key != "" {
+			c.key = ""
 		}
-		return
 	}
+}
+
+// indexFirst() returns the index of a child related to the key
+func indexFirst(parent *DataBranch, key *string) int {
+	i := sort.Search(len(parent.children),
+		func(j int) bool {
+			x := parent.children[j].Key()
+			return *key <= x
+		})
+	return i
+}
+
+// indexRangeByPrefix() returns the index of a child related to the prefix
+func indexRangeByPrefix(parent *DataBranch, prefix *string) (i, max int) {
+	i = indexFirst(parent, prefix)
 	max = i
-	for ; max < length; max++ {
-		if parent.children[max].Key() != key {
+	for ; max < len(parent.children); max++ {
+		if !strings.HasPrefix(parent.children[max].Key(), *prefix) {
 			break
 		}
 	}
 	return
 }
 
-// keyToIndex() returns the index of a child related to the key
-func keyToIndex(parent *DataBranch, key string) int {
-	length := len(parent.children)
-	i := sort.Search(length,
+// indexRange() returns the index of a child related to the key
+func indexRange(parent *DataBranch, key *string, prefixmatch bool) (i, max int) {
+	i = sort.Search(len(parent.children),
 		func(j int) bool {
-			return key <= parent.children[j].Key()
+			return *key <= parent.children[j].Key()
 		})
-	return i
+	if prefixmatch {
+		max = i
+		for ; max < len(parent.children); max++ {
+			if parent.children[i].Schema() != parent.children[max].Schema() {
+				break
+			}
+			if !strings.HasPrefix(*key, parent.children[max].Key()) {
+				break
+			}
+		}
+		return
+	}
+	max = i
+	for ; max < len(parent.children); max++ {
+		if parent.children[i].Schema() != parent.children[max].Schema() {
+			break
+		}
+		if *key != parent.children[max].Key() {
+			break
+		}
+	}
+	return
+}
+
+// indexRangeBySchema() returns the index of a child related to the key
+func indexRangeBySchema(parent *DataBranch, key *string) (i, max int) {
+	i = indexFirst(parent, key)
+	max = i
+	for ; max < len(parent.children); max++ {
+		if parent.children[i].Schema() != parent.children[max].Schema() {
+			break
+		}
+	}
+	return
 }
 
 // jumpToIndex() updates the node index using offset
@@ -203,19 +229,16 @@ func (branch *DataBranch) New(key string) (DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(pathnode) == 0 {
+	if len(pathnode) == 0 || len(pathnode) > 1 {
 		return nil, fmt.Errorf("invalid key %q inserted", key)
 	}
-	if len(pathnode) > 1 {
-		return nil, fmt.Errorf("invalid key %q inserted", key)
+	pmap, err := pathnode[0].PredicatesToMap()
+	if err != nil {
+		return nil, err
 	}
 	cschema := GetSchema(branch.schema, pathnode[0].Name)
 	if cschema == nil {
 		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
-	}
-	key, pmap, err := keyGen(cschema, pathnode[0], nil)
-	if err != nil {
-		return nil, err
 	}
 	child, err := New(cschema)
 	if err != nil {
@@ -233,32 +256,47 @@ func (branch *DataBranch) New(key string) (DataNode, error) {
 }
 
 func (branch *DataBranch) Update(key string, value string) (DataNode, error) {
-	return nil, nil
-	// pathnode, err := ParsePath(&key)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if len(pathnode) == 0 {
-	// 	return nil, fmt.Errorf("invalid key %q inserted", key)
-	// }
-	// if len(pathnode) > 1 {
-	// 	return nil, fmt.Errorf("invalid key %q inserted", key)
-	// }
-	// children := findNode(branch, pathnode)
-	// if len(children) > 1 {
-	// 	return nil, fmt.Errorf("multiple node selected by the key %q on update", key)
-	// }
-	// var child DataNode
-	// if len(children) == 1 {
-	// 	child = children[0]
-	// 	err = child.Set(value)
-	// } else {
-	// 	FindSchema(branch.schema, )
-	// }
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// return child, nil
+	pathnode, err := ParsePath(&key)
+	if err != nil {
+		return nil, err
+	}
+	if len(pathnode) == 0 || len(pathnode) > 1 {
+		return nil, fmt.Errorf("invalid key %q inserted", key)
+	}
+	pmap, err := pathnode[0].PredicatesToMap()
+	if err != nil {
+		return nil, err
+	}
+	cschema := GetSchema(branch.schema, pathnode[0].Name)
+	if cschema == nil {
+		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+	}
+	_key, ok := GenerateKey(cschema, pmap)
+	if !ok {
+		return nil, fmt.Errorf("unable to generate the key for %q", cschema.Name)
+	}
+	if IsUpdatable(cschema) {
+		child := branch.Get(_key)
+		if child == nil {
+			child, err = New(cschema)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if err := child.Set(value); err != nil {
+			return nil, err
+		}
+		err = UpdateByMap(child, pmap)
+		if err != nil {
+			return nil, err
+		}
+		err = branch.Insert(child)
+		if err != nil {
+			return nil, err
+		}
+		return child, nil
+	}
+	return nil, fmt.Errorf("%q is not updatable node", _key)
 }
 
 func (branch *DataBranch) Set(value string) error {
@@ -334,17 +372,21 @@ func (branch *DataBranch) Insert(child DataNode, option ...Option) error {
 		return fmt.Errorf("invalid child data node")
 	}
 	if child.Parent() != nil {
+		if child.Parent() == branch {
+			return nil
+		}
 		return fmt.Errorf("%q is already inserted", child)
 	}
 	schema := child.Schema()
 	if branch.Schema() != GetPresentParentSchema(schema) {
 		return fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
 	}
-	duplicatable := IsDuplicatable(schema)
-	orderedbyuser := IsOrderedByUser(schema)
 
+	// duplicatable nodes: read-only leaf-list and non-key list
+	duplicatable := IsDuplicatable(schema)
+	orderedByUser := IsOrderedByUser(schema)
 	var insertOption Option
-	if orderedbyuser || duplicatable {
+	if orderedByUser || duplicatable {
 		insertOption = InsertToLast{}
 		for i := range option {
 			switch option[i].(type) {
@@ -353,53 +395,47 @@ func (branch *DataBranch) Insert(child DataNode, option ...Option) error {
 			}
 		}
 	}
-	// meta := GetSchemaMeta(schema)
-	// index := 0
 
-	length := len(branch.children)
 	key := child.Key()
-	if key == "" {
-		return fmt.Errorf("unable to insert %q because it doesn't have a key", child.Schema().Name)
-	}
-	i := sort.Search(length,
-		func(j int) bool {
-			return key <= branch.children[j].Key()
-		})
-
-	// replace the existent data node if it is not a duplicatable node.
+	i := indexFirst(branch, &key)
 	if !duplicatable {
-		if i < length && branch.children[i].Key() == key {
+		// find and replace the node that has the same key.
+		if i < len(branch.children) && key == branch.children[i].Key() {
 			resetParent(branch.children[i])
 			branch.children[i] = child
 			setParent(child, branch, &key)
 			return nil
 		}
 	}
+
 	// insert the new child data node.
 	switch o := insertOption.(type) {
 	case nil:
 		// get the best position (ordered-by system)
-		for ; i < length; i++ {
+		for ; i < len(branch.children); i++ {
 			if key < branch.children[i].Key() {
 				break
 			}
 		}
 	case InsertToLast:
-		for ; i < length; i++ {
+		for ; i < len(branch.children); i++ {
 			if schema != branch.children[i].Schema() {
 				break
 			}
 		}
 	case InsertToFirst:
 		name := child.Name()
-		i = sort.Search(length, func(j int) bool { return name <= branch.children[j].Key() })
+		i = sort.Search(len(branch.children),
+			func(j int) bool { return name <= branch.children[j].Key() })
 	case InsertToBefore:
 		target := child.Name() + o.Key
-		i = sort.Search(length, func(j int) bool { return target <= branch.children[j].Key() })
+		i = sort.Search(len(branch.children),
+			func(j int) bool { return target <= branch.children[j].Key() })
 	case InsertToAfter:
 		target := child.Name() + o.Key
-		i = sort.Search(length, func(j int) bool { return target <= branch.children[j].Key() })
-		if i < length {
+		i = sort.Search(len(branch.children),
+			func(j int) bool { return target <= branch.children[j].Key() })
+		if i < len(branch.children) {
 			i++
 		}
 	}
@@ -423,23 +459,15 @@ func (branch *DataBranch) Delete(child DataNode) error {
 		return nil
 	}
 
-	length := len(branch.children)
 	key := child.Key()
-	i := sort.Search(length,
-		func(j int) bool {
-			return key <= branch.children[j].Key()
-		})
-	if i < length && branch.children[i] == child {
-		c := branch.children[i]
-		branch.children = append(branch.children[:i], branch.children[i+1:]...)
-		resetParent(c)
-		return nil
-	}
-	for i := range branch.children {
-		if branch.children[i] == child {
-			branch.children = append(branch.children[:i], branch.children[i+1:]...)
-			resetParent(child)
-			return nil
+	i := indexFirst(branch, &key)
+	if i < len(branch.children) && key == branch.children[i].Key() {
+		for ; i < len(branch.children); i++ {
+			if branch.children[i] == child {
+				branch.children = append(branch.children[:i], branch.children[i+1:]...)
+				resetParent(child)
+				return nil
+			}
 		}
 	}
 	return fmt.Errorf("%q not found on %q", child, branch)
@@ -529,7 +557,7 @@ func (branch *DataBranch) GetAll(key string) []DataNode {
 		return findNode(branch, []*PathNode{
 			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
-		i, max := indexRange(branch, key, false)
+		i, max := indexRange(branch, &key, false)
 		if i < max {
 			return branch.children[i:max]
 		}
@@ -583,7 +611,7 @@ func (branch *DataBranch) Lookup(prefix string) []DataNode {
 		return findNode(branch, []*PathNode{
 			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
-		i, max := indexRange(branch, prefix, true)
+		i, max := indexRangeByPrefix(branch, &prefix)
 		if i < max {
 			return branch.children[i:max]
 		}
@@ -599,7 +627,8 @@ func (branch *DataBranch) Child(index int) DataNode {
 }
 
 func (branch *DataBranch) Index(key string) (int, int) {
-	return indexRange(branch, key, false)
+	// [FIXME] leaf-list ?
+	return indexRange(branch, &key, false)
 }
 
 func (branch *DataBranch) Len() int {
@@ -618,12 +647,12 @@ func (branch *DataBranch) Key() string {
 		return branch.key
 	}
 	switch {
-	case HasListKey(branch.schema):
+	case IsListHasKey(branch.schema):
 		var keybuffer strings.Builder
 		keyname := GetKeynames(branch.schema)
 		keybuffer.WriteString(branch.schema.Name)
 		for i := range keyname {
-			j := indexStart(branch, &keyname[i])
+			j := indexFirst(branch, &keyname[i])
 			if j < len(branch.children) && keyname[i] == branch.children[j].Key() {
 				keybuffer.WriteString(`[`)
 				keybuffer.WriteString(keyname[i])
@@ -693,10 +722,15 @@ func (leaf *DataLeaf) Update(key string, value string) (DataNode, error) {
 }
 
 func (leaf *DataLeaf) Set(value string) error {
-	if IsKeyNode(leaf.schema) && leaf.parent != nil {
-		// ignore key update
-		// return fmt.Errorf("unable to update key node %q if used", leaf)
-		return nil
+	if leaf.parent != nil {
+		if leaf.IsLeafList() {
+			return fmt.Errorf("leaf-list %q can only be inserted if it is in the data tree", leaf)
+		}
+		if IsKeyNode(leaf.schema) {
+			// ignore key update
+			// return fmt.Errorf("unable to update key node %q if used", leaf)
+			return nil
+		}
 	}
 
 	v, err := StringToValue(leaf.schema, leaf.schema.Type, value)
@@ -780,16 +814,13 @@ func (leaf *DataLeaf) Name() string {
 }
 
 func (leaf *DataLeaf) Key() string {
+	if leaf.key != "" {
+		return leaf.key
+	}
 	if leaf.schema.IsLeaf() {
 		return leaf.schema.Name
 	}
 	// leaf-list key format LEAF[.=VALUE]
-	if leaf.parent != nil {
-		if leaf.key == "" {
-			return leaf.schema.Name
-		}
-		return leaf.key
-	}
 	return leaf.schema.Name + `[.=` + ValueToString(leaf.value) + `]`
 }
 
@@ -799,7 +830,7 @@ func (leaf *DataLeaf) Key() string {
 // 		return nil, err
 // 	}
 // 	switch {
-// 	case HasListKey(cschema):
+// 	case IsListHasKey(cschema):
 // 		keyname := GetKeynames(cschema)
 // 		for i := range keyname {
 // 			v, ok := pmap[keyname[i]]
@@ -1017,61 +1048,34 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 		return root.Insert(child)
 	}
 
-	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0], nil)
+	pmap, err := pathnode[0].PredicatesToMap()
 	if err != nil {
 		return err
 	}
-	if index, ok := pmap["@index"]; ok {
-		first = keyToIndex(branch, key)
-		first, last, err = jumpToIndex(branch, first, index.(int))
-		if err != nil {
-			return err
-		}
-	} else {
-		_, prefixmatch := pmap["@prefix"]
-		first, last = indexRange(branch, key, prefixmatch)
-		if IsDuplicatedList(cschema) {
-			first = last
-		}
-	}
-	// newly adds a node
-	if first == last {
+	key, prefixmatch := GenerateKey(cschema, pmap)
+	children := _findChildren(branch, cschema, &key, prefixmatch, pmap)
+	if len(children) == 0 {
 		child, err := New(cschema)
 		if err != nil {
 			return err
 		}
-		if err := UpdateByMap(child, pmap); err != nil {
-			return err
-		}
-		if err := branch.Insert(child); err != nil {
-			return err
-		}
-		if len(pathnode) == 1 {
-			err = child.Set(value)
-		} else {
-			err = setValue(child, pathnode[1:], value)
-		}
+		err = UpdateByMap(child, pmap)
 		if err != nil {
-			child.Remove()
+			return err
 		}
-		return err
+		err = branch.Insert(child)
+		if err != nil {
+			return err
+		}
+		children = append(children, child)
 	}
-	_, needToUpdate := pmap["@need-to-update"]
 
-	// // updates existent nodes
-	// if !cschema.IsDir() { // predicate for self value ==> [.=VALUE]
-	// 	if v, ok := pmap["."]; ok {
-	// 		value = v.(string)
-	// 	}
-	// }
-	for ; first < last; first++ {
-		child := root.Child(first)
-		if needToUpdate {
-			if err := UpdateByMap(child, pmap); err != nil {
-				return err
-			}
-		}
+	for _, child := range children {
+		// if needToUpdate {
+		// 	if err := UpdateByMap(child, pmap); err != nil {
+		// 		return err
+		// 	}
+		// }
 		if err := setValue(child, pathnode[1:], value); err != nil {
 			return err
 		}
@@ -1126,19 +1130,19 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 	}
 
 	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0], nil)
+	key, pmap, err := keyGen(cschema, pathnode[0])
 	if err != nil {
 		return err
 	}
 	if index, ok := pmap["@index"]; ok {
-		first = keyToIndex(branch, key)
+		first = indexFirst(branch, &key)
 		first, last, err = jumpToIndex(branch, first, index.(int))
 		if err != nil {
 			return err
 		}
 	} else {
 		_, prefixmatch := pmap["@prefix"]
-		first, last = indexRange(branch, key, prefixmatch)
+		first, last = indexRange(branch, &key, prefixmatch)
 		if IsDuplicatedList(cschema) {
 			first = last
 		}
@@ -1255,19 +1259,19 @@ func deleteValue(root DataNode, pathnode []*PathNode, value string) error {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, root.Schema().Name)
 	}
 	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0], nil)
+	key, pmap, err := keyGen(cschema, pathnode[0])
 	if err != nil {
 		return err
 	}
 	if index, ok := pmap["@index"]; ok {
-		first = keyToIndex(branch, key)
+		first = indexFirst(branch, &key)
 		first, last, err = jumpToIndex(branch, first, index.(int))
 		if err != nil {
 			return err
 		}
 	} else {
 		_, prefixmatch := pmap["@prefix"]
-		first, last = indexRange(branch, key, prefixmatch)
+		first, last = indexRange(branch, &key, prefixmatch)
 		if IsDuplicatedList(cschema) {
 			if first < last {
 				last = first + 1
@@ -1375,40 +1379,17 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	}
 	// [FIXME]
 	if LeafListValueAsKey {
-		// if leaflist, ok := root.(*DataLeafList); ok {
-		// 	if leaflist.Exist(pathnode[0].Name) {
-		// 		return returnFound(root, option...)
-		// 	}
-		// 	return nil
-		// }
-	}
-	cschema := GetSchema(root.Schema(), pathnode[0].Name)
-	if cschema == nil {
-		return nil
-	}
-	branch, ok := root.(*DataBranch)
-	if !ok {
-		return nil
-	}
-	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0], nil)
-	if err != nil {
-		return nil
+		if root.IsDataLeaf() {
+			if pathnode[0].Name == root.ValueString() {
+				return []DataNode{root}
+			}
+			return nil
+		}
 	}
 
-	if _, ok := pmap["@find-in-order"]; ok {
-		first, last = indexRange(branch, key, true)
-		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
-	} else {
-		_, prefixsearch := pmap["@prefix"]
-		first, last = indexRange(branch, key, prefixsearch)
-		if index, ok := pmap["@index"]; ok {
-			first, last, err = jumpToIndex(branch, first, index.(int))
-			if err != nil {
-				return nil
-			}
-		}
-		node = branch.children[first:last]
+	node, err := FindByPathNode(root, pathnode[0])
+	if err != nil {
+		return nil
 	}
 	for i := range node {
 		children = append(children, findNode(node[i], pathnode[1:], option...)...)
@@ -1479,50 +1460,20 @@ func findValue(root DataNode, pathnode []*PathNode) []interface{} {
 	}
 	// [FIXME]
 	if LeafListValueAsKey {
-		// if leaflist, ok := root.(*DataLeafList); ok {
-		// 	if leaflist.Exist(pathnode[0].Name) {
-		// 		return []interface{}{pathnode[0].Name}
-		// 	}
-		// 	return nil
-		// }
+		if root.IsDataLeaf() {
+			if pathnode[0].Name == root.ValueString() {
+				return []interface{}{root.Value()}
+			}
+			return nil
+		}
 	}
-	cschema := GetSchema(root.Schema(), pathnode[0].Name)
-	if cschema == nil {
-		return nil
-	}
-	branch, ok := root.(*DataBranch)
-	if !ok {
-		return nil
-	}
-	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0], nil)
+
+	node, err := FindByPathNode(root, pathnode[0])
 	if err != nil {
 		return nil
 	}
-	if _, ok := pmap["@find-in-order"]; ok {
-		first, last = indexRange(branch, key, true)
-		node, _ = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
-	} else {
-		_, prefixsearch := pmap["@prefix"]
-		first, last = indexRange(branch, key, prefixsearch)
-		if index, ok := pmap["@index"]; ok {
-			first, last, err = jumpToIndex(branch, first, index.(int))
-			if err != nil {
-				return nil
-			}
-		}
-		node = branch.children[first:last]
-	}
 
 	for i := range node {
-		if node[i].IsDataLeaf() {
-			if v, ok := pmap["."]; ok {
-				if node[i].ValueString() == v {
-					childvalues = append(childvalues, node[i].ValueString())
-				}
-				return childvalues
-			}
-		}
 		childvalues = append(childvalues, findValue(node[i], pathnode[1:])...)
 	}
 	return childvalues

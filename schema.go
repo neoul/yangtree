@@ -341,8 +341,8 @@ func IsDuplicatedList(schema *yang.Entry) bool {
 	return schema.IsList() && schema.Key == ""
 }
 
-// HasListKey() checks the data nodes can be duplicated.
-func HasListKey(schema *yang.Entry) bool {
+// IsListHasKey() checks the data nodes can be duplicated.
+func IsListHasKey(schema *yang.Entry) bool {
 	return schema.IsList() && schema.Key != ""
 }
 
@@ -354,9 +354,20 @@ func IsListable(schema *yang.Entry) bool {
 	return schema.ListAttr != nil
 }
 
+// leaf-lists and lists without keys can be present in the data tree multiple times.
+func HasRepeatableKey(schema *yang.Entry) bool {
+	return schema.ListAttr != nil && (schema.Key == "")
+}
+
 func IsDuplicatable(schema *yang.Entry) bool {
 	return (schema.IsList() && schema.Key == "") ||
 		(schema.IsLeafList() && IsState(schema))
+}
+
+// IsUpdatable is used to check the schema is updatable.
+// Leaf-list and non-key list are unable to be updated.
+func IsUpdatable(schema *yang.Entry) bool {
+	return !((schema.IsList() && schema.Key == "") || schema.IsLeafList())
 }
 
 func IsOrderedByUser(schema *yang.Entry) bool {
@@ -810,7 +821,7 @@ func FindModule(schema *yang.Entry, path string) *yang.Module {
 
 func HasUniqueListParent(schema *yang.Entry) bool {
 	for n := schema; n != nil; n = n.Parent {
-		if HasListKey(n) {
+		if IsListHasKey(n) {
 			return true
 		}
 	}
