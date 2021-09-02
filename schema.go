@@ -367,7 +367,7 @@ func IsDuplicatable(schema *yang.Entry) bool {
 // IsUpdatable is used to check the schema is updatable.
 // Leaf-list and non-key list are unable to be updated.
 func IsUpdatable(schema *yang.Entry) bool {
-	return !((schema.IsList() && schema.Key == "") || schema.IsLeafList())
+	return !(schema.ListAttr != nil && schema.Key == "")
 }
 
 func IsOrderedByUser(schema *yang.Entry) bool {

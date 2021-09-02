@@ -210,7 +210,7 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: "100"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: "1.01"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/empty-node", value: ""},
-		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: ""},
+		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint64-node[.=1234567890]", value: ""}, // failed if leaf key != value
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint64-node", value: "1234567890"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=BBB]/uint32-range", value: "200"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=CCC]/uint32-range", value: "300"},
@@ -225,7 +225,8 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: "leaf-list-second"},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: "leaf-list-third"},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val/leaf-list-fourth", value: ""},
-		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: ""},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: "leaf-list-fifth"},
+		{wantInsertErr: true, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: ""}, // failed if leaf-list key != value
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:enum-val", value: "enum2"},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:test-default", value: "11"},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/a", value: "A"},
@@ -233,7 +234,7 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: `{"uintval": "12", "strval": "XYZ"}`},
 		{wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: ""},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: "/sample:sample/sample:container-val/a"},
-		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: "5"},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: "6"},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: "true"},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: "493"},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: "500"},
@@ -263,16 +264,16 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 4, path: "/sample/single-key-list[list-key=*]"},
 		{expectedNum: 12, path: "/sample/single-key-list/*"},
 		{expectedNum: 14, path: "/sample/*"},
-		{expectedNum: 52, path: "/sample/..."},
+		{expectedNum: 53, path: "/sample/..."},
 		{expectedNum: 4, path: "/sample/...", findOption: StateOnly{}},
 		{expectedNum: 1, path: "/sample/.../enum-val"},
-		{expectedNum: 37, path: "/sample/*/*/"},
+		{expectedNum: 38, path: "/sample/*/*/"},
 		{expectedNum: 3, path: "/sample//non-key-list"},
 		{expectedNum: 2, path: "/sample/multiple-key-list[str=first][integer=*]"},
 		{expectedNum: 4, path: "/sample/multiple-key-list"},
 		{expectedNum: 1, path: "/sample/non-key-list[2]"},
 		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
-		{expectedNum: 5, path: "/sample/container-val/leaf-list-val"},
+		{expectedNum: 6, path: "/sample/container-val/leaf-list-val"},
 	}
 	for _, tt := range testfinds {
 		t.Run(fmt.Sprintf("Find(%s,%v)", tt.path, tt.findOption), func(t *testing.T) {
@@ -353,7 +354,7 @@ func TestDataNode(t *testing.T) {
 			continue
 		}
 		t.Run("Delete."+tt.path, func(t *testing.T) {
-			if err := Delete(RootData, tt.path, tt.value); (err != nil) != tt.wantDeleteErr {
+			if err := Delete(RootData, tt.path); (err != nil) != tt.wantDeleteErr {
 				t.Errorf("Delete() error = %v, wantDeleteErr %v", err, tt.wantDeleteErr)
 			}
 		})
