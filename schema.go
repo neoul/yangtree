@@ -336,8 +336,8 @@ func GetRootSchema(schema *yang.Entry) *yang.Entry {
 	return nil
 }
 
-// IsDuplicatedList() checks the data nodes can be duplicated.
-func IsDuplicatedList(schema *yang.Entry) bool {
+// IsDuplicatableList() checks the data nodes can be duplicated.
+func IsDuplicatableList(schema *yang.Entry) bool {
 	return schema.IsList() && schema.Key == ""
 }
 

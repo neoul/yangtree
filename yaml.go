@@ -10,8 +10,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// unmarshalYAMLList constructs list entries of a data node using YAML values.
-func (branch *DataBranch) unmarshalYAMLList(cschema *yang.Entry, kname []string, kval []interface{}, yval interface{}) error {
+// unmarshalYAMLListableNode constructs list entries of a data node using YAML values.
+func (branch *DataBranch) unmarshalYAMLListableNode(cschema *yang.Entry, kname []string, kval []interface{}, yval interface{}) error {
 	jdata, ok := yval.(map[interface{}]interface{})
 	if !ok {
 		if yval == nil {
@@ -22,7 +22,7 @@ func (branch *DataBranch) unmarshalYAMLList(cschema *yang.Entry, kname []string,
 	if len(kname) != len(kval) {
 		for k, v := range jdata {
 			kval = append(kval, k)
-			err := branch.unmarshalYAMLList(cschema, kname, kval, v)
+			err := branch.unmarshalYAMLListableNode(cschema, kname, kval, v)
 			if err != nil {
 				return err
 			}
@@ -54,8 +54,8 @@ func (branch *DataBranch) unmarshalYAMLList(cschema *yang.Entry, kname []string,
 	return unmarshalYAML(child, yval)
 }
 
-// unmarshalYAMLListRFC7951 constructs list entries of a data node using YAML values.
-func (branch *DataBranch) unmarshalYAMLListRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
+// unmarshalYAMLListableNodeForRFC7951 constructs list entries of a data node using YAML values.
+func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
 	for i := range listentry {
 		entry, ok := listentry[i].(map[interface{}]interface{})
 		if !ok {
@@ -78,7 +78,7 @@ func (branch *DataBranch) unmarshalYAMLListRFC7951(cschema *yang.Entry, kname []
 			// }
 		}
 		var child DataNode
-		if IsDuplicatedList(cschema) {
+		if IsDuplicatableList(cschema) {
 			if child, err = branch.New(key.String()); err != nil {
 				return err
 			}
@@ -119,7 +119,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 				}
 
 				switch {
-				case IsList(cschema):
+				case cschema.IsList():
 					if haskey {
 						keyname := GetKeynames(cschema)
 						keyval, err := ExtractKeyValues(keyname, &keystr)
@@ -148,16 +148,16 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						v = keymap
 					}
 					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if err := n.unmarshalYAMLListRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
+						if err := n.unmarshalYAMLListableNodeForRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
 							return err
 						}
 					} else {
-						if IsDuplicatedList(cschema) {
+						if IsDuplicatableList(cschema) {
 							return fmt.Errorf("non-key list %q must have the array format", cschema.Name)
 						}
 						kname := GetKeynames(cschema)
 						kval := make([]interface{}, 0, len(kname))
-						if err := n.unmarshalYAMLList(cschema, kname, kval, v); err != nil {
+						if err := n.unmarshalYAMLListableNode(cschema, kname, kval, v); err != nil {
 							return err
 						}
 					}
@@ -257,35 +257,28 @@ type yDataNode struct {
 	indentStr  string // indent string used at YAML encoding
 }
 
-func (ynode *yDataNode) rfc7951() rfc7951s {
-	if ynode == nil {
-		return rfc7951Disabled
-	}
-	return ynode.rfc7951s
-}
-
 func (ynode *yDataNode) getQname() string {
-	switch ynode.rfc7951() {
-	case rfc7951InProgress, rfc7951Enabled:
+	switch ynode.rfc7951s {
+	case rfc7951Enabled:
 		ynode.rfc7951s = rfc7951InProgress
+		fallthrough
+	case rfc7951InProgress:
 		if qname, boundary := GetQName(ynode.Schema()); boundary ||
-			ynode.rfc7951() == rfc7951Enabled {
+			ynode.rfc7951s == rfc7951Enabled {
 			return qname
 		}
 		return ynode.Schema().Name
 	}
-	if ynode.IsDataBranch() {
-		if ynode.iformat {
-			return ynode.Key()
-		}
+	if ynode.iformat && ynode.IsDataBranch() {
+		return ynode.Key()
 	}
 	return ynode.Schema().Name
 }
 
 func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode) (int, error) {
 	schema := node[i].Schema()
-	ynode := *parent
-	ynode.DataNode = node[i]
+	ynode := *parent         // copy options
+	ynode.DataNode = node[i] // update the marshalling target
 	m := GetSchemaMeta(schema)
 	switch ynode.configOnly {
 	case yang.TSTrue:
@@ -305,7 +298,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 			}
 		}
 	}
-	if ynode.rfc7951() != rfc7951Disabled || IsDuplicatedList(schema) || schema.IsLeafList() {
+	if ynode.rfc7951s != rfc7951Disabled || IsDuplicatableList(schema) || schema.IsLeafList() {
 		writeIndent(buffer, indent, ynode.indentStr)
 		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
@@ -381,7 +374,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 		node := datanode.children
 		for i := 0; i < len(datanode.children); {
 			schema := node[i].Schema()
-			if IsListable(schema) {
+			if IsListable(schema) { // for list and leaf-list
 				var err error
 				i, err = marshalYAMLListableNode(buffer, node, i, indent, ynode)
 				if err != nil {
@@ -393,6 +386,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			m := GetSchemaMeta(schema)
 			if (ynode.configOnly == yang.TSTrue && m.IsState) ||
 				(ynode.configOnly == yang.TSFalse && !m.IsState && !m.HasState) {
+				// skip the node according to the retrieval option
 				i++
 				continue
 			}
@@ -418,10 +412,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			i++
 		}
 	case *DataLeaf:
-		rfc7951enabled := false
-		if ynode.rfc7951() != rfc7951Disabled {
-			rfc7951enabled = true
-		}
+		rfc7951enabled := ynode.rfc7951s != rfc7951Disabled
 		valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
 		if err != nil {
 			return err
@@ -487,7 +478,7 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
-			return nil, fmt.Errorf("%v option is is available to find nodes", option[i])
+			return nil, fmt.Errorf("%v option can be used to find nodes", option[i])
 		case ConfigOnly:
 			ynode.configOnly = yang.TSTrue
 		case StateOnly:

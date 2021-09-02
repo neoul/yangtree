@@ -964,7 +964,7 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 			return err
 		}
 		return root.Insert(child)
-	case IsDuplicatedList(cschema):
+	case IsDuplicatableList(cschema):
 		child, err := New(cschema)
 		if err != nil {
 			return err
@@ -1052,7 +1052,7 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return err
 	}
 	switch {
-	case IsDuplicatedList(cschema):
+	case IsDuplicatableList(cschema):
 		key, _ := GenerateKey(cschema, pmap)
 		first := indexFirst(branch, &key)
 		if indexMatched(branch, first, &key) {
@@ -1175,7 +1175,7 @@ func deleteValue(root DataNode, pathnode []*PathNode) error {
 		return err
 	}
 	switch {
-	case IsDuplicatedList(cschema):
+	case IsDuplicatableList(cschema):
 		key, _ := GenerateKey(cschema, pmap)
 		first := indexFirst(branch, &key)
 		if indexMatched(branch, first, &key) {
@@ -1453,7 +1453,7 @@ func merge(dest, src DataNode) error {
 		d := dest.(*DataBranch)
 		for i := range s.children {
 			schema := s.children[i].Schema()
-			if IsDuplicatedList(schema) {
+			if IsDuplicatableList(schema) {
 				if _, err := clone(d, s.children[i]); err != nil {
 					return err
 				}
@@ -1540,7 +1540,7 @@ func (branch *DataBranch) Replace(src DataNode) error {
 	if branch.schema != src.Schema() {
 		return fmt.Errorf("unable to replace the different schema nodes")
 	}
-	if IsDuplicatedList(branch.schema) {
+	if IsDuplicatableList(branch.schema) {
 		return fmt.Errorf("replace is not supported for non-key list")
 	}
 	return branch.parent.Insert(src)

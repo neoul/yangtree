@@ -154,7 +154,7 @@ func marshalJSONList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, p
 	buffer.WriteString(`"`)
 	buffer.WriteString(first.getQname())
 	buffer.WriteString(`":`)
-	if first.rfc7951s != rfc7951Disabled || IsDuplicatedList(schema) || schema.IsLeafList() {
+	if first.rfc7951s != rfc7951Disabled || IsDuplicatableList(schema) || schema.IsLeafList() {
 		ii := i
 		for ; i < len(node); i++ {
 			if schema != node[i].Schema() {
@@ -396,7 +396,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 							return err
 						}
 					} else {
-						if IsDuplicatedList(cschema) {
+						if IsDuplicatableList(cschema) {
 							return fmt.Errorf("non-key list %q must have the array format of RFC7951", cschema.Name)
 						}
 						kname := GetKeynames(cschema)

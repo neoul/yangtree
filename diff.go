@@ -32,7 +32,7 @@ func DiffUpdated(node1, node2 DataNode) ([]DataNode, []DataNode) {
 		// created, replaced
 		for first := 0; first < len(d2.children); first++ {
 			key := d2.children[first].Key()
-			if IsDuplicatedList(d2.children[first].Schema()) {
+			if IsDuplicatableList(d2.children[first].Schema()) {
 				d1children := d1.GetAll(key)
 				d2children := d2.GetAll(key)
 				for i := range d2children {
@@ -89,7 +89,7 @@ func DiffCreated(node1, node2 DataNode) []DataNode {
 		// created
 		for first := 0; first < len(d2.children); first++ {
 			key := d2.children[first].Key()
-			if IsDuplicatedList(d2.children[first].Schema()) {
+			if IsDuplicatableList(d2.children[first].Schema()) {
 				d1children := d1.GetAll(key)
 				d2children := d2.GetAll(key)
 				for i := range d2children {
