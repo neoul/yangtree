@@ -259,12 +259,10 @@ type yDataNode struct {
 
 func (ynode *yDataNode) getQname() string {
 	switch ynode.rfc7951s {
-	case rfc7951Enabled:
-		ynode.rfc7951s = rfc7951InProgress
-		fallthrough
-	case rfc7951InProgress:
+	case rfc7951InProgress, rfc7951Enabled:
 		if qname, boundary := GetQName(ynode.Schema()); boundary ||
 			ynode.rfc7951s == rfc7951Enabled {
+			ynode.rfc7951s = rfc7951InProgress
 			return qname
 		}
 		return ynode.Schema().Name

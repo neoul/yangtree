@@ -81,7 +81,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 			schema := node[i].Schema()
 			if IsListable(schema) {
 				var err error
-				i, comma, err = marshalJSONList(buffer, node, i, comma, jnode)
+				i, comma, err = marshalJSONListableNode(buffer, node, i, comma, jnode)
 				if err != nil {
 					return err
 				}
@@ -124,7 +124,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 	return nil
 }
 
-func marshalJSONList(buffer *bytes.Buffer, node []DataNode, i int, comma bool, parent *jDataNode) (int, bool, error) {
+func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma bool, parent *jDataNode) (int, bool, error) {
 	first := *parent
 	first.DataNode = node[i]
 	schema := first.Schema()
