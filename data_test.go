@@ -61,14 +61,14 @@ func TestNew(t *testing.T) {
 		}
 	   }
 	`
-	root1, err := NewDataNode(RootSchema, jbyte)
+	root1, err := NewWithValue(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
 	j, _ := MarshalJSON(root1)
 	t.Log(string(j))
 
-	root2, err := NewDataNode(RootSchema, jbyte)
+	root2, err := NewWithValue(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestNew(t *testing.T) {
 	if s == nil {
 		t.Error("schema multiple-key-list not found")
 	}
-	mnode, err := NewDataNode(s, mergingData)
+	mnode, err := NewWithValue(s, mergingData)
 	if err != nil {
 		t.Error("new failed", err)
 	}
@@ -519,7 +519,7 @@ func TestReplace(t *testing.T) {
 	schema := FindSchema(rootschema, "interfaces/interface")
 	for i := 1; i < 5; i++ {
 		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
-		new, err := NewDataNode(schema, v)
+		new, err := NewWithValue(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -530,7 +530,7 @@ func TestReplace(t *testing.T) {
 	}
 	for i := 3; i < 7; i++ {
 		v := `{ "config": {"enabled":"true"}, "state": {"admin-status":"UP"}}`
-		new, err := NewDataNode(schema, v)
+		new, err := NewWithValue(schema, v)
 		if err != nil {
 			t.Error(err)
 		}

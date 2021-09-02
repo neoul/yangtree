@@ -18,7 +18,7 @@ func New(schema *yang.Entry, typedvalue *gnmipb.TypedValue) (yangtree.DataNode, 
 	if err != nil {
 		return nil, err
 	}
-	return yangtree.New(schema, valstr)
+	return yangtree.NewWithValue(schema, valstr)
 }
 
 // Replace() replaces the target data node to the new data node in the path.

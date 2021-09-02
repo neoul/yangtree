@@ -799,7 +799,7 @@ func UpdateByMap(node DataNode, pmap map[string]interface{}) error {
 						return err
 					}
 				} else if found := node.Get(k); found == nil {
-					newnode, err := NewDataNode(GetSchema(schema, k), vstr)
+					newnode, err := NewWithValue(GetSchema(schema, k), vstr)
 					if err != nil {
 						return err
 					}
@@ -821,10 +821,10 @@ func New(schema *yang.Entry) (DataNode, error) {
 	return newDataNode(schema, IsCreatedWithDefault(schema))
 }
 
-// NewDataNode() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
+// NewWithValue() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
 // with its values. The values should be a string if the new DataNode is *DataLeaf.
 // The values should be JSON encoded bytes if the node is *DataBranch.
-func NewDataNode(schema *yang.Entry, value string) (DataNode, error) {
+func NewWithValue(schema *yang.Entry, value string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}

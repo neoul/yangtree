@@ -28,7 +28,7 @@ func TestDiffUpdate(t *testing.T) {
 	schema := FindSchema(rootschema, "interfaces/interface")
 	for i := 1; i < 5; i++ {
 		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
-		new, err := NewDataNode(schema, v)
+		new, err := NewWithValue(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -40,7 +40,7 @@ func TestDiffUpdate(t *testing.T) {
 	prev := Clone(root)
 	for i := 3; i < 7; i++ {
 		v := `{ "config": {"enabled":"false"}, "state": {"admin-status":"DOWN"}}`
-		new, err := NewDataNode(schema, v)
+		new, err := NewWithValue(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
