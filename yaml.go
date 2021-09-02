@@ -180,7 +180,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 					}
 				default:
 					var child DataNode
-					i, _ := n.Index(keystr)
+					i := n.Index(keystr)
 					if i < len(n.children) && n.children[i].Key() == k {
 						child = n.children[i]
 						if err := unmarshalYAML(child, v); err != nil {

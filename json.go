@@ -407,7 +407,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 					}
 				default:
 					var child DataNode
-					i, _ := n.Index(k)
+					i := n.Index(k)
 					if i < len(n.children) && n.children[i].Key() == k {
 						child = n.children[i]
 						if err := unmarshalJSON(child, v); err != nil {
