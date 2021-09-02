@@ -90,36 +90,6 @@ func indexMatched(parent *DataBranch, index int, key *string) bool {
 	return false
 }
 
-// indexRange() returns the index of a child related to the key
-func indexRange(parent *DataBranch, key *string, prefixmatch bool) (i, max int) {
-	i = sort.Search(len(parent.children),
-		func(j int) bool {
-			return *key <= parent.children[j].Key()
-		})
-	if prefixmatch {
-		max = i
-		for ; max < len(parent.children); max++ {
-			if parent.children[i].Schema() != parent.children[max].Schema() {
-				break
-			}
-			if !strings.HasPrefix(*key, parent.children[max].Key()) {
-				break
-			}
-		}
-		return
-	}
-	max = i
-	for ; max < len(parent.children); max++ {
-		if parent.children[i].Schema() != parent.children[max].Schema() {
-			break
-		}
-		if *key != parent.children[max].Key() {
-			break
-		}
-	}
-	return
-}
-
 // indexRangeBySchema() returns the index of a child related to the key
 func indexRangeBySchema(parent *DataBranch, key *string) (i, max int) {
 	i = indexFirst(parent, key)
@@ -620,9 +590,8 @@ func (branch *DataBranch) Child(index int) DataNode {
 	return nil
 }
 
-func (branch *DataBranch) Index(key string) (int, int) {
-	// [FIXME] leaf-list ?
-	return indexRange(branch, &key, false)
+func (branch *DataBranch) Index(key string) int {
+	return indexFirst(branch, &key)
 }
 
 func (branch *DataBranch) Len() int {
@@ -789,8 +758,8 @@ func (leaf *DataLeaf) Child(index int) DataNode {
 	return nil
 }
 
-func (leaf *DataLeaf) Index(key string) (int, int) {
-	return 0, 0
+func (leaf *DataLeaf) Index(key string) int {
+	return 0
 }
 
 func (leaf *DataLeaf) Len() int {
@@ -1065,9 +1034,9 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 			root = root.Parent()
 		}
 	case NodeSelectAllChildren:
-		return fmt.Errorf("unable to specify the node position inserted")
+		return fmt.Errorf("unable to specify the node position replaced")
 	case NodeSelectAll:
-		return fmt.Errorf("unable to specify the node position inserted")
+		return fmt.Errorf("unable to specify the node position replaced")
 	}
 
 	branch, ok := root.(*DataBranch)
@@ -1078,23 +1047,22 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-
-	var first, last int
-	key, pmap, err := keyGen(cschema, pathnode[0])
+	pmap, err := pathnode[0].PredicatesToMap()
 	if err != nil {
 		return err
 	}
-	if index, ok := pmap["@index"]; ok {
-		first = indexFirst(branch, &key)
-		first, last, err = jumpToIndex(branch, first, index.(int))
-		if err != nil {
-			return err
+	switch {
+	case IsDuplicatedList(cschema):
+		key, _ := GenerateKey(cschema, pmap)
+		first := indexFirst(branch, &key)
+		if indexMatched(branch, first, &key) {
+			return replace(branch.children[first], pathnode[1:], node)
 		}
-	} else {
-		_, prefixmatch := pmap["@prefix"]
-		first, last = indexRange(branch, &key, prefixmatch)
-		if IsDuplicatedList(cschema) {
-			first = last
+		return nil
+	case cschema.IsLeafList():
+		if LeafListValueAsKey && len(pathnode) == 2 {
+			pmap["."] = pathnode[1].Name
+			pathnode = pathnode[:1]
 		}
 	}
 	if cschema == node.Schema() {
@@ -1107,16 +1075,18 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 		}
 		return branch.Insert(node)
 	}
-	// newly adds a node
-	if first == last {
+
+	key, prefixmatch := GenerateKey(cschema, pmap)
+	children := _find(branch, cschema, &key, prefixmatch, pmap, true)
+	if len(children) == 0 { // create
 		child, err := New(cschema)
 		if err != nil {
 			return err
 		}
-		if err := UpdateByMap(child, pmap); err != nil {
+		if err = UpdateByMap(child, pmap); err != nil {
 			return err
 		}
-		if err := branch.Insert(child); err != nil {
+		if err = branch.Insert(child); err != nil {
 			return err
 		}
 		err = replace(child, pathnode[1:], node)
@@ -1125,9 +1095,10 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 		}
 		return err
 	}
+
 	// updates existent nodes
-	if first+1 == last {
-		return replace(branch.Child(first), pathnode[1:], node)
+	if len(children) == 1 {
+		return replace(children[0], pathnode[1:], node)
 	}
 	return fmt.Errorf("unable to specify the node position inserted")
 }

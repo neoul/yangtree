@@ -35,9 +35,9 @@ type DataNode interface {
 	GetAll(key string) []DataNode    // GetAll() is used to get all children that have the key.
 	Lookup(prefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix.
 
-	Len() int                    // Len() returns the length of children.
-	Index(key string) (int, int) // Index() finds all children by the key and returns the range found.
-	Child(index int) DataNode    // Child() gets the child of the index.
+	Len() int                 // Len() returns the length of children.
+	Index(key string) int     // Index() finds all children by the key and returns the position.
+	Child(index int) DataNode // Child() gets the child of the index.
 
 	String() string
 	Path() string                      // Path() returns the path from the root to the current data node.
