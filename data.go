@@ -227,40 +227,14 @@ func (branch *DataBranch) Update(key string, value string) (DataNode, error) {
 	if len(pathnode) == 0 || len(pathnode) > 1 {
 		return nil, fmt.Errorf("invalid key %q inserted", key)
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
+	nodes, err := setNode(branch, pathnode, value)
 	if err != nil {
 		return nil, err
 	}
-	cschema := GetSchema(branch.schema, pathnode[0].Name)
-	if cschema == nil {
-		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("reach to unexpected case ... there is not a updated node in %q", branch)
 	}
-	_key, ok := GenerateKey(cschema, pmap)
-	if !ok {
-		return nil, fmt.Errorf("unable to generate the key for %q", cschema.Name)
-	}
-	if !IsUpdatable(cschema) {
-		return nil, fmt.Errorf("leaf-list or non-key list such as %q is not updatable ", cschema.Name)
-	}
-	child := branch.Get(_key)
-	if child == nil {
-		child, err = New(cschema)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if err := child.Set(value); err != nil {
-		return nil, err
-	}
-	err = UpdateByMap(child, pmap)
-	if err != nil {
-		return nil, err
-	}
-	err = branch.Insert(child)
-	if err != nil {
-		return nil, err
-	}
-	return child, nil
+	return nodes[0], nil
 }
 
 func (branch *DataBranch) Set(value string) error {
@@ -876,19 +850,23 @@ func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
 	return newdata, err
 }
 
-func setValue(root DataNode, pathnode []*PathNode, value string) error {
+// setNode() create or update a target data node using the value.
+func setNode(root DataNode, pathnode []*PathNode, value string) ([]DataNode, error) {
 	if len(pathnode) == 0 || pathnode[0].Name == "" {
-		return root.Set(value)
+		if err := root.Set(value); err != nil {
+			return nil, err
+		}
+		return []DataNode{root}, nil
 	}
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
-		return setValue(root, pathnode[1:], value)
+		return setNode(root, pathnode[1:], value)
 	case NodeSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("unknown parent node selected from %q", root)
+			return nil, fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
-		return setValue(root, pathnode[1:], value)
+		return setNode(root, pathnode[1:], value)
 	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
@@ -896,28 +874,34 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 	case NodeSelectAllChildren:
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return fmt.Errorf("select children from non-branch node %q", root)
+			return nil, fmt.Errorf("select children from non-branch node %q", root)
 		}
+		var nodes []DataNode
 		for i := 0; i < len(branch.children); i++ {
-			if err := setValue(branch.Child(i), pathnode[1:], value); err != nil {
-				return err
+			rnodes, err := setNode(branch.Child(i), pathnode[1:], value)
+			if err != nil {
+				return nil, err
 			}
+			nodes = append(nodes, rnodes...)
 		}
-		return nil
+		return nodes, nil
 	case NodeSelectAll:
-		if err := setValue(root, pathnode[1:], value); err != nil {
-			return err
+		nodes, err := setNode(root, pathnode[1:], value)
+		if err != nil {
+			return nil, err
 		}
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return fmt.Errorf("select children from non-branch node %q", root)
+			return nil, fmt.Errorf("select children from non-branch node %q", root)
 		}
 		for i := 0; i < len(branch.children); i++ {
-			if err := setValue(root.Child(i), pathnode, value); err != nil {
-				return err
+			rnodes, err := setNode(root.Child(i), pathnode, value)
+			if err != nil {
+				return nil, err
 			}
+			nodes = append(nodes, rnodes...)
 		}
-		return nil
+		return nodes, nil
 	}
 
 	// [FIXME] - metadata
@@ -927,15 +911,15 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 
 	branch, ok := root.(*DataBranch)
 	if !ok {
-		return fmt.Errorf("unable to find children from %q", root)
+		return nil, fmt.Errorf("unable to find children from %q", root)
 	}
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 	pmap, err := pathnode[0].PredicatesToMap()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	switch {
@@ -945,37 +929,40 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 			pathnode = pathnode[:1]
 		}
 		if pmap["."] != nil && pmap["."].(string) != value {
-			return fmt.Errorf(`xpath predicate %s[.=%s] must be equal to the value %q`,
-				cschema.Name, pmap["."].(string), value)
+			return nil, fmt.Errorf(`value %q must be equal to xpath predicate %s[.=%s]`,
+				value, cschema.Name, pmap["."].(string))
 		}
 		fallthrough
 	case cschema.IsLeaf():
 		if len(pathnode) > 1 {
-			return fmt.Errorf("invalid path element %q", pathnode[1])
+			return nil, fmt.Errorf("invalid path element %q", pathnode[1])
 		}
 		child, err := New(cschema)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = UpdateByMap(child, pmap); err != nil {
-			return err
+			return nil, err
 		}
 		if err = child.Set(value); err != nil {
-			return err
+			return nil, err
 		}
-		return root.Insert(child)
+		if err = root.Insert(child); err != nil {
+			return nil, err
+		}
+		return []DataNode{child}, nil
 	case IsDuplicatableList(cschema):
 		child, err := New(cschema)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := UpdateByMap(child, pmap); err != nil {
-			return err
+			return nil, err
 		}
 		if err := root.Insert(child); err != nil {
-			return err
+			return nil, err
 		}
-		return setValue(child, pathnode[1:], value)
+		return setNode(child, pathnode[1:], value)
 	}
 
 	key, prefixmatch := GenerateKey(cschema, pmap)
@@ -983,23 +970,29 @@ func setValue(root DataNode, pathnode []*PathNode, value string) error {
 	if len(children) == 0 { // create
 		child, err := New(cschema)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = UpdateByMap(child, pmap); err != nil {
-			return err
+			return nil, err
 		}
 		if err = branch.Insert(child); err != nil {
-			return err
+			return nil, err
 		}
 		children = append(children, child)
 	}
 
-	for _, child := range children {
-		if err := setValue(child, pathnode[1:], value); err != nil {
-			return err
-		}
+	if len(children) == 1 {
+		return setNode(children[0], pathnode[1:], value)
 	}
-	return nil
+	var nodes []DataNode
+	for _, child := range children {
+		rnodes, err := setNode(child, pathnode[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, rnodes...)
+	}
+	return nodes, nil
 }
 
 // Set sets a value or values to the target DataNode in the path.
@@ -1013,22 +1006,23 @@ func Set(root DataNode, path string, value string) error {
 	if err != nil {
 		return err
 	}
-	return setValue(root, pathnode, value)
+	_, err = setNode(root, pathnode, value)
+	return err
 }
 
-func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
+func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	if len(pathnode) == 0 {
 		return root.Insert(node)
 	}
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
-		return replace(root, pathnode[1:], node)
+		return replaceNode(root, pathnode[1:], node)
 	case NodeSelectParent:
 		if root.Parent() == nil {
 			return fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
-		return replace(root, pathnode[1:], node)
+		return replaceNode(root, pathnode[1:], node)
 	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
@@ -1056,7 +1050,7 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 		key, _ := GenerateKey(cschema, pmap)
 		first := indexFirst(branch, &key)
 		if indexMatched(branch, first, &key) {
-			return replace(branch.children[first], pathnode[1:], node)
+			return replaceNode(branch.children[first], pathnode[1:], node)
 		}
 		return nil
 	case cschema.IsLeafList():
@@ -1089,7 +1083,7 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 		if err = branch.Insert(child); err != nil {
 			return err
 		}
-		err = replace(child, pathnode[1:], node)
+		err = replaceNode(child, pathnode[1:], node)
 		if err != nil {
 			child.Remove()
 		}
@@ -1098,7 +1092,7 @@ func replace(root DataNode, pathnode []*PathNode, node DataNode) error {
 
 	// updates existent nodes
 	if len(children) == 1 {
-		return replace(children[0], pathnode[1:], node)
+		return replaceNode(children[0], pathnode[1:], node)
 	}
 	return fmt.Errorf("unable to specify the node position inserted")
 }
@@ -1115,19 +1109,22 @@ func Replace(root DataNode, path string, new DataNode) error {
 	if err != nil {
 		return err
 	}
-	return replace(root, pathnode, new)
+	return replaceNode(root, pathnode, new)
 }
 
-func deleteValue(root DataNode, pathnode []*PathNode) error {
+func deleteValue(root DataNode, pathnode []*PathNode) ([]DataNode, error) {
 	if len(pathnode) == 0 || pathnode[0].Name == "" {
-		return root.Remove()
+		if err := root.Remove(); err != nil {
+			return nil, err
+		}
+		return []DataNode{root}, nil
 	}
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
 		return deleteValue(root, pathnode[1:])
 	case NodeSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("unknown parent node selected from %q", root)
+			return nil, fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
 		return deleteValue(root, pathnode[1:])
@@ -1138,41 +1135,47 @@ func deleteValue(root DataNode, pathnode []*PathNode) error {
 	case NodeSelectAllChildren:
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return fmt.Errorf("select children from non-branch node %q", root)
+			return nil, fmt.Errorf("select children from non-branch node %q", root)
 		}
+		var deletedNodes []DataNode
 		for i := 0; i < len(branch.children); i++ {
-			if err := deleteValue(root.Child(i), pathnode[1:]); err != nil {
-				return err
+			_nodes, err := deleteValue(root.Child(i), pathnode[1:])
+			if err != nil {
+				return nil, err
 			}
+			deletedNodes = append(deletedNodes, _nodes...)
 		}
-		return nil
+		return deletedNodes, nil
 	case NodeSelectAll:
-		if err := deleteValue(root, pathnode[1:]); err != nil {
-			return err
+		deletedNodes, err := deleteValue(root, pathnode[1:])
+		if err != nil {
+			return nil, err
 		}
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return fmt.Errorf("select children from non-branch node %q", root)
+			return nil, fmt.Errorf("select children from non-branch node %q", root)
 		}
 		for i := 0; i < len(branch.children); i++ {
-			if err := deleteValue(root.Child(i), pathnode); err != nil {
-				return err
+			_nodes, err := deleteValue(root.Child(i), pathnode)
+			if err != nil {
+				return nil, err
 			}
+			deletedNodes = append(deletedNodes, _nodes...)
 		}
-		return nil
+		return deletedNodes, nil
 	}
 
 	branch, ok := root.(*DataBranch)
 	if !ok {
-		return fmt.Errorf("select children from non-branch node %q", root)
+		return nil, fmt.Errorf("select children from non-branch node %q", root)
 	}
 	cschema := GetSchema(root.Schema(), pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, root.Schema().Name)
+		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, root.Schema().Name)
 	}
 	pmap, err := pathnode[0].PredicatesToMap()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	switch {
 	case IsDuplicatableList(cschema):
@@ -1181,7 +1184,9 @@ func deleteValue(root DataNode, pathnode []*PathNode) error {
 		if indexMatched(branch, first, &key) {
 			return deleteValue(branch.children[first], pathnode[1:])
 		}
-		return nil
+		// [FIXME] Is it an error if the node is not found?
+		// return nil, fmt.Errorf("the node deleting not found")
+		return nil, nil
 	case cschema.IsLeafList():
 		if LeafListValueAsKey && len(pathnode) == 2 {
 			pmap["."] = pathnode[1].Name
@@ -1190,12 +1195,24 @@ func deleteValue(root DataNode, pathnode []*PathNode) error {
 	}
 	key, prefixmatch := GenerateKey(cschema, pmap)
 	children := _find(branch, cschema, &key, prefixmatch, pmap, true)
-	for _, node := range children {
-		if err := deleteValue(node, pathnode[1:]); err != nil {
-			return err
+	switch len(children) {
+	case 0:
+		// [FIXME] Is it an error if the node is not found?
+		// return nil, fmt.Errorf("the node deleting not found")
+		return nil, nil
+	case 1:
+		return deleteValue(children[0], pathnode[1:])
+	default:
+		var deletedNodes []DataNode
+		for _, node := range children {
+			_nodes, err := deleteValue(node, pathnode[1:])
+			if err != nil {
+				return nil, err
+			}
+			deletedNodes = append(deletedNodes, _nodes...)
 		}
+		return deletedNodes, nil
 	}
-	return nil
 }
 
 // Delete() deletes the target data node in the path if the value is not specified.
@@ -1208,7 +1225,8 @@ func Delete(root DataNode, path string) error {
 	if err != nil {
 		return err
 	}
-	return deleteValue(root, pathnode)
+	_, err = deleteValue(root, pathnode)
+	return err
 }
 
 func returnFound(node DataNode, option ...Option) []DataNode {

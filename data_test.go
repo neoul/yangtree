@@ -371,86 +371,86 @@ func TestDataNode(t *testing.T) {
 	}
 }
 
-// func TestComplexModel(t *testing.T) {
-// 	rootschema, err := Load(
-// 		[]string{
-// 			"testdata/modules/choice-case-example.yang",
-// 			"testdata/modules/pattern.yang",
-// 			"testdata/modules/openconfig-simple-target.yang",
-// 			"testdata/modules/openconfig-simple-augment.yang",
-// 		}, nil, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	rootdata, err := New(rootschema)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	simpleChoiceCase, err := rootdata.New("simple-choice-case")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	_, err = simpleChoiceCase.New("a", "a.value")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	_, err = simpleChoiceCase.New("b", "b.value")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	choiceCaseAnonymousCase, err := rootdata.New("choice-case-anonymous-case")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	_, err = choiceCaseAnonymousCase.New("foo/a", "a.value")
-// 	if err == nil {
-// 		t.Error("choice and case should not be present in the tree.")
-// 	}
-// 	_, err = choiceCaseAnonymousCase.New("a", "a.value")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	_, err = choiceCaseAnonymousCase.New("b", "b.value")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	choiceCaseWithLeafref, err := rootdata.New("choice-case-with-leafref")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	_, err = choiceCaseWithLeafref.New("referenced", "referenced.value")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	node, err := choiceCaseWithLeafref.New("ptr", "ok?")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	if err := Validate(node); err == nil {
-// 		t.Error("leafref value must be present in the tree.")
-// 	}
-// 	node, err = choiceCaseWithLeafref.New("ptr", "referenced.value")
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	if err := Validate(node); err != nil {
-// 		t.Error(err)
-// 	}
+func TestComplexModel(t *testing.T) {
+	rootschema, err := Load(
+		[]string{
+			"testdata/modules/choice-case-example.yang",
+			"testdata/modules/pattern.yang",
+			"testdata/modules/openconfig-simple-target.yang",
+			"testdata/modules/openconfig-simple-augment.yang",
+		}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootdata, err := New(rootschema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	simpleChoiceCase, err := rootdata.New("simple-choice-case")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = simpleChoiceCase.Update("a", "a.value")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = simpleChoiceCase.Update("b", "b.value")
+	if err != nil {
+		t.Error(err)
+	}
+	choiceCaseAnonymousCase, err := rootdata.New("choice-case-anonymous-case")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = choiceCaseAnonymousCase.Update("foo/a", "a.value")
+	if err == nil {
+		t.Error("choice and case should not be present in the tree.")
+	}
+	_, err = choiceCaseAnonymousCase.Update("a", "a.value")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = choiceCaseAnonymousCase.Update("b", "b.value")
+	if err != nil {
+		t.Error(err)
+	}
+	choiceCaseWithLeafref, err := rootdata.New("choice-case-with-leafref")
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = choiceCaseWithLeafref.Update("referenced", "referenced.value")
+	if err != nil {
+		t.Error(err)
+	}
+	node, err := choiceCaseWithLeafref.Update("ptr", "ok?")
+	if err != nil {
+		t.Error(err)
+	}
+	if err := Validate(node); err == nil {
+		t.Error("leafref value must be present in the tree.")
+	}
+	node, err = choiceCaseWithLeafref.Update("ptr", "referenced.value")
+	if err != nil {
+		t.Error(err)
+	}
+	if err := Validate(node); err != nil {
+		t.Error(err)
+	}
 
-// 	if _, err = rootdata.New("pattern-type", "x"); err == nil {
-// 		t.Error(err)
-// 	}
-// 	if _, err = rootdata.New("pattern-type", "abc"); err != nil {
-// 		t.Error(err)
-// 	}
+	if _, err = rootdata.Update("pattern-type", "x"); err == nil {
+		t.Error(err)
+	}
+	if _, err = rootdata.Update("pattern-type", "abc"); err != nil {
+		t.Error(err)
+	}
 
-// 	j, err := rootdata.MarshalJSON()
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
+	j, err := rootdata.MarshalJSON()
+	if err != nil {
+		t.Error(err)
+	}
 
-// 	t.Log(string(j))
-// }
+	t.Log(string(j))
+}
 
 func TestCreatedWithDefault(t *testing.T) {
 	rootschema, err := Load(
@@ -563,34 +563,54 @@ func TestLeafList(t *testing.T) {
 
 	tests := []struct {
 		path          string
-		value         []string
+		value         string
 		wantInsertErr bool
 		wantDeleteErr bool
 	}{
 		// Read-write leaf-list
-		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: nil},
-		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: []string{"leaf-list-1", "leaf-list-2"}},
-		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: []string{"leaf-list-3"}},
-		{wantInsertErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: nil},
-		{wantInsertErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: nil},
-		{wantInsertErr: false, path: "/sample/leaf-list-rw", value: []string{"leaf-list-3"}},
-		// Read-only leaf-list
-		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: []string{"leaf-list-1", "leaf-list-2"}},
-		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: []string{"leaf-list-3"}},
-		{wantInsertErr: false, path: "/sample/leaf-list-ro/leaf-list-4", value: nil},
-		{wantInsertErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: nil},
-		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: []string{"leaf-list-3"}},
-		{wantInsertErr: false, path: "/sample/leaf-list-ro", value: nil},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: ""},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-1"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-2"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-3"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-3"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: ""},
+		{wantInsertErr: true, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: ""},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "leaf-list-5"},
+
+		// // Read-only leaf-list
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: ""},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-1"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-2"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-3"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-3"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro/leaf-list-4", value: ""},
+		{wantInsertErr: true, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: ""},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5"},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Set.%s %v", tt.path, tt.value), func(t *testing.T) {
-			for i := range tt.value {
-				err := Set(RootData, tt.path, tt.value[i])
-				if (err != nil) != tt.wantInsertErr {
-					t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
-				}
+			err := Set(RootData, tt.path, tt.value)
+			if (err != nil) != tt.wantInsertErr {
+				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
-
 		})
 	}
+	y, err := MarshalYAML(RootData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("\n", string(y))
+	for i := len(tests) - 1; i >= 0; i-- {
+		t.Run(fmt.Sprintf("Delete.%s", tests[i].path), func(t *testing.T) {
+			err := Delete(RootData, tests[i].path)
+			if (err != nil) != tests[i].wantDeleteErr {
+				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, tests[i].wantDeleteErr, tests[i].path)
+			}
+		})
+	}
+	y, err = MarshalYAML(RootData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("\n", string(y))
 }
