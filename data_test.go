@@ -572,7 +572,7 @@ func TestLeafList(t *testing.T) {
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-1"},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-2"},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-3"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-3"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "[leaf-list-3]"},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: ""},
 		{wantInsertErr: true, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: ""},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "leaf-list-5"},
@@ -588,11 +588,12 @@ func TestLeafList(t *testing.T) {
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5"},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("Set.%s %v", tt.path, tt.value), func(t *testing.T) {
-			err := Set(RootData, tt.path, tt.value)
+		t.Run(fmt.Sprintf("EditConfig.%s %v", tt.path, tt.value), func(t *testing.T) {
+			node, err := EditConfig(RootData, tt.path, tt.value, EditConfigOpt{Operation: SetMerge})
 			if (err != nil) != tt.wantInsertErr {
-				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				t.Errorf("EditConfig() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
+			fmt.Println(node)
 		})
 	}
 	y, err := MarshalYAML(RootData)
