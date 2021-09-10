@@ -219,9 +219,10 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 				}
 				// feature
 				for i := range m.Feature {
-					err = Set(top, fmt.Sprintf(
-						"module-set[name=%s]/%s[name=%s][revision=%s]/feature",
-						moduleSetName, listname, name, revision), m.Feature[i].Name)
+					p := fmt.Sprintf(
+						"module-set[name=%s]/%s[name=%s][revision=%s]/feature[.=%s]",
+						moduleSetName, listname, name, revision, m.Feature[i].Name)
+					err = Set(top, p, m.Feature[i].Name)
 					if err != nil {
 						return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
 					}
@@ -241,9 +242,9 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 							return fmt.Errorf("yanglib: deviation schema %q not found", m.Deviation[i].Name)
 						}
 					}
-					p := fmt.Sprintf("module-set[name=%s]/%s[name=%s]/deviation",
-						moduleSetName, listname, target.Name)
-					if n, err := Find(top, p+"[.="+name+"]"); err == nil && len(n) == 0 {
+					p := fmt.Sprintf("module-set[name=%s]/%s[name=%s]/deviation[.=%s]",
+						moduleSetName, listname, target.Name, name)
+					if n, err := Find(top, p); err == nil && len(n) == 0 {
 						err = Set(top, p, name)
 						if err != nil {
 							return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
@@ -299,9 +300,12 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 			}
 			// feature
 			for i := range m.Feature {
-				err = Set(top, fmt.Sprintf("module[name=%s][revision=%s]/feature", name, revision), m.Feature[i].Name)
-				if err != nil {
-					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
+				p := fmt.Sprintf("module[name=%s][revision=%s]/feature[.=%s]", name, revision, m.Feature[i].Name)
+				if n, err := Find(top, p); err == nil && len(n) == 0 {
+					err = Set(top, p, m.Feature[i].Name)
+					if err != nil {
+						return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+					}
 				}
 			}
 			// deviation

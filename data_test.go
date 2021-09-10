@@ -205,7 +205,7 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample/str-val", value: "abc"},
 		{wantInsertErr: false, path: "/sample/empty-val", value: "true"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/", value: ""},
-		{wantInsertErr: false, path: "/sample/single-key-list", value: `{"list-key": "ZZZ"}`},
+		{wantInsertErr: false, path: "/sample/single-key-list", value: `{"ZZZ":{"list-key": "ZZZ"}}`},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/country-code", value: "KR"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: "100"},
 		{wantInsertErr: false, path: "/sample/single-key-list[list-key=AAA]/decimal-range", value: "1.01"},
@@ -220,10 +220,9 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample/multiple-key-list[str=second][integer=1]/str", value: "second"},
 		{wantInsertErr: false, path: "/sample/multiple-key-list[sample:str=second][integer=2]/str", value: "second"},
 		{wantInsertErr: false, path: "/sample:sample/container-val", value: ""},
-		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: ""},
-		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: "leaf-list-first"},
-		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: "leaf-list-second"},
-		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: "leaf-list-third"},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: `["leaf-list-first"]`},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: `["leaf-list-second"]`},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val", value: `["leaf-list-third"]`},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val/leaf-list-fourth", value: ""},
 		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: "leaf-list-fifth"},
 		{wantInsertErr: true, path: "/sample/container-val/leaf-list-val[.=leaf-list-fifth]", value: ""}, // failed if leaf-list key != value
@@ -234,7 +233,7 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: `{"uintval": "12", "strval": "XYZ"}`},
 		{wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: ""},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: "/sample:sample/sample:container-val/a"},
-		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: "6"},
+		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: "5"},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: "true"},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/uint32-range", value: "493"},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: "500"},
@@ -261,10 +260,10 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 1, path: "/sample/multiple-key-list[str=first][integer=*]/ok"},
 		{expectedNum: 1, path: "/sample/single-key-list[sample:list-key=AAA]/list-key"},
 		{expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
-		{expectedNum: 4, path: "/sample/single-key-list[list-key=*]"},
-		{expectedNum: 12, path: "/sample/single-key-list/*"},
-		{expectedNum: 14, path: "/sample/*"},
-		{expectedNum: 53, path: "/sample/..."},
+		{expectedNum: 5, path: "/sample/single-key-list[list-key=*]"},
+		{expectedNum: 13, path: "/sample/single-key-list/*"},
+		{expectedNum: 15, path: "/sample/*"},
+		{expectedNum: 54, path: "/sample/..."},
 		{expectedNum: 4, path: "/sample/...", findOption: StateOnly{}},
 		{expectedNum: 1, path: "/sample/.../enum-val"},
 		{expectedNum: 38, path: "/sample/*/*/"},
@@ -273,7 +272,7 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 4, path: "/sample/multiple-key-list"},
 		{expectedNum: 1, path: "/sample/non-key-list[2]"},
 		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
-		{expectedNum: 6, path: "/sample/container-val/leaf-list-val"},
+		{expectedNum: 5, path: "/sample/container-val/leaf-list-val"},
 	}
 	for _, tt := range testfinds {
 		t.Run(fmt.Sprintf("Find(%s,%v)", tt.path, tt.findOption), func(t *testing.T) {
@@ -300,7 +299,7 @@ func TestDataNode(t *testing.T) {
 		if b, err := MarshalJSON(node[0], StateOnly{}); err != nil {
 			t.Errorf("MarshalJSON() StateOnly error = %v", err)
 		} else {
-			j := `{"single-key-list":{"AAA":{"uint32-range":100},"BBB":{"uint32-range":200},"CCC":{"uint32-range":300},"DDD":{"uint32-range":400}}}`
+			j := `{"single-key-list":{"AAA":{"uint32-range":100},"BBB":{"uint32-range":200},"CCC":{"uint32-range":300},"DDD":{"uint32-range":400},"ZZZ":{}}}`
 			if string(b) != j {
 				t.Errorf("MarshalJSON(StateOnly) returns unexpected json  = %v", string(b))
 				t.Logf(" Required json: %s", string(j))
@@ -309,7 +308,7 @@ func TestDataNode(t *testing.T) {
 		if b, err := MarshalJSON(node[0], RFC7951Format{}, StateOnly{}); err != nil {
 			t.Errorf("MarshalJSON(RFC7951Format) StateOnly error = %v", err)
 		} else {
-			j := `{"sample:single-key-list":[{"uint32-range":100},{"uint32-range":200},{"uint32-range":300},{"uint32-range":400}]}`
+			j := `{"sample:single-key-list":[{"uint32-range":100},{"uint32-range":200},{"uint32-range":300},{"uint32-range":400},{}]}`
 			if string(b) != j {
 				t.Errorf("MarshalJSON(RFC7951Format, StateOnly) returns unexpected json  = %v", string(b))
 				t.Logf(" Required json: %s", string(j))
@@ -568,39 +567,38 @@ func TestLeafList(t *testing.T) {
 		wantDeleteErr bool
 	}{
 		// Read-write leaf-list
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: ""},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-1"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-2"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "leaf-list-3"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "[leaf-list-3]"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "[]"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-1", "leaf-list-2"]`},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-2"]`},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: ""},
 		{wantInsertErr: true, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: ""},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "leaf-list-5"},
 
 		// // Read-only leaf-list
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: ""},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-1"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-2"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-3"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "leaf-list-3"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "[]"}, // do nothing
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-1", "leaf-list-2"]`},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-2"]`},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro/leaf-list-4", value: ""},
 		{wantInsertErr: true, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: ""},
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5"},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("EditConfig.%s %v", tt.path, tt.value), func(t *testing.T) {
-			node, err := EditConfig(RootData, tt.path, tt.value, EditConfigOpt{Operation: SetMerge})
+			_, err := EditConfig(RootData, tt.path, tt.value, EditOption{Operation: SetMerge})
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("EditConfig() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
-			fmt.Println(node)
 		})
 	}
 	y, err := MarshalYAML(RootData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log("\n", string(y))
+	t.Logf("\n%s", string(y))
 	for i := len(tests) - 1; i >= 0; i-- {
 		t.Run(fmt.Sprintf("Delete.%s", tests[i].path), func(t *testing.T) {
 			err := Delete(RootData, tests[i].path)

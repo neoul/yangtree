@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -60,24 +61,24 @@ func (op Operation) String() string {
 
 func (op Operation) IsOption() {}
 
-type EditConfigOpt struct {
+type EditOption struct {
 	Operation
 	InsertOption
 }
 
-func (edit *EditConfigOpt) GetOperation() Operation {
+func (edit *EditOption) GetOperation() Operation {
 	if edit == nil {
 		return SetMerge
 	}
 	return edit.Operation
 }
-func (edit *EditConfigOpt) GetInsertOption() InsertOption {
+func (edit *EditOption) GetInsertOption() InsertOption {
 	if edit == nil {
 		return nil
 	}
 	return edit.InsertOption
 }
-func (edit EditConfigOpt) IsOption() {}
+func (edit EditOption) IsOption() {}
 
 type InsertToFirst struct{}
 type InsertToLast struct{}
@@ -364,7 +365,7 @@ func (branch *DataBranch) Update(key string, value string) (DataNode, error) {
 	if len(pathnode) == 0 || len(pathnode) > 1 {
 		return nil, fmt.Errorf("invalid key %q inserted", key)
 	}
-	nodes, err := setValue(branch, pathnode, value, &EditConfigOpt{})
+	nodes, err := setValue(branch, pathnode, value, &EditOption{})
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +435,7 @@ func (branch *DataBranch) Insert(child DataNode, option ...Option) error {
 	}
 	for i := range option {
 		switch o := option[i].(type) {
-		case EditConfigOpt:
+		case EditOption:
 			return branch.insert(child, o.Operation, o.InsertOption)
 		case Operation:
 			return branch.insert(child, o, nil)
@@ -914,8 +915,76 @@ func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
 	return newdata, err
 }
 
+func setLeafListValues(branch *DataBranch, cschema *yang.Entry, value string, opt *EditOption) ([]DataNode, error) {
+	op := opt.GetOperation()
+	iopt := opt.GetInsertOption()
+	var jval interface{}
+	if !strings.HasPrefix(value, "[") || !strings.HasSuffix(value, "]") {
+		return nil, fmt.Errorf(`leaf-list %q must be set using json arrary e.g. ["a", "b"]`, cschema.Name)
+	}
+	err := json.Unmarshal([]byte(value), &jval)
+	if err != nil {
+		return nil, err
+	}
+	switch jdata := jval.(type) {
+	case []interface{}:
+		nodes := make([]DataNode, 0, len(jdata))
+		for i := range jdata {
+			valstr, err := JSONValueToString(jdata[i])
+			if err != nil {
+				return nil, err
+			}
+			node, err := New(cschema)
+			if err != nil {
+				return nil, err
+			}
+			if err = node.Set(valstr); err != nil {
+				return nil, err
+			}
+			if err = branch.insert(node, op, iopt); err != nil {
+				return nil, err
+			}
+			nodes = append(nodes, node)
+		}
+		return nodes, nil
+	default:
+		return nil, fmt.Errorf(`leaf-list %q must be set using json arrary e.g. ["a", "b"]`, cschema.Name)
+	}
+}
+
+func setListValues(branch *DataBranch, cschema *yang.Entry, value string, opt *EditOption) ([]DataNode, error) {
+	// op := opt.GetOperation()
+	// iopt := opt.GetInsertOption()
+	var jval interface{}
+	if value == "" {
+		return nil, nil
+	}
+	err := json.Unmarshal([]byte(value), &jval)
+	if err != nil {
+		return nil, err
+	}
+	switch jdata := jval.(type) {
+	case map[string]interface{}:
+		if IsDuplicatableList(cschema) {
+			return nil, fmt.Errorf("non-key list %q must have json array format", cschema.Name)
+		}
+		kname := GetKeynames(cschema)
+		kval := make([]string, 0, len(kname))
+		return branch.unmarshalJSONList(cschema, kname, kval, jdata)
+	case []interface{}:
+		return branch.unmarshalJSONListable(cschema, GetKeynames(cschema), jdata)
+	default:
+		return nil, fmt.Errorf(`leaf-list %q must be set using json arrary e.g. ["ABC", "EFG"]`, cschema.Name)
+	}
+}
+
 // setValue() create or update a target data node using the value.
-func setValue(root DataNode, pathnode []*PathNode, value string, opt *EditConfigOpt) ([]DataNode, error) {
+//  // - EditOption (create): create a node. It returns data-exists error if it exists.
+//  // - EditOption (replace): replace the node to the new node.
+//  // - EditOption (merge): update the node. (default)
+//  // - EditOption (delete): delete the node. It returns data-missing error if it doesn't exist.
+//  // - EditOption (remove): delete the node. It doesn't return data-missing error.
+func setValue(root DataNode, pathnode []*PathNode, value string, opt *EditOption) ([]DataNode, error) {
 	if len(pathnode) == 0 || pathnode[0].Name == "" {
 		if err := root.Set(value); err != nil {
 			return nil, err
@@ -986,21 +1055,40 @@ func setValue(root DataNode, pathnode []*PathNode, value string, opt *EditConfig
 		return nil, err
 	}
 
+	var children []DataNode
+	var diableSearch bool
 	switch {
 	case cschema.IsLeafList():
 		if LeafListValueAsKey && len(pathnode) == 2 {
 			value = pathnode[1].Name
+			pmap["."] = pathnode[1].Name
 			pathnode = pathnode[:1]
 		}
-		if pmap["."] != nil && pmap["."].(string) != value {
+		if v, ok := pmap["."]; ok && v.(string) != value {
 			return nil, fmt.Errorf(`value %q must be equal to xpath predicate %s[.=%s]`,
 				value, cschema.Name, pmap["."].(string))
 		}
-		fallthrough
-	case cschema.IsLeaf():
-		if len(pathnode) > 1 {
-			return nil, fmt.Errorf("invalid path element %q", pathnode[1])
+	case cschema.IsList() && cschema.Key == "": // non-key list
+		diableSearch = true
+	}
+	reachToEnd := len(pathnode) == 1
+
+	if !diableSearch {
+		key, searchAndSetAll := GenerateKey(cschema, pmap)
+		children = _find(branch, cschema, &key, searchAndSetAll, pmap, false)
+		// setting listable nodes
+		if reachToEnd && searchAndSetAll {
+			switch {
+			case cschema.IsLeafList():
+				return setLeafListValues(branch, cschema, value, opt)
+			case cschema.IsList():
+				return setListValues(branch, cschema, value, opt)
+			}
 		}
+	}
+
+	switch len(children) {
+	case 0:
 		child, err := New(cschema)
 		if err != nil {
 			return nil, err
@@ -1008,55 +1096,36 @@ func setValue(root DataNode, pathnode []*PathNode, value string, opt *EditConfig
 		if err = UpdateByMap(child, pmap); err != nil {
 			return nil, err
 		}
-		if err = child.Set(value); err != nil {
-			return nil, err
+		if reachToEnd {
+			if err = child.Set(value); err != nil {
+				return nil, err
+			}
 		}
 		if err = branch.insert(child, opt.GetOperation(), opt.GetInsertOption()); err != nil {
 			return nil, err
 		}
-		return []DataNode{child}, nil
-	case IsDuplicatableList(cschema):
-		child, err := New(cschema)
+		if reachToEnd {
+			return []DataNode{child}, nil
+		}
+		node, err := setValue(child, pathnode[1:], value, opt)
 		if err != nil {
+			child.Remove()
 			return nil, err
 		}
-		if err := UpdateByMap(child, pmap); err != nil {
-			return nil, err
-		}
-		if err = branch.insert(child, opt.GetOperation(), opt.GetInsertOption()); err != nil {
-			return nil, err
-		}
-		return setValue(child, pathnode[1:], value, opt)
-	}
-
-	key, prefixmatch := GenerateKey(cschema, pmap)
-	children := _find(branch, cschema, &key, prefixmatch, pmap, false)
-	if len(children) == 0 { // create
-		child, err := New(cschema)
-		if err != nil {
-			return nil, err
-		}
-		if err = UpdateByMap(child, pmap); err != nil {
-			return nil, err
-		}
-		if err = branch.insert(child, opt.GetOperation(), opt.GetInsertOption()); err != nil {
-			return nil, err
-		}
-		children = append(children, child)
-	}
-
-	if len(children) == 1 {
+		return node, nil
+	case 1:
 		return setValue(children[0], pathnode[1:], value, opt)
-	}
-	var nodes []DataNode
-	for _, child := range children {
-		rnodes, err := setValue(child, pathnode[1:], value, opt)
-		if err != nil {
-			return nil, err
+	default:
+		var nodes []DataNode
+		for _, child := range children {
+			rnodes, err := setValue(child, pathnode[1:], value, opt)
+			if err != nil {
+				return nil, err
+			}
+			nodes = append(nodes, rnodes...)
 		}
-		nodes = append(nodes, rnodes...)
+		return nodes, nil
 	}
-	return nodes, nil
 }
 
 // Set sets a value to the target DataNode in the path.
@@ -1077,7 +1146,7 @@ func Set(root DataNode, path string, value string) error {
 // EditConfig sets a value to the target DataNode in the path.
 // If the target DataNode is a branch node, the value must be json or json_ietf bytes.
 // If the target data node is a leaf or a leaf-list node, the value should be string.
-func EditConfig(root DataNode, path string, value string, opt EditConfigOpt) ([]DataNode, error) {
+func EditConfig(root DataNode, path string, value string, opt EditOption) ([]DataNode, error) {
 	if !IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
 	}

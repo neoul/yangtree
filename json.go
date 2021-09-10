@@ -287,23 +287,25 @@ func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
 }
 
 // unmarshalJSONList decode jval to the list that has the keys.
-func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
+func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) ([]DataNode, error) {
 	jdata, ok := jval.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", jval, jval, cschema.Name)
+		return nil, fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", jval, jval, cschema.Name)
 	}
+	var nodes []DataNode
 	if len(kname) != len(kval) {
 		for k, v := range jdata {
 			kval = append(kval, k)
-			err := branch.unmarshalJSONList(cschema, kname, kval, v)
+			node, err := branch.unmarshalJSONList(cschema, kname, kval, v)
 			if err != nil {
-				return err
+				return nil, err
 			}
+			nodes = append(nodes, node...)
 			kval = kval[:len(kval)-1]
 		}
-		return nil
+		return nil, nil
 	}
-	// check existent DataNode
+
 	var err error
 	var key strings.Builder
 	key.WriteString(cschema.Name)
@@ -318,16 +320,21 @@ func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string,
 	found := branch.Get(key.String())
 	if found == nil {
 		if child, err = branch.New(key.String()); err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		child = found
 	}
 	// Update DataNode
-	return unmarshalJSON(child, jval)
+	err = unmarshalJSON(child, jval)
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
 }
 
-func (branch *DataBranch) unmarshalJSONListableNodeRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
+func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []string, listentry []interface{}) ([]DataNode, error) {
+	nodes := make([]DataNode, 0, len(listentry))
 	for i := range listentry {
 		var err error
 		var key strings.Builder
@@ -337,7 +344,7 @@ func (branch *DataBranch) unmarshalJSONListableNodeRFC7951(cschema *yang.Entry, 
 			for i := range kname {
 				valstr, err := JSONValueToString(jentry[kname[i]])
 				if err != nil {
-					return err
+					return nil, err
 				}
 				key.WriteString(`[`)
 				key.WriteString(kname[i])
@@ -350,7 +357,7 @@ func (branch *DataBranch) unmarshalJSONListableNodeRFC7951(cschema *yang.Entry, 
 		default:
 			valstr, err := JSONValueToString(jentry)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			key.WriteString(`[.=` + valstr + `]`)
 		}
@@ -361,7 +368,7 @@ func (branch *DataBranch) unmarshalJSONListableNodeRFC7951(cschema *yang.Entry, 
 		}
 		if child == nil {
 			if created, err = branch.New(key.String()); err != nil {
-				return err
+				return nil, err
 			}
 			child = created
 		}
@@ -372,11 +379,12 @@ func (branch *DataBranch) unmarshalJSONListableNodeRFC7951(cschema *yang.Entry, 
 				if created != nil {
 					branch.Delete(created)
 				}
-				return err
+				return nil, err
 			}
 		}
+
 	}
-	return nil
+	return nodes, nil
 }
 
 func unmarshalJSON(node DataNode, jval interface{}) error {
@@ -392,7 +400,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 				switch {
 				case IsListable(cschema):
 					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if err := n.unmarshalJSONListableNodeRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
+						if _, err := n.unmarshalJSONListable(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
 							return err
 						}
 					} else {
@@ -401,7 +409,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 						}
 						kname := GetKeynames(cschema)
 						kval := make([]string, 0, len(kname))
-						if err := n.unmarshalJSONList(cschema, kname, kval, v); err != nil {
+						if _, err := n.unmarshalJSONList(cschema, kname, kval, v); err != nil {
 							return err
 						}
 					}

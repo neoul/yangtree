@@ -169,7 +169,7 @@ func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool)
 	return schema.Name, false // If it is a key for a container or a leaf node
 }
 
-func _find(branch *DataBranch, cschema *yang.Entry, key *string, prefixmatch bool, pmap map[string]interface{}, forSet bool) []DataNode {
+func _find(branch *DataBranch, cschema *yang.Entry, key *string, prefixmatch bool, pmap map[string]interface{}, need2copy bool) []DataNode {
 	i := indexFirst(branch, key)
 	if i >= len(branch.children) ||
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
@@ -211,7 +211,7 @@ func _find(branch *DataBranch, cschema *yang.Entry, key *string, prefixmatch boo
 			break
 		}
 	}
-	if forSet {
+	if need2copy {
 		if i < max {
 			result := make([]DataNode, max-i)
 			copy(result, branch.children[i:max])
