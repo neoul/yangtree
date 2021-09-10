@@ -587,10 +587,10 @@ func TestLeafList(t *testing.T) {
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5"},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("EditConfig.%s %v", tt.path, tt.value), func(t *testing.T) {
-			_, err := EditConfig(RootData, tt.path, tt.value, EditOption{Operation: SetMerge})
+		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
+			_, err := Edit(RootData, tt.path, tt.value, EditOption{Operation: SetMerge})
 			if (err != nil) != tt.wantInsertErr {
-				t.Errorf("EditConfig() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
 		})
 	}
