@@ -169,59 +169,6 @@ func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool)
 	return schema.Name, false // If it is a key for a container or a leaf node
 }
 
-func _find(branch *DataBranch, cschema *yang.Entry, key *string, prefixmatch bool, pmap map[string]interface{}, need2copy bool) []DataNode {
-	i := indexFirst(branch, key)
-	if i >= len(branch.children) ||
-		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
-		return nil
-	}
-	if index, ok := pmap["@index"]; ok {
-		j := i + index.(int)
-		if j >= len(branch.children) {
-			return nil
-		}
-		return branch.children[i : i+1]
-	}
-	max := i
-	if IsOrderedByUser(cschema) || IsDuplicatable(cschema) {
-		var node []DataNode
-		for ; max < len(branch.children); max++ {
-			if branch.children[i].Schema() != branch.children[max].Schema() {
-				break
-			}
-			if prefixmatch {
-				if strings.HasPrefix(branch.children[max].Key(), *key) {
-					node = append(node, branch.children[max])
-				}
-			} else if branch.children[max].Key() == *key {
-				node = append(node, branch.children[max])
-			}
-		}
-		return node
-	}
-	for ; max < len(branch.children); max++ {
-		if branch.children[i].Schema() != branch.children[max].Schema() {
-			break
-		}
-		if prefixmatch {
-			if !strings.HasPrefix(branch.children[max].Key(), *key) {
-				break
-			}
-		} else if branch.children[max].Key() != *key {
-			break
-		}
-	}
-	if need2copy {
-		if i < max {
-			result := make([]DataNode, max-i)
-			copy(result, branch.children[i:max])
-			return result
-		}
-		return nil
-	}
-	return branch.children[i:max]
-}
-
 // Find() returns children related to the PathNode
 func FindByPathNode(parent DataNode, pathnode *PathNode) ([]DataNode, error) {
 	branch, ok := parent.(*DataBranch)
@@ -246,7 +193,7 @@ func FindByPathNode(parent DataNode, pathnode *PathNode) ([]DataNode, error) {
 		}
 		return node, nil
 	}
-	return _find(branch, cschema, &key, prefixmatch, pmap, true), nil
+	return branch.find(cschema, &key, prefixmatch, pmap, true), nil
 }
 
 func UpdateByPathNode(parent DataNode, pathnode *PathNode, value string) ([]DataNode, error) {
@@ -264,7 +211,7 @@ func UpdateByPathNode(parent DataNode, pathnode *PathNode, value string) ([]Data
 	}
 	key, prefixmatch := GenerateKey(cschema, pmap)
 	if IsUpdatable(cschema) {
-		children := _find(branch, cschema, &key, prefixmatch, pmap, true)
+		children := branch.find(cschema, &key, prefixmatch, pmap, true)
 		if len(children) == 0 {
 			child, err := New(cschema)
 			if err != nil {

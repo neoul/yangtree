@@ -354,11 +354,6 @@ func IsListable(schema *yang.Entry) bool {
 	return schema.ListAttr != nil
 }
 
-// leaf-lists and lists without keys can be present in the data tree multiple times.
-func HasRepeatableKey(schema *yang.Entry) bool {
-	return schema.ListAttr != nil && (schema.Key == "")
-}
-
 func IsDuplicatable(schema *yang.Entry) bool {
 	return (schema.IsList() && schema.Key == "") ||
 		(schema.IsLeafList() && IsState(schema))

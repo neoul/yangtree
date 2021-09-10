@@ -326,6 +326,99 @@ func (branch *DataBranch) String() string {
 	return branch.Key()
 }
 
+// If the finding nodes are list or leaf-list nodes that are ordered by user or are duplicatable nodes
+// (non-key lists or read-only leaf-lists), find() will look up all data nodes.
+func (branch *DataBranch) find(cschema *yang.Entry, key *string, prefixmatch bool, pmap map[string]interface{}, need2copy bool) []DataNode {
+	i := indexFirst(branch, key)
+	if i >= len(branch.children) ||
+		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
+		return nil
+	}
+	if index, ok := pmap["@index"]; ok {
+		j := i + index.(int)
+		if j >= len(branch.children) {
+			return nil
+		}
+		return branch.children[i : i+1]
+	}
+	max := i
+	if IsOrderedByUser(cschema) || IsDuplicatable(cschema) {
+		var node []DataNode
+		for ; max < len(branch.children); max++ {
+			if branch.children[i].Schema() != branch.children[max].Schema() {
+				break
+			}
+			if prefixmatch {
+				if strings.HasPrefix(branch.children[max].Key(), *key) {
+					node = append(node, branch.children[max])
+				}
+			} else if branch.children[max].Key() == *key {
+				node = append(node, branch.children[max])
+			}
+		}
+		return node
+	}
+	for ; max < len(branch.children); max++ {
+		if branch.children[i].Schema() != branch.children[max].Schema() {
+			break
+		}
+		if prefixmatch {
+			if !strings.HasPrefix(branch.children[max].Key(), *key) {
+				break
+			}
+		} else if branch.children[max].Key() != *key {
+			break
+		}
+	}
+	if need2copy {
+		if i < max {
+			result := make([]DataNode, max-i)
+			copy(result, branch.children[i:max])
+			return result
+		}
+		return nil
+	}
+	return branch.children[i:max]
+}
+
+// getOrNew() gets or creates a node having the key and return the found or created node with the boolean value that indicates the returned node is created.
+func (branch *DataBranch) getOrNew(key string, opt *EditOption) (DataNode, bool, error) {
+	pathnode, err := ParsePath(&key)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(pathnode) == 0 || len(pathnode) > 1 {
+		return nil, false, fmt.Errorf("invalid key %q inserted", key)
+	}
+	pmap, err := pathnode[0].PredicatesToMap()
+	if err != nil {
+		return nil, false, err
+	}
+	cschema := GetSchema(branch.schema, pathnode[0].Name)
+	if cschema == nil {
+		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+	}
+	var children []DataNode
+	if !IsDuplicatableList(cschema) {
+		key, prefixmatch := GenerateKey(cschema, pmap)
+		children = branch.find(cschema, &key, prefixmatch, pmap, false)
+		if len(children) > 0 {
+			return children[0], false, nil
+		}
+	}
+	child, err := New(cschema)
+	if err != nil {
+		return nil, false, err
+	}
+	if err = UpdateByMap(child, pmap); err != nil {
+		return nil, false, err
+	}
+	if err = branch.insert(child, opt.GetOperation(), opt.GetInsertOption()); err != nil {
+		return nil, false, err
+	}
+	return child, true, nil
+}
+
 func (branch *DataBranch) New(key string) (DataNode, error) {
 	pathnode, err := ParsePath(&key)
 	if err != nil {
@@ -953,8 +1046,6 @@ func setLeafListValues(branch *DataBranch, cschema *yang.Entry, value string, op
 }
 
 func setListValues(branch *DataBranch, cschema *yang.Entry, value string, opt *EditOption) ([]DataNode, error) {
-	// op := opt.GetOperation()
-	// iopt := opt.GetInsertOption()
 	var jval interface{}
 	if value == "" {
 		return nil, nil
@@ -970,9 +1061,9 @@ func setListValues(branch *DataBranch, cschema *yang.Entry, value string, opt *E
 		}
 		kname := GetKeynames(cschema)
 		kval := make([]string, 0, len(kname))
-		return branch.unmarshalJSONList(cschema, kname, kval, jdata)
+		return branch.unmarshalJSONList(cschema, kname, kval, jdata, opt)
 	case []interface{}:
-		return branch.unmarshalJSONListable(cschema, GetKeynames(cschema), jdata)
+		return branch.unmarshalJSONListable(cschema, GetKeynames(cschema), jdata, opt)
 	default:
 		return nil, fmt.Errorf(`leaf-list %q must be set using json arrary e.g. ["ABC", "EFG"]`, cschema.Name)
 	}
@@ -1075,7 +1166,7 @@ func setValue(root DataNode, pathnode []*PathNode, value string, opt *EditOption
 
 	if !diableSearch {
 		key, searchAndSetAll := GenerateKey(cschema, pmap)
-		children = _find(branch, cschema, &key, searchAndSetAll, pmap, false)
+		children = branch.find(cschema, &key, searchAndSetAll, pmap, false)
 		// setting listable nodes
 		if reachToEnd && searchAndSetAll {
 			switch {
@@ -1218,7 +1309,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	}
 
 	key, prefixmatch := GenerateKey(cschema, pmap)
-	children := _find(branch, cschema, &key, prefixmatch, pmap, true)
+	children := branch.find(cschema, &key, prefixmatch, pmap, true)
 	if len(children) == 0 { // create
 		child, err := New(cschema)
 		if err != nil {
@@ -1341,7 +1432,7 @@ func deleteValue(root DataNode, pathnode []*PathNode) ([]DataNode, error) {
 		}
 	}
 	key, prefixmatch := GenerateKey(cschema, pmap)
-	children := _find(branch, cschema, &key, prefixmatch, pmap, true)
+	children := branch.find(cschema, &key, prefixmatch, pmap, true)
 	switch len(children) {
 	case 0:
 		// [FIXME] Is it an error if the node is not found?
@@ -1475,7 +1566,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 			return nil
 		}
 	} else {
-		node = _find(branch, cschema, &key, prefixmatch, pmap, false)
+		node = branch.find(cschema, &key, prefixmatch, pmap, false)
 	}
 	for i := range node {
 		children = append(children, findNode(node[i], pathnode[1:], option...)...)
