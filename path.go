@@ -85,6 +85,8 @@ LOOP:
 					return nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
 				}
 				pmap["@index"] = index - 1
+			} else if pathnode.Predicates[0] == "last()" {
+				pmap["@last"] = true
 			} else {
 				pmap["@evaluate-xpath"] = true
 			}
@@ -128,11 +130,20 @@ LOOP:
 	return pmap, nil
 }
 
-// GenerateKey generates a key of the schema using the key value in the pmap.
-// It also returns a boolean value to true if the prefix matching is required for the target node search.
+// GenerateKey generates the access key of the schema using the value in the pmap.
+// It also returns a boolean value to true if the access key is used for the access of multiple data nodes.
 func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool) {
+	if _, ok := pmap["@index"]; ok {
+		return schema.Name, false
+	}
+	if _, ok := pmap["@last"]; ok {
+		return schema.Name, false
+	}
 	switch {
-	case schema.IsList() && schema.Key != "":
+	case schema.IsList():
+		if schema.Key == "" {
+			return schema.Name, true
+		}
 		var key bytes.Buffer
 		key.WriteString(schema.Name)
 		keyname := GetKeynames(schema)
@@ -166,7 +177,7 @@ func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool)
 		key.WriteString("]")
 		return key.String(), false
 	}
-	return schema.Name, false // If it is a key for a container or a leaf node
+	return schema.Name, false // container, leaf
 }
 
 func updateNodeSelect(pathnode *PathNode) *PathNode {

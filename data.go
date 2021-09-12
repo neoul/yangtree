@@ -35,24 +35,24 @@ func (f HasState) String() string   { return "has-state" }
 type Operation int
 
 const (
-	SetMerge   Operation = iota // netconf edit-config: merge
-	SetCreate                   // netconf edit-config: create
-	SetReplace                  // netconf edit-config: replace
-	SetDelete                   // netconf edit-config: delete
-	SetRemove                   // netconf edit-config: remove
+	EditMerge   Operation = iota // netconf edit-config: merge
+	EditCreate                   // netconf edit-config: create
+	EditReplace                  // netconf edit-config: replace
+	EditDelete                   // netconf edit-config: delete
+	EditRemove                   // netconf edit-config: remove
 )
 
 func (op Operation) String() string {
 	switch op {
-	case SetMerge:
+	case EditMerge:
 		return "merge"
-	case SetCreate:
+	case EditCreate:
 		return "create"
-	case SetReplace:
+	case EditReplace:
 		return "replace"
-	case SetDelete:
+	case EditDelete:
 		return "delete"
-	case SetRemove:
+	case EditRemove:
 		return "remove"
 	default:
 		return "unknown"
@@ -66,9 +66,19 @@ type EditOption struct {
 	InsertOption
 }
 
+func (edit *EditOption) String() string {
+	if edit == nil {
+		return ""
+	}
+	if edit.InsertOption == nil {
+		return `operation=` + edit.Operation.String()
+	}
+	return `operation=` + edit.Operation.String() + edit.GetInsertOption().String()
+}
+
 func (edit *EditOption) GetOperation() Operation {
 	if edit == nil {
-		return SetMerge
+		return EditMerge
 	}
 	return edit.Operation
 }
@@ -90,12 +100,18 @@ type InsertToAfter struct {
 }
 type InsertOption interface {
 	GetInsertKey() string
+	String() string
 }
 
 func (o InsertToFirst) GetInsertKey() string  { return "" }
 func (o InsertToLast) GetInsertKey() string   { return "" }
 func (o InsertToBefore) GetInsertKey() string { return o.Key }
 func (o InsertToAfter) GetInsertKey() string  { return o.Key }
+
+func (o InsertToFirst) String() string  { return "insert=first" }
+func (o InsertToLast) String() string   { return "insert=last" }
+func (o InsertToBefore) String() string { return "insert=before,value=" + o.Key }
+func (o InsertToAfter) String() string  { return "insert=after,value=" + o.Key }
 
 func IsValid(node DataNode) bool {
 	if node == nil {
@@ -205,7 +221,7 @@ func (branch *DataBranch) insert(child DataNode, op Operation, iopt InsertOption
 	if !duplicatable {
 		// find and replace the node that has the same key.
 		if i < len(branch.children) && key == branch.children[i].Key() {
-			if op == SetCreate {
+			if op == EditCreate {
 				return fmt.Errorf("data node %q exists", key)
 			}
 			resetParent(branch.children[i])
@@ -337,7 +353,7 @@ func copyChildren(src []DataNode) []DataNode {
 
 // If the finding nodes are list or leaf-list nodes that are ordered by user or are duplicatable nodes
 // (non-key lists or read-only leaf-lists), find() will look up all data nodes.
-func (branch *DataBranch) find(cschema *yang.Entry, key *string, prefixMatch bool, pmap map[string]interface{}) []DataNode {
+func (branch *DataBranch) find(cschema *yang.Entry, key *string, groupSearch bool, pmap map[string]interface{}) []DataNode {
 	i := indexFirst(branch, key)
 	if i >= len(branch.children) ||
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
@@ -345,37 +361,57 @@ func (branch *DataBranch) find(cschema *yang.Entry, key *string, prefixMatch boo
 	}
 	if index, ok := pmap["@index"]; ok {
 		j := i + index.(int)
-		if j >= len(branch.children) {
-			return nil
+		if j < len(branch.children) && cschema == branch.children[j].Schema() {
+			return branch.children[j : j+1]
 		}
-		return branch.children[i : i+1]
+		return nil
+	}
+	if _, ok := pmap["@last"]; ok {
+		last := i
+		for ; i < len(branch.children); i++ {
+			if cschema == branch.children[i].Schema() {
+				last = i
+			} else {
+				break
+			}
+		}
+		return branch.children[last : last+1]
 	}
 	max := i
+	var matched func() bool
+	switch {
+	case cschema.IsList() && cschema.Key == "":
+		matched = func() bool {
+			return true
+		}
+	case groupSearch:
+		matched = func() bool {
+			return strings.HasPrefix(branch.children[max].Key(), *key)
+		}
+	default:
+		matched = func() bool {
+			return branch.children[max].Key() == *key
+		}
+	}
+
 	if IsOrderedByUser(cschema) || IsDuplicatable(cschema) {
 		var node []DataNode
 		for ; max < len(branch.children); max++ {
-			if branch.children[i].Schema() != branch.children[max].Schema() {
+			if cschema != branch.children[max].Schema() {
 				break
 			}
-			if prefixMatch {
-				if strings.HasPrefix(branch.children[max].Key(), *key) {
-					node = append(node, branch.children[max])
-				}
-			} else if branch.children[max].Key() == *key {
+			if matched() {
 				node = append(node, branch.children[max])
 			}
 		}
 		return node
 	}
+
 	for ; max < len(branch.children); max++ {
-		if branch.children[i].Schema() != branch.children[max].Schema() {
+		if cschema != branch.children[max].Schema() {
 			break
 		}
-		if prefixMatch {
-			if !strings.HasPrefix(branch.children[max].Key(), *key) {
-				break
-			}
-		} else if branch.children[max].Key() != *key {
+		if !matched() {
 			break
 		}
 	}
@@ -536,7 +572,7 @@ func (branch *DataBranch) Insert(child DataNode, option ...Option) error {
 			return branch.insert(child, o, nil)
 		}
 	}
-	return branch.insert(child, SetMerge, nil)
+	return branch.insert(child, EditMerge, nil)
 }
 
 func (branch *DataBranch) Delete(child DataNode) error {
@@ -1079,8 +1115,17 @@ func setListValues(branch *DataBranch, cschema *yang.Entry, value string, opt *E
 //  // - EditOption (remove): delete the node. It doesn't return data-missing error.
 func setValue(root DataNode, pathnode []*PathNode, value string, opt *EditOption) ([]DataNode, error) {
 	if len(pathnode) == 0 || pathnode[0].Name == "" {
-		if err := root.Set(value); err != nil {
-			return nil, err
+		switch opt.GetOperation() {
+		case EditCreate:
+			return nil, Errorf(ETagDataExists, "data node %q already exists", root.Key())
+		case EditDelete, EditRemove:
+			if err := root.Remove(); err != nil {
+				return nil, err
+			}
+		default: // replace, merge
+			if err := root.Set(value); err != nil {
+				return nil, err
+			}
 		}
 		return []DataNode{root}, nil
 	}
@@ -1155,25 +1200,48 @@ func setValue(root DataNode, pathnode []*PathNode, value string, opt *EditOption
 			pmap["."] = pathnode[1].Name
 			pathnode = pathnode[:1]
 		}
-		if v, ok := pmap["."]; ok && v.(string) != value {
-			return nil, fmt.Errorf(`value %q must be equal to xpath predicate %s[.=%s]`,
-				value, cschema.Name, pmap["."].(string))
+		fallthrough
+	case cschema.IsList():
+		if v, ok := pmap["."]; ok {
+			if v.(string) != value {
+				return nil, fmt.Errorf(`value %q must be equal with the xpath predicate of %s[.=%s]`,
+					value, cschema.Name, pmap["."].(string))
+			}
 		}
 	}
 	reachToEnd := len(pathnode) == 1
-	key, prefixMatch := GenerateKey(cschema, pmap)
-	children := branch.find(cschema, &key, prefixMatch, pmap)
-	// setting listable nodes
-	if reachToEnd && prefixMatch {
-		switch {
-		case cschema.IsLeafList():
-			return setLeafListValues(branch, cschema, value, opt)
-		case cschema.IsList():
-			return setListValues(branch, cschema, value, opt)
+	key, groupSearch := GenerateKey(cschema, pmap)
+	children := branch.find(cschema, &key, groupSearch, pmap)
+	op := opt.GetOperation()
+	if len(children) == 0 {
+		switch op {
+		case EditDelete:
+			return nil, Errorf(ETagDataMissing, "data node %q not found", key)
+		case EditRemove:
+			return nil, nil
 		}
 	}
-	if IsDuplicatableList(cschema) {
-		children = nil
+	var _children []DataNode
+	if reachToEnd {
+		switch op {
+		case EditDelete, EditRemove, EditReplace:
+			_children = copyChildren(children)
+			for _, c := range _children {
+				c.Remove()
+			}
+			if op != EditReplace {
+				return _children, nil
+			}
+			children = nil
+		}
+		if groupSearch {
+			switch {
+			case cschema.IsLeafList():
+				return setLeafListValues(branch, cschema, value, opt)
+			case cschema.IsList():
+				return setListValues(branch, cschema, value, opt)
+			}
+		}
 	}
 
 	switch len(children) {

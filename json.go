@@ -531,3 +531,22 @@ func UnmarshalJSON(node DataNode, jbytes []byte) error {
 	}
 	return unmarshalJSON(node, jval)
 }
+
+func MarshalJSONListableNodes(nodes []DataNode) ([]byte, error) {
+	var comma bool
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+	for _, n := range nodes {
+		if comma {
+			buffer.WriteString(",")
+		}
+		jnode := &jDataNode{DataNode: n}
+		err := jnode.marshalJSON(&buffer)
+		if err != nil {
+			return nil, err
+		}
+		comma = true
+	}
+	buffer.WriteString("]")
+	return buffer.Bytes(), nil
+}

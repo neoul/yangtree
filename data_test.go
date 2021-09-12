@@ -229,9 +229,9 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:enum-val", value: "enum2"},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/sample:test-default", value: "11"},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/a", value: "A"},
-		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: `{"uintval": "11", "strval": "XYZ"}`},
-		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: `{"uintval": "12", "strval": "XYZ"}`},
-		{wantInsertErr: false, path: "/sample:sample/non-key-list[uintval=13][strval=ABC]", value: ""},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: `[{"uintval":"11","strval":"XYZ"}]`},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: `[{"uintval":"12","strval":"XYZ"}]`},
+		{wantInsertErr: false, path: "/sample:sample/non-key-list", value: `[{"uintval":13,"strval":"ABC"}]`},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-instance-identifier", value: "/sample:sample/sample:container-val/a"},
 		{wantInsertErr: false, path: "/sample:sample/sample:container-val/test-must", value: "5"},
 		{wantInsertErr: true, path: "/sample/single-key-list[list-ke=first]", value: "true"},
@@ -281,6 +281,7 @@ func TestDataNode(t *testing.T) {
 			node, err = Find(RootData, tt.path, tt.findOption)
 			if err != nil {
 				t.Errorf("Find() path %v error = %v", tt.path, err)
+				return
 			}
 			t.Logf("Find %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
 			for j := range node {
@@ -289,6 +290,7 @@ func TestDataNode(t *testing.T) {
 			}
 			if tt.expectedNum != len(node) {
 				t.Errorf("find error for %s (expected num: %d, result: %d)", tt.path, tt.expectedNum, len(node))
+				return
 			}
 		})
 	}
@@ -588,7 +590,7 @@ func TestLeafList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
-			_, err := Edit(RootData, tt.path, tt.value, EditOption{Operation: SetMerge})
+			_, err := Edit(RootData, tt.path, tt.value, EditOption{Operation: EditMerge})
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
@@ -612,4 +614,97 @@ func TestLeafList(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log("\n", string(y))
+}
+
+func TestEdit(t *testing.T) {
+	schema, err := Load([]string{"testdata/sample"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := New(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		path     string
+		value    string
+		opt      EditOption
+		expected int
+		wantErr  bool
+	}{
+		// editing a leaf node
+		{path: "/sample/str-val", value: "C1", opt: EditOption{Operation: EditCreate}, expected: 1, wantErr: false},
+		{path: "/sample/str-val", value: "C2", opt: EditOption{Operation: EditCreate}, expected: 0, wantErr: true},
+		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditDelete}, expected: 1, wantErr: false},
+		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditDelete}, expected: 0, wantErr: true},
+		{path: "/sample/str-val", value: "R1", opt: EditOption{Operation: EditReplace}, expected: 1, wantErr: false},
+		{path: "/sample/str-val", value: "R2", opt: EditOption{Operation: EditReplace}, expected: 1, wantErr: false},
+		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditRemove}, expected: 1, wantErr: false},
+		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditRemove}, expected: 0, wantErr: false},
+		{path: "/sample/str-val", value: "M1", opt: EditOption{Operation: EditMerge}, expected: 1, wantErr: false},
+		{path: "/sample/str-val[.=M2]", value: "M2", opt: EditOption{Operation: EditMerge}, expected: 1, wantErr: false},
+		{path: "/sample/container-val/leaf-list-val", value: `["first"]`, opt: EditOption{Operation: EditCreate}, expected: 1, wantErr: false},
+		{path: "/sample/container-val/leaf-list-val", value: `["first"]`, opt: EditOption{Operation: EditCreate}, expected: 0, wantErr: true},
+		{path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, opt: EditOption{Operation: EditReplace}, expected: 2, wantErr: false},
+		{path: "/sample/container-val/leaf-list-val", value: `["fourth","fifth"]`, opt: EditOption{Operation: EditMerge}, expected: 2, wantErr: false},
+		{path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, opt: EditOption{Operation: EditRemove}, expected: 1, wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path+","+tt.opt.String()+","+tt.value, func(t *testing.T) {
+			name := tt.path + "," + tt.opt.String() + "," + tt.value
+			got, err := Edit(root, tt.path, tt.value, tt.opt)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Edit(%s) error = %v, wantErr %v", name, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if len(got) != tt.expected {
+					t.Errorf("Edit(%s) num = %v, expected %v", name, len(got), tt.expected)
+					return
+				}
+				_, err := Find(root, tt.path)
+				if err != nil {
+					t.Errorf("Find(%s) error: %v", name, err)
+					return
+				}
+				if len(got) == 0 {
+					return
+				}
+				switch tt.opt.Operation {
+				case EditRemove, EditDelete:
+					return
+					// if len(found) > 0 {
+					// 	t.Errorf("Edit(%s) error: %v", name, fmt.Errorf("deleting data node %q found", tt.path))
+					// 	return
+					// }
+				}
+				switch {
+				case got[0].IsLeafList():
+					b, err := MarshalJSONListableNodes(got)
+					if err != nil {
+						t.Errorf("Edit() error: %v", fmt.Errorf("marshalling json for %q failed: %v", tt.path, err))
+						return
+					}
+					if string(b) != tt.value {
+						t.Errorf("Edit() error: %v", fmt.Errorf(
+							"the value %q of the editing data %q is not equal to %q",
+							string(b), tt.path, tt.value))
+						return
+					}
+				case got[0].IsLeaf():
+					if got[0].ValueString() != tt.value {
+						t.Errorf("Edit() error: %v", fmt.Errorf(
+							"the value %q of the editing data %q is not equal to %q",
+							got[0].ValueString(), tt.path, tt.value))
+						return
+					}
+				}
+			}
+		})
+	}
+	y, err := MarshalYAML(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("\n%s\n", string(y))
 }
