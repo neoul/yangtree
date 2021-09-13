@@ -633,21 +633,57 @@ func TestEdit(t *testing.T) {
 		wantErr  bool
 	}{
 		// editing a leaf node
-		{path: "/sample/str-val", value: "C1", opt: EditOption{Operation: EditCreate}, expected: 1, wantErr: false},
-		{path: "/sample/str-val", value: "C2", opt: EditOption{Operation: EditCreate}, expected: 0, wantErr: true},
-		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditDelete}, expected: 1, wantErr: false},
-		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditDelete}, expected: 0, wantErr: true},
-		{path: "/sample/str-val", value: "R1", opt: EditOption{Operation: EditReplace}, expected: 1, wantErr: false},
-		{path: "/sample/str-val", value: "R2", opt: EditOption{Operation: EditReplace}, expected: 1, wantErr: false},
-		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditRemove}, expected: 1, wantErr: false},
-		{path: "/sample/str-val", value: "", opt: EditOption{Operation: EditRemove}, expected: 0, wantErr: false},
-		{path: "/sample/str-val", value: "M1", opt: EditOption{Operation: EditMerge}, expected: 1, wantErr: false},
-		{path: "/sample/str-val[.=M2]", value: "M2", opt: EditOption{Operation: EditMerge}, expected: 1, wantErr: false},
-		{path: "/sample/container-val/leaf-list-val", value: `["first"]`, opt: EditOption{Operation: EditCreate}, expected: 1, wantErr: false},
-		{path: "/sample/container-val/leaf-list-val", value: `["first"]`, opt: EditOption{Operation: EditCreate}, expected: 0, wantErr: true},
-		{path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, opt: EditOption{Operation: EditReplace}, expected: 2, wantErr: false},
-		{path: "/sample/container-val/leaf-list-val", value: `["fourth","fifth"]`, opt: EditOption{Operation: EditMerge}, expected: 2, wantErr: false},
-		{path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, opt: EditOption{Operation: EditRemove}, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/str-val", value: "C1", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/str-val", value: "C2", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/str-val", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/str-val", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/str-val", value: "R1", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/str-val", value: "R2", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/str-val", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/str-val", expected: 0, wantErr: false},
+		{opt: EditOption{Operation: EditMerge}, path: "/sample/str-val", value: "M1", expected: 1, wantErr: false},
+		// editing a container node
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/sample:container-val", value: `{"enum-val":"enum2"}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/sample:container-val", value: `{"enum-val":"enum3"}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge}, path: "/sample/sample:container-val", value: `{"enum-val":"enum1"}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/sample:container-val", value: `{"enum-val":"enum2"}`, expected: 1, wantErr: true},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/sample:container-val", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/sample:container-val", expected: 1, wantErr: true},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/sample:container-val", expected: 0, wantErr: false},
+		// editing leaf-list nodes
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditMerge}, path: "/sample/container-val/leaf-list-val", value: `["fourth","fifth"]`, expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/container-val/leaf-list-val", expected: 3, wantErr: false},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/container-val/leaf-list-val", expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/container-val/leaf-list-val", expected: 0, wantErr: true},
+		// editing list nodes
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/single-key-list", expected: 0, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list", value: `{"AAA":{"uint32-range":100,"uint64-node":1234567890}}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list", value: `{"AAA":{"uint32-range":100,"uint64-node":123456789}}`, expected: 1, wantErr: true},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/single-key-list", value: `{"BBB":{"uint32-range":101,"uint64-node":123456789}}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge}, path: "/sample/single-key-list", value: `{"CCC":{"uint32-range":151,"uint64-node":123456789}}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list[list-key=AAA]", value: `{"uint32-range":200,"uint64-node":123456789}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/single-key-list[list-key=DDD]", value: `{"uint32-range":201,"uint64-node":123456789}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge}, path: "/sample/single-key-list[list-key=EEE]", value: `{"uint32-range":202,"uint64-node":123456789}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge}, path: "/sample/single-key-list[list-key=BBB]/empty-node", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list[list-key=B]", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list[list-key=BBB]", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list[list-key=BBB]", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/single-key-list[list-key=BBB]", expected: 0, wantErr: false},
+		{opt: EditOption{Operation: EditRemove}, path: "/sample/single-key-list[list-key=DDD]", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list", expected: 3, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"a"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace}, path: "/sample/non-key-list", value: `[{"uintval":"2","strval":"b"}]`, expected: 1, wantErr: false}, // replace all existent nodes.
+		{opt: EditOption{Operation: EditMerge}, path: "/sample/non-key-list", value: `[{"uintval":"3","strval":"c"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToFirst{}}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"first"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToLast{}}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"last"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToAfter{Key: "uintval"}}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"last"}]`, expected: 0, wantErr: true},
 	}
 	for _, tt := range tests {
 		name := tt.path + "," + tt.opt.String()
@@ -702,7 +738,7 @@ func TestEdit(t *testing.T) {
 						return
 					}
 				case got[0].IsLeaf():
-					if got[0].ValueString() != tt.value {
+					if tt.value != nil && got[0].ValueString() != tt.value {
 						t.Errorf("Edit() error: %v", fmt.Errorf(
 							"the value %q of the editing data %q is not equal to %q",
 							got[0].ValueString(), tt.path, tt.value))
