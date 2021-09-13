@@ -627,7 +627,7 @@ func TestEdit(t *testing.T) {
 	}
 	tests := []struct {
 		path     string
-		value    string
+		value    interface{}
 		opt      EditOption
 		expected int
 		wantErr  bool
@@ -650,9 +650,19 @@ func TestEdit(t *testing.T) {
 		{path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, opt: EditOption{Operation: EditRemove}, expected: 1, wantErr: false},
 	}
 	for _, tt := range tests {
-		t.Run(tt.path+","+tt.opt.String()+","+tt.value, func(t *testing.T) {
-			name := tt.path + "," + tt.opt.String() + "," + tt.value
-			got, err := Edit(tt.opt, root, tt.path, tt.value)
+		name := tt.path + "," + tt.opt.String()
+		if tt.value != nil {
+			name = name + "," + tt.value.(string)
+		}
+		if tt.wantErr {
+			name = name + ",wantError"
+		}
+		t.Run(name, func(t *testing.T) {
+			val := []string{}
+			if tt.value != nil {
+				val = append(val, tt.value.(string))
+			}
+			got, err := Edit(tt.opt, root, tt.path, val...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Edit(%s) error = %v, wantErr %v", name, err, tt.wantErr)
 				return
@@ -708,3 +718,36 @@ func TestEdit(t *testing.T) {
 	}
 	t.Logf("\n%s\n", string(y))
 }
+
+// func BenchmarkFindPaths(b *testing.B) {
+// 	schema, err := Load([]string{"testdata/sample"}, nil, nil)
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	root, err := New(schema)
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	file, err := os.Open(fmt.Sprint("testdata/yaml/sample1.yaml"))
+// 	if err != nil {
+// 		b.Errorf("file open err: %v\n", err)
+// 	}
+// 	f, err := ioutil.ReadAll(file)
+// 	if err != nil {
+// 		b.Errorf("file read error: %v\n", err)
+// 	}
+// 	file.Close()
+// 	if err := root.UnmarshalYAML(f); err != nil {
+// 		b.Errorf("unmarshalling error: %v\n", err)
+// 	}
+
+// 	// b.StartTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		ss := Edit(Ed, path[i%3])
+// 		if len(ss) == 0 {
+// 			b.Errorf("not found path %s", path[i%3])
+// 		}
+// 	}
+// 	m = nil
+
+// }
