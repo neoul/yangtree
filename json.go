@@ -316,7 +316,7 @@ func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string,
 		key.WriteString(kval[i])
 		key.WriteString("]")
 	}
-	child, created, err := branch.getOrNew(key.String(), opt)
+	child, created, err := branch.GetOrNew(key.String(), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +361,7 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []str
 			}
 			key.WriteString(`[.=` + valstr + `]`)
 		}
-		child, created, err := branch.getOrNew(key.String(), opt)
+		child, created, err := branch.GetOrNew(key.String(), opt)
 		if err != nil {
 			return nil, err
 		}

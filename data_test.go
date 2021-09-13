@@ -590,7 +590,7 @@ func TestLeafList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
-			_, err := Edit(RootData, tt.path, tt.value, EditOption{Operation: EditMerge})
+			_, err := Edit(EditOption{Operation: EditMerge}, RootData, tt.path, tt.value)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
@@ -652,7 +652,7 @@ func TestEdit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path+","+tt.opt.String()+","+tt.value, func(t *testing.T) {
 			name := tt.path + "," + tt.opt.String() + "," + tt.value
-			got, err := Edit(root, tt.path, tt.value, tt.opt)
+			got, err := Edit(tt.opt, root, tt.path, tt.value)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Edit(%s) error = %v, wantErr %v", name, err, tt.wantErr)
 				return
