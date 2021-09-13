@@ -10,7 +10,7 @@ type DataNode interface {
 	IsLeaf() bool       // IsLeaf() returns true if the data node is a leaf.
 	IsLeafList() bool   // IsLeafList() returns true if the data node is a leaf-list.
 	Name() string       // Name() returns the name of the data node.
-	Key() string        // Key() returns the key string of the data node. The key is an XPath element combined with XPath predicates to identify the node instance.
+	ID() string         // ID() returns the ID of the data node. The ID is an XPath element combined with XPath predicates to identify the node instance.
 
 	Schema() *yang.Entry // Schema() returns the schema of the data node.
 	Parent() DataNode    // Parent() returns the parent if it is present.
@@ -24,18 +24,18 @@ type DataNode interface {
 	// Reset() error // Reset() resets the value to the default.
 	Remove() error // Remote() removes itself.
 
-	New(key string) (DataNode, error)                  // New() creates a cild using the key (NODE_NAME[KEY=VALUE]).
-	Update(key string, value string) (DataNode, error) // Update() updates a child that can be identified by the key using the input values.
+	New(id string, value ...string) (DataNode, error)    // New() creates a cild using the node id (NODE_NAME[KEY=VALUE]).
+	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id using the input values.
 
-	Exist(key string) bool            // Exist() is used to check a data node is present.
-	Get(key string) DataNode          // Get() is used to get the first child has the key.
-	GetValue(key string) interface{}  // GetValue() is used to get the value of the child that has the key.
-	GetValueString(key string) string // GetValueString() is used to get the value, converted to string, of the child that has the key.
-	GetAll(key string) []DataNode     // GetAll() is used to get all children that have the key.
-	Lookup(prefix string) []DataNode  // Lookup() is used to get all children on which their keys start with the prefix.
+	Exist(id string) bool              // Exist() is used to check a data node is present.
+	Get(id string) DataNode            // Get() is used to get the first child has the id.
+	GetValue(id string) interface{}    // GetValue() is used to get the value of the child that has the ID.
+	GetValueString(id string) string   // GetValueString() is used to get the value, converted to string, of the child that has the ID.
+	GetAll(id string) []DataNode       // GetAll() is used to get all children that have the id.
+	Lookup(idPrefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix string of the node ID.
 
 	Len() int                 // Len() returns the length of children.
-	Index(key string) int     // Index() finds all children by the key and returns the position.
+	Index(id string) int      // Index() finds all children by the node id and returns the position.
 	Child(index int) DataNode // Child() gets the child of the index.
 
 	String() string

@@ -32,19 +32,19 @@ func (branch *DataBranch) unmarshalYAMLListableNode(cschema *yang.Entry, kname [
 	}
 	// check existent DataNode
 	var err error
-	var key strings.Builder
-	key.WriteString(cschema.Name)
+	var id strings.Builder
+	id.WriteString(cschema.Name)
 	for i := range kval {
-		key.WriteString("[")
-		key.WriteString(kname[i])
-		key.WriteString("=")
-		key.WriteString(ValueToString(kval[i]))
-		key.WriteString("]")
+		id.WriteString("[")
+		id.WriteString(kname[i])
+		id.WriteString("=")
+		id.WriteString(ValueToString(kval[i]))
+		id.WriteString("]")
 	}
 	var child DataNode
-	found := branch.Get(key.String())
+	found := branch.Get(id.String())
 	if found == nil {
-		if child, err = branch.New(key.String()); err != nil {
+		if child, err = branch.New(id.String()); err != nil {
 			return err
 		}
 	} else {
@@ -63,15 +63,15 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *yang.Entr
 		}
 		// check existent DataNode
 		var err error
-		var key strings.Builder
-		key.WriteString(cschema.Name)
+		var id strings.Builder
+		id.WriteString(cschema.Name)
 		for i := range kname {
-			key.WriteString("[")
-			key.WriteString(kname[i])
-			key.WriteString("=")
-			key.WriteString(fmt.Sprint(entry[kname[i]]))
-			key.WriteString("]")
-			// [FIXME] need to check key validation
+			id.WriteString("[")
+			id.WriteString(kname[i])
+			id.WriteString("=")
+			id.WriteString(fmt.Sprint(entry[kname[i]]))
+			id.WriteString("]")
+			// [FIXME] need to check id validation
 			// kchild, err := New(kschema, kval)
 			// if err != nil {
 			// 	return err
@@ -79,13 +79,13 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *yang.Entr
 		}
 		var child DataNode
 		if IsDuplicatableList(cschema) {
-			if child, err = branch.New(key.String()); err != nil {
+			if child, err = branch.New(id.String()); err != nil {
 				return err
 			}
 		} else {
-			found := branch.Get(key.String())
+			found := branch.Get(id.String())
 			if found == nil {
-				if child, err = branch.New(key.String()); err != nil {
+				if child, err = branch.New(id.String()); err != nil {
 					return err
 				}
 			} else {
@@ -153,7 +153,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						}
 					} else {
 						if IsDuplicatableList(cschema) {
-							return fmt.Errorf("non-key list %q must have the array format", cschema.Name)
+							return fmt.Errorf("non-id list %q must have the array format", cschema.Name)
 						}
 						kname := GetKeynames(cschema)
 						kval := make([]interface{}, 0, len(kname))
@@ -181,7 +181,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 				default:
 					var child DataNode
 					i := n.Index(keystr)
-					if i < len(n.children) && n.children[i].Key() == k {
+					if i < len(n.children) && n.children[i].ID() == k {
 						child = n.children[i]
 						if err := unmarshalYAML(child, v); err != nil {
 							return err
@@ -268,7 +268,7 @@ func (ynode *yDataNode) getQname() string {
 		return ynode.Schema().Name
 	}
 	if ynode.iformat && ynode.IsDataBranch() {
-		return ynode.Key()
+		return ynode.ID()
 	}
 	return ynode.Schema().Name
 }
@@ -342,7 +342,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 		} else {
 			keyname, keyval := GetKeyValues(ynode.DataNode)
 			if len(keyname) != len(keyval) {
-				return i, fmt.Errorf("list %q doesn't have a key value", schema.Name)
+				return i, fmt.Errorf("list %q doesn't have a id value", schema.Name)
 			}
 			for j := range keyval {
 				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {

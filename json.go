@@ -180,7 +180,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 		}
 		keyname, keyval := GetKeyValues(jnode.DataNode)
 		if len(keyname) != len(keyval) {
-			return i, comma, fmt.Errorf("list %q doesn't have a key value", schema.Name)
+			return i, comma, fmt.Errorf("list %q doesn't have key value pairs", schema.Name)
 		}
 		m := nodemap
 		for x := range keyval {
@@ -307,22 +307,22 @@ func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string,
 	}
 
 	var err error
-	var key strings.Builder
-	key.WriteString(cschema.Name)
+	var id strings.Builder
+	id.WriteString(cschema.Name)
 	for i := range kname {
-		key.WriteString("[")
-		key.WriteString(kname[i])
-		key.WriteString("=")
-		key.WriteString(kval[i])
-		key.WriteString("]")
+		id.WriteString("[")
+		id.WriteString(kname[i])
+		id.WriteString("=")
+		id.WriteString(kval[i])
+		id.WriteString("]")
 	}
-	child, created, err := branch.GetOrNew(key.String(), opt)
+	child, created, err := branch.GetOrNew(id.String(), opt)
 	if err != nil {
 		return nil, err
 	}
 	if !created {
 		if opt.GetOperation() == EditCreate {
-			return nil, Errorf(ETagDataExists, "data node %q already exists", child.Key())
+			return nil, Errorf(ETagDataExists, "data node %q already exists", child.ID())
 		}
 	}
 
@@ -342,8 +342,8 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []str
 	nodes := make([]DataNode, 0, len(listentry))
 	for i := range listentry {
 		var err error
-		var key strings.Builder
-		key.WriteString(cschema.Name)
+		var id strings.Builder
+		id.WriteString(cschema.Name)
 		switch jentry := listentry[i].(type) {
 		case map[string]interface{}:
 			for i := range kname {
@@ -351,11 +351,11 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []str
 				if err != nil {
 					return nil, err
 				}
-				key.WriteString(`[`)
-				key.WriteString(kname[i])
-				key.WriteString(`=`)
-				key.WriteString(valstr)
-				key.WriteString(`]`)
+				id.WriteString(`[`)
+				id.WriteString(kname[i])
+				id.WriteString(`=`)
+				id.WriteString(valstr)
+				id.WriteString(`]`)
 			}
 		// case []interface{}:
 		// 	return fmt.Errorf("unexpected json type '%T' for %s", listentry[i], cschema.Name)
@@ -364,9 +364,9 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []str
 			if err != nil {
 				return nil, err
 			}
-			key.WriteString(`[.=` + valstr + `]`)
+			id.WriteString(`[.=` + valstr + `]`)
 		}
-		child, created, err := branch.GetOrNew(key.String(), opt)
+		child, created, err := branch.GetOrNew(id.String(), opt)
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +414,7 @@ func unmarshalJSON(node DataNode, jval interface{}, opt *EditOption) error {
 				default:
 					var child DataNode
 					i := n.Index(k)
-					if i < len(n.children) && n.children[i].Key() == k {
+					if i < len(n.children) && n.children[i].ID() == k {
 						child = n.children[i]
 						if err := unmarshalJSON(child, v, opt); err != nil {
 							return err

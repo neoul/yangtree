@@ -130,9 +130,9 @@ LOOP:
 	return pmap, nil
 }
 
-// GenerateKey generates the access key of the schema using the value in the pmap.
-// It also returns a boolean value to true if the access key is used for the access of multiple data nodes.
-func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool) {
+// GenerateID generates the node ID of the schema using the value in the pmap.
+// It also returns a boolean value to true if the ID is used for the access of multiple data nodes.
+func GenerateID(schema *yang.Entry, pmap map[string]interface{}) (string, bool) {
 	if _, ok := pmap["@index"]; ok {
 		return schema.Name, false
 	}
@@ -144,38 +144,38 @@ func GenerateKey(schema *yang.Entry, pmap map[string]interface{}) (string, bool)
 		if schema.Key == "" {
 			return schema.Name, true
 		}
-		var key bytes.Buffer
-		key.WriteString(schema.Name)
+		var id bytes.Buffer
+		id.WriteString(schema.Name)
 		keyname := GetKeynames(schema)
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
-				return key.String(), true
+				return id.String(), true
 			}
 			value := v.(string)
 			switch value {
 			case "*":
-				return key.String(), true
+				return id.String(), true
 			default:
-				key.WriteString("[")
-				key.WriteString(keyname[i])
-				key.WriteString("=")
-				key.WriteString(value)
-				key.WriteString("]")
+				id.WriteString("[")
+				id.WriteString(keyname[i])
+				id.WriteString("=")
+				id.WriteString(value)
+				id.WriteString("]")
 			}
 		}
-		return key.String(), false
+		return id.String(), false
 	case schema.IsLeafList():
 		v, ok := pmap["."]
 		if !ok {
 			return schema.Name, true
 		}
-		var key bytes.Buffer
-		key.WriteString(schema.Name)
-		key.WriteString("[.=")
-		key.WriteString(v.(string))
-		key.WriteString("]")
-		return key.String(), false
+		var id bytes.Buffer
+		id.WriteString(schema.Name)
+		id.WriteString("[.=")
+		id.WriteString(v.(string))
+		id.WriteString("]")
+		return id.String(), false
 	}
 	return schema.Name, false // container, leaf
 }
@@ -272,113 +272,6 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	}
 	node = append(node, updateNodeSelect(pathnode))
 	return node, nil
-}
-
-func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
-	numP := 0
-	pmap := make(map[string]interface{})
-	meta := GetSchemaMeta(schema)
-	for i := range pathnode.Predicates {
-		token, _, err := TokenizePathExpr(nil, &(pathnode.Predicates[i]), 0)
-		if err != nil {
-			return "", nil, err
-		}
-		switch len(token) {
-		case 0:
-			continue
-		case 1:
-			if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
-				if index <= 0 {
-					return "", nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
-				}
-				pmap["@index"] = index - 1
-				return pathnode.Name, pmap, nil
-			}
-			pmap["@evaluate-xpath"] = true
-			return pathnode.Name, pmap, nil
-		case 2, 3:
-			if token[1] != "=" {
-				pmap["@evaluate-xpath"] = true
-				return pathnode.Name, pmap, nil
-			}
-		default:
-			pmap["@evaluate-xpath"] = true
-			return pathnode.Name, pmap, nil
-		}
-		var value string
-		if len(token) > 2 {
-			value = token[2]
-		}
-		if token[0] == "." {
-			pmap["."] = value
-			continue
-		}
-
-		cschema, ok := meta.Dir[token[0]]
-		if !ok {
-			pmap["@evaluate-xpath"] = true
-			return pathnode.Name, pmap, nil
-		}
-		if !IsKeyNode(cschema) {
-			pmap["@need-to-update"] = true
-		}
-		if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
-			value = strings.Trim(value, "'")
-		}
-		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
-			value = strings.Trim(value, "\"")
-		}
-		if v, exist := pmap[cschema.Name]; exist {
-			if v != value {
-				return "", nil, fmt.Errorf("duplicated path predicate %q found", cschema.Name)
-			}
-		}
-		numP++
-		pmap[cschema.Name] = value
-	}
-
-	switch {
-	case IsListHasKey(schema):
-		var key bytes.Buffer
-		key.WriteString(schema.Name)
-		keyname := GetKeynames(schema)
-		usedPredicates := 0
-	LOOP:
-		for i := range keyname {
-			v, ok := pmap[keyname[i]]
-			if !ok {
-				pmap["@nokey"] = true
-				pmap["@prefix"] = true
-				break LOOP
-			}
-			usedPredicates++
-			// delete(pmap, keyname[i])
-			value := v.(string)
-			// if value == "" || value == "*" {
-			// 	pmap["@present"] = true
-			// 	break LOOP
-			// }
-			switch value {
-			case "*":
-				pmap["@prefix"] = true
-				break LOOP
-			default:
-				key.WriteString("[")
-				key.WriteString(keyname[i])
-				key.WriteString("=")
-				key.WriteString(value)
-				key.WriteString("]")
-			}
-		}
-		if usedPredicates < numP {
-			pmap["@evaluate-xpath"] = true
-		}
-		return key.String(), pmap, nil
-	}
-	if numP > 0 {
-		pmap["@evaluate-xpath"] = true
-	}
-	return pathnode.Name, pmap, nil
 }
 
 func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error) {
@@ -690,15 +583,6 @@ func RemovePredicates(path *string) (string, bool) {
 		return b.String(), true
 	}
 	return "", false
-}
-
-// KeyGen() generates the child key and child map from the PathNode.
-func KeyGen(pschema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
-	cschema := GetSchema(pschema, pathnode.Name)
-	if cschema == nil {
-		return "", nil, fmt.Errorf("schema %q not found from %q", pathnode.Name, pschema.Name)
-	}
-	return keyGen(cschema, pathnode)
 }
 
 // FindAllPossiblePath finds all possible paths. It resolves the gNMI path wildcards.
