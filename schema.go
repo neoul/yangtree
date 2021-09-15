@@ -308,6 +308,32 @@ func updateSchemaMetaForType(schema *yang.Entry, typ *yang.YangType) error {
 	return nil
 }
 
+var collector *yang.Entry
+
+func buildCollectorSchema(option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) *yang.Entry {
+	if collector == nil {
+		e := &yang.Entry{
+			Name:   "anydata",
+			Kind:   yang.AnyDataEntry,
+			Config: yang.TSTrue,
+			Dir:    make(map[string]*yang.Entry),
+		}
+		newSchemaAnnotation(e, option, ext, ms)
+		meta := GetSchemaMeta(e)
+		meta.IsRoot = false
+		collector = e
+	}
+	return collector
+}
+
+// NewDataNodeCollector() creates a fake node that can be used to collect other data nodes.
+// Any of data nodes can be contained to the collector data node.
+func NewDataNodeCollector() DataNode {
+	node, _ := New(collector)
+	return node
+}
+
+// buildRootSchema() builds the fake root schema node of the loaded yangtree.
 func buildRootSchema(module *yang.Module, option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) *yang.Entry {
 	e := yang.ToEntry(module)
 	root := e.Dir["root"]
@@ -318,6 +344,7 @@ func buildRootSchema(module *yang.Module, option *SchemaOption, ext map[string]*
 	return root
 }
 
+// IsRootSchema() returns true if the schema node is the root schema node.
 func IsRootSchema(schema *yang.Entry) bool {
 	if m, ok := schema.Annotation["meta"]; ok {
 		meta := m.(*SchemaMetadata)
@@ -326,6 +353,7 @@ func IsRootSchema(schema *yang.Entry) bool {
 	return false
 }
 
+// GetRootSchema() returns its root schema node.
 func GetRootSchema(schema *yang.Entry) *yang.Entry {
 	for schema != nil {
 		if IsRootSchema(schema) {
@@ -336,35 +364,39 @@ func GetRootSchema(schema *yang.Entry) *yang.Entry {
 	return nil
 }
 
-// IsDuplicatableList() checks the data nodes can be duplicated.
-func IsDuplicatableList(schema *yang.Entry) bool {
-	return schema.IsList() && schema.Key == ""
-}
-
-// IsListHasKey() checks the data nodes can be duplicated.
-func IsListHasKey(schema *yang.Entry) bool {
-	return schema.IsList() && schema.Key != ""
-}
-
-func IsList(schema *yang.Entry) bool {
-	return schema.IsList()
-}
-
-func IsListable(schema *yang.Entry) bool {
-	return schema.ListAttr != nil
-}
-
+// IsDuplicatableList() checks the data nodes can be inserted to the data tree several times.
 func IsDuplicatable(schema *yang.Entry) bool {
 	return (schema.IsList() && schema.Key == "") ||
 		(schema.IsLeafList() && IsState(schema))
 }
 
-// IsUpdatable is used to check the schema is updatable.
-// Leaf-list and non-key list are unable to be updated.
+// IsDuplicatableList() checks the data nodes is a list node and it can be inserted to the data tree several times.
+func IsDuplicatableList(schema *yang.Entry) bool {
+	return schema.IsList() && schema.Key == ""
+}
+
+// IsListHasKey() checks the list nodes has keys.
+func IsListHasKey(schema *yang.Entry) bool {
+	return schema.IsList() && schema.Key != ""
+}
+
+// IsList() checks the data node is a list node.
+func IsList(schema *yang.Entry) bool {
+	return schema.IsList()
+}
+
+// IsListable() checks the data node is a list or a leaf-list node.
+func IsListable(schema *yang.Entry) bool {
+	return schema.ListAttr != nil
+}
+
+// IsUpdatable() is used to check the schema is updatable.
+// Leaf-list and non-key list nodes are unable to be updated (not modified).
 func IsUpdatable(schema *yang.Entry) bool {
 	return !(schema.ListAttr != nil && schema.Key == "")
 }
 
+// IsOrderedByUser() is used to check the node is ordered by the user.
 func IsOrderedByUser(schema *yang.Entry) bool {
 	if m, ok := schema.Annotation["meta"]; ok {
 		meta := m.(*SchemaMetadata)
@@ -373,10 +405,12 @@ func IsOrderedByUser(schema *yang.Entry) bool {
 	return false
 }
 
+// IsAnyData() returns true if the schema node is anydata.
 func IsAnyData(schema *yang.Entry) bool {
 	return schema.Kind == yang.AnyDataEntry
 }
 
+// GetAllModules() returns a module map of the loaded yangtree.
 func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
 	if schema == nil {
 		return nil
@@ -391,6 +425,7 @@ func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
 	return nil
 }
 
+// GetSchemaMeta() returns the metadata updated by the yangtree.
 func GetSchemaMeta(schema *yang.Entry) *SchemaMetadata {
 	if m, ok := schema.Annotation["meta"]; ok {
 		return m.(*SchemaMetadata)
@@ -398,7 +433,7 @@ func GetSchemaMeta(schema *yang.Entry) *SchemaMetadata {
 	return nil
 }
 
-// Return qname (namespace-qualified name e.g. module-name:node-name)
+// GetQName() returns the qname (namespace-qualified name e.g. module-name:node-name) of the schema node.
 func GetQName(schema *yang.Entry) (string, bool) {
 	if m, ok := schema.Annotation["meta"]; ok {
 		meta := m.(*SchemaMetadata)
@@ -407,6 +442,7 @@ func GetQName(schema *yang.Entry) (string, bool) {
 	return "", false
 }
 
+// GetModule() returns the module strcture of the schema node.
 func GetModule(schema *yang.Entry) *yang.Module {
 	modules := getModules(schema)
 	if modules == nil {
@@ -665,6 +701,7 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*yang.Entry, error)
 		}
 		modnames = append(modnames, modname)
 	}
+	buildCollectorSchema(&schemaOption, ext, ms)
 
 	sort.Strings(modnames)
 	for _, modname := range modnames {

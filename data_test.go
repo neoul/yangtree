@@ -881,6 +881,11 @@ non-key-list:
 	if anystr == `` {
 		t.Errorf("any has different values: %v", string(y))
 	}
+
+	// collector := NewDataNodeCollector()
+	// collector.Insert(root2)
+	// y, _ = MarshalYAML(collector)
+	// fmt.Println(string(y))
 }
 
 // func BenchmarkFindPaths(b *testing.B) {
