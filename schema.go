@@ -373,6 +373,10 @@ func IsOrderedByUser(schema *yang.Entry) bool {
 	return false
 }
 
+func IsAnyData(schema *yang.Entry) bool {
+	return schema.Kind == yang.AnyDataEntry
+}
+
 func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
 	if schema == nil {
 		return nil

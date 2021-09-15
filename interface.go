@@ -22,7 +22,8 @@ type DataNode interface {
 
 	Set(value string) error // Set() writes the values to the data node. The value must be string.
 	// Reset() error // Reset() resets the value to the default.
-	Remove() error // Remote() removes itself.
+
+	Remove() error // Remove() removes itself.
 
 	New(id string, value ...string) (DataNode, error)    // New() creates a cild using the node id (NODE_NAME[KEY=VALUE]).
 	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id using the input values.

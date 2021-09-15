@@ -194,11 +194,15 @@ func (branch *DataBranch) insert(child DataNode, op Operation, iopt InsertOption
 		if child.Parent() == branch {
 			return nil
 		}
-		return fmt.Errorf("%q is already inserted", child)
+		// allow to move the child to another node.
+		// return fmt.Errorf("child node %q is already inserted to %q", child, child.Parent())
+		child.Remove()
 	}
 	schema := child.Schema()
-	if branch.Schema() != GetPresentParentSchema(schema) {
-		return fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
+	if !IsAnyData(branch.schema) {
+		if branch.Schema() != GetPresentParentSchema(schema) {
+			return fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
+		}
 	}
 
 	// duplicatable nodes: read-only leaf-list and non-key list nodes.
@@ -1016,7 +1020,7 @@ func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
 			}
 		}
 		newdata = leaf
-	default: // list, container
+	default: // list, container, anydata
 		branch := &DataBranch{
 			schema:   schema,
 			children: []DataNode{},

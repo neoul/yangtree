@@ -3,6 +3,7 @@ package yangtree
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -753,6 +754,133 @@ func TestEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("\n%s\n", string(y))
+}
+
+func TestAnyData(t *testing.T) {
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jbyte := `
+	{
+		"sample:sample": {
+		 "container-val": {
+		  "a": "A",
+		  "enum-val": "enum2",
+		  "leaf-list-val": [
+		   "leaf-list-first",
+		   "leaf-list-fourth",
+		   "leaf-list-second",
+		   "leaf-list-third"
+		  ],
+		  "test-default": 11
+		 },
+		 "empty-val": [
+		  null
+		 ],
+		 "multiple-key-list": [
+		  {
+		   "integer": 1,
+		   "ok": true,
+		   "str": "first"
+		  },
+		  {
+		   "integer": 2,
+		   "str": "first"
+		  }
+		 ],
+		 "non-key-list": [
+		  {
+		   "strval": "XYZ",
+		   "uintval": 10
+		  },
+		  {
+			"strval": "ABC",
+			"uintval": 11
+		   }
+		 ],
+		 "single-key-list": [
+		  {
+		   "country-code": "KR",
+		   "decimal-range": 1.01,
+		   "empty-node": [
+			null
+		   ],
+		   "list-key": "AAA",
+		   "uint32-range": 100,
+		   "uint64-node": "1234567890"
+		  }
+		 ],
+		 "str-val": "abc"
+		}
+	   }
+	`
+	root1, err := NewWithValue(RootSchema, jbyte)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ := MarshalJSON(root1)
+	t.Log(string(j))
+
+	root2, err := NewWithValue(RootSchema, jbyte)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ = MarshalJSON(root2)
+	t.Log(string(j))
+
+	nodes, err := Edit(EditOption{}, root1, "sample/any")
+	if err != nil {
+		t.Fatal(err)
+	}
+	any := nodes[0]
+	nodes, err = Find(root2, "sample/non-key-list")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _nodes, err := Find(root2, "sample/container-val"); err != nil {
+		t.Fatal(err)
+	} else {
+		nodes = append(nodes, _nodes...)
+	}
+	for _, node := range nodes {
+		err = any.Insert(node)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var anystr = `container-val:
+ a: A
+ enum-val: enum2
+ leaf-list-val:
+  - leaf-list-first
+  - leaf-list-fourth
+  - leaf-list-second
+  - leaf-list-third
+ test-default: 11
+non-key-list:
+ - strval: XYZ
+   uintval: 10
+ - strval: ABC
+   uintval: 11
+`
+	y, _ := MarshalYAML(any)
+	if !strings.Contains(anystr, string(y)) {
+		t.Errorf("any has different values: %v", string(y))
+	}
+
+	for _, node := range nodes {
+		err = any.Delete(node)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	y, _ = MarshalYAML(any)
+	if anystr == `` {
+		t.Errorf("any has different values: %v", string(y))
+	}
 }
 
 // func BenchmarkFindPaths(b *testing.B) {

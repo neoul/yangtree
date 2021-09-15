@@ -21,6 +21,9 @@ module sample {
   }
 
   container sample {
+    anydata any {
+     description "any data node can be placed this node"; 
+    }
     leaf str-val { type string; }
     leaf empty-val { type empty; }
     list single-key-list {
