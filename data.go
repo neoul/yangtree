@@ -1291,7 +1291,7 @@ func setValue(root DataNode, pathnode []*PathNode, opt *EditOption, value ...str
 // Set sets a value to the target DataNode in the path.
 // If the target DataNode is a branch node, the value must be json or json_ietf bytes.
 // If the target data node is a leaf or a leaf-list node, the value should be string.
-func Set(root DataNode, path string, value string) error {
+func Set(root DataNode, path string, value ...string) error {
 	if !IsValid(root) {
 		return fmt.Errorf("invalid root data node")
 	}
@@ -1299,7 +1299,7 @@ func Set(root DataNode, path string, value string) error {
 	if err != nil {
 		return err
 	}
-	_, err = setValue(root, pathnode, nil, value)
+	_, err = setValue(root, pathnode, nil, value...)
 	return err
 }
 

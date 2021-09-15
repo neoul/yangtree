@@ -56,7 +56,7 @@ func TestDiffUpdate(t *testing.T) {
 	if len(ifnodes) != 6 {
 		t.Errorf("expected num: %d, got: %d", 6, len(ifnodes))
 	}
-	created, replaced := DiffUpdated(prev, root)
+	created, replaced := DiffUpdated(prev, root, false)
 	// created
 	t.Log("[created]", len(created))
 	for i := range created {

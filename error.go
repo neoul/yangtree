@@ -27,6 +27,10 @@ const (
 	ETagOperationFailed
 	ETagPartialOperation
 	ETagMarlformedMessage
+
+	EAppTagUnknownError ErrorTag = iota + 100
+	EAppTagDataNodeMissing
+	EAppDataNodeExists
 )
 
 func (et ErrorTag) String() string {
@@ -71,6 +75,12 @@ func (et ErrorTag) String() string {
 		return "partial-operation"
 	case ETagMarlformedMessage:
 		return "marlformed-message"
+	case EAppTagUnknownError:
+		return "unknown-error"
+	case EAppTagDataNodeMissing:
+		return "data-node-missing"
+	case EAppDataNodeExists:
+		return "data-node-exists"
 	default:
 		return "unknown"
 	}
@@ -102,6 +112,7 @@ func (et ErrorType) String() string {
 
 type YError struct {
 	ErrorTag
+	// ErrorAppTag ErrorTag
 	ErrorType
 	ErrorMessage string
 }

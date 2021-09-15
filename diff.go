@@ -1,15 +1,13 @@
 package yangtree
 
 import (
-	"fmt"
-
 	"github.com/google/go-cmp/cmp"
 )
 
-// DiffUpdated() returns updated nodes.
+// DiffUpdated() returns created or updated nodes.
 // It returns all created, replaced nodes in node2 (including itself) against node1.
-// The deleted nodes can be obtained by the reverse input. e.g. node1 ==> node2, node2 ==> node1
-func DiffUpdated(node1, node2 DataNode) ([]DataNode, []DataNode) {
+// The deleted nodes can be obtained by the reverse input.
+func DiffUpdated(node1, node2 DataNode, comparingLoosely bool) ([]DataNode, []DataNode) {
 	if node1 == node2 {
 		return nil, nil
 	}
@@ -26,29 +24,35 @@ func DiffUpdated(node1, node2 DataNode) ([]DataNode, []DataNode) {
 	switch d1 := node1.(type) {
 	case *DataBranch:
 		d2 := node2.(*DataBranch)
-		// created or replaced nodes
 		created := []DataNode{}
 		replaced := []DataNode{}
 		// created, replaced
 		for first := 0; first < len(d2.children); first++ {
-			id := d2.children[first].ID()
-			if IsDuplicatableList(d2.children[first].Schema()) {
-				d1children := d1.GetAll(id)
-				d2children := d2.GetAll(id)
+			// duplicatable data nodes (non-key list and ro leaf-list node) must have the same position.
+			duplicatable := IsDuplicatable(d2.children[first].Schema())
+			if duplicatable && comparingLoosely {
+				c, r := DiffUpdated(nil, d2.children[first], comparingLoosely)
+				created = append(created, c...)
+				replaced = append(replaced, r...)
+			} else if duplicatable {
+				name := d2.children[first].Name()
+				d1children := d1.GetAll(name)
+				d2children := d2.GetAll(name)
 				for i := range d2children {
 					if i < len(d1children) {
-						c, r := DiffUpdated(d1children[i], d2children[i])
+						c, r := DiffUpdated(d1children[i], d2children[i], comparingLoosely)
 						created = append(created, c...)
 						replaced = append(replaced, r...)
 					} else {
-						c, r := DiffUpdated(nil, d2children[i])
+						c, r := DiffUpdated(nil, d2children[i], comparingLoosely)
 						created = append(created, c...)
 						replaced = append(replaced, r...)
 					}
 				}
 				first = len(d2children) - 1
 			} else {
-				c, r := DiffUpdated(d1.Get(id), d2.children[first])
+				id := d2.children[first].ID()
+				c, r := DiffUpdated(d1.Get(id), d2.children[first], comparingLoosely)
 				created = append(created, c...)
 				replaced = append(replaced, r...)
 			}
@@ -64,10 +68,10 @@ func DiffUpdated(node1, node2 DataNode) ([]DataNode, []DataNode) {
 	return nil, nil
 }
 
-// DiffUpdated() returns updated nodes.
-// It returns all created, replaced nodes in node2 (including itself) against node1.
-// The deleted nodes can be obtained by the reverse input. e.g. node1 ==> node2, node2 ==> node1
-func DiffCreated(node1, node2 DataNode) []DataNode {
+// DiffCreated() returns created nodes.
+// It returns all created nodes in node2 (including itself) against node1.
+// The deleted nodes can be obtained by the reverse input.
+func DiffCreated(node1, node2 DataNode, comparingLoosely bool) []DataNode {
 	if node1 == node2 {
 		return nil
 	}
@@ -84,26 +88,30 @@ func DiffCreated(node1, node2 DataNode) []DataNode {
 	switch d1 := node1.(type) {
 	case *DataBranch:
 		d2 := node2.(*DataBranch)
-		// created nodes
 		created := []DataNode{}
 		// created
 		for first := 0; first < len(d2.children); first++ {
-			id := d2.children[first].ID()
-			if IsDuplicatableList(d2.children[first].Schema()) {
-				d1children := d1.GetAll(id)
-				d2children := d2.GetAll(id)
+			duplicatable := IsDuplicatable(d2.children[first].Schema())
+			if duplicatable && comparingLoosely {
+				c := DiffCreated(nil, d2.children[first], comparingLoosely)
+				created = append(created, c...)
+			} else if duplicatable {
+				name := d2.children[first].Name()
+				d1children := d1.GetAll(name)
+				d2children := d2.GetAll(name)
 				for i := range d2children {
 					if i < len(d1children) {
-						c := DiffCreated(d1children[i], d2children[i])
+						c := DiffCreated(d1children[i], d2children[i], comparingLoosely)
 						created = append(created, c...)
 					} else {
-						c := DiffCreated(nil, d2children[i])
+						c := DiffCreated(nil, d2children[i], comparingLoosely)
 						created = append(created, c...)
 					}
 				}
 				first = len(d2children) - 1
 			} else {
-				c := DiffCreated(d1.Get(id), d2.children[first])
+				id := d2.children[first].ID()
+				c := DiffCreated(d1.Get(id), d2.children[first], comparingLoosely)
 				created = append(created, c...)
 			}
 		}
@@ -117,34 +125,34 @@ func DiffCreated(node1, node2 DataNode) []DataNode {
 // Diff() returns differences between nodes.
 // It returns all created, replaced and deleted nodes in node2 (including itself) against node1.
 func Diff(node1, node2 DataNode) ([]DataNode, []DataNode, []DataNode) {
-	c, r := DiffUpdated(node1, node2)
-	d := DiffCreated(node2, node1)
+	c, r := DiffUpdated(node1, node2, false)
+	d := DiffCreated(node2, node1, false)
 	return c, r, d
 }
 
 // SetDiff() = Set() + Diff()
-func SetDiff(root DataNode, path string, value string) ([]DataNode, []DataNode, error) {
+func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNode, error) {
 	if !IsValid(root) {
-		return nil, nil, fmt.Errorf("invalid root node")
+		return nil, nil, Errorf(EAppTagDataNodeMissing, "invalid root node")
 	}
 	new, err := New(root.Schema())
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := Set(new, path, value); err != nil {
+	if err = Set(new, path, value...); err != nil {
 		return nil, nil, err
 	}
-	c, d := DiffUpdated(root, new)
+	c, d := DiffUpdated(root, new, true)
 	if err := root.Merge(new); err != nil {
 		return nil, nil, err
 	}
 	return c, d, nil
 }
 
-// MergeDiff() = Set() + Diff()
+// MergeDiff() = Merge() + Diff()
 func MergeDiff(root DataNode, path string, node DataNode) ([]DataNode, []DataNode, error) {
 	if !IsValid(root) {
-		return nil, nil, fmt.Errorf("invalid root node")
+		return nil, nil, Errorf(EAppTagDataNodeMissing, "invalid root node")
 	}
 	new, err := New(root.Schema())
 	if err != nil {
@@ -153,7 +161,7 @@ func MergeDiff(root DataNode, path string, node DataNode) ([]DataNode, []DataNod
 	if err := Merge(new, path, node); err != nil {
 		return nil, nil, err
 	}
-	c, d := DiffUpdated(root, new)
+	c, d := DiffUpdated(root, new, true)
 	if err := root.Merge(new); err != nil {
 		return nil, nil, err
 	}
