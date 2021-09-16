@@ -7,7 +7,8 @@ import (
 // DiffUpdated() returns created or updated nodes.
 // It returns all created, replaced nodes in node2 (including itself) against node1.
 // The deleted nodes can be obtained by the reverse input.
-func DiffUpdated(node1, node2 DataNode, comparingLoosely bool) ([]DataNode, []DataNode) {
+// if disDupCmp (disable duplicatable node comparison) is set, duplicatable nodes are not compared.
+func DiffUpdated(node1, node2 DataNode, disDupCmp bool) ([]DataNode, []DataNode) {
 	if node1 == node2 {
 		return nil, nil
 	}
@@ -30,8 +31,8 @@ func DiffUpdated(node1, node2 DataNode, comparingLoosely bool) ([]DataNode, []Da
 		for first := 0; first < len(d2.children); first++ {
 			// duplicatable data nodes (non-key list and ro leaf-list node) must have the same position.
 			duplicatable := IsDuplicatable(d2.children[first].Schema())
-			if duplicatable && comparingLoosely {
-				c, r := DiffUpdated(nil, d2.children[first], comparingLoosely)
+			if duplicatable && disDupCmp {
+				c, r := DiffUpdated(nil, d2.children[first], disDupCmp)
 				created = append(created, c...)
 				replaced = append(replaced, r...)
 			} else if duplicatable {
@@ -40,11 +41,11 @@ func DiffUpdated(node1, node2 DataNode, comparingLoosely bool) ([]DataNode, []Da
 				d2children := d2.GetAll(name)
 				for i := range d2children {
 					if i < len(d1children) {
-						c, r := DiffUpdated(d1children[i], d2children[i], comparingLoosely)
+						c, r := DiffUpdated(d1children[i], d2children[i], disDupCmp)
 						created = append(created, c...)
 						replaced = append(replaced, r...)
 					} else {
-						c, r := DiffUpdated(nil, d2children[i], comparingLoosely)
+						c, r := DiffUpdated(nil, d2children[i], disDupCmp)
 						created = append(created, c...)
 						replaced = append(replaced, r...)
 					}
@@ -52,7 +53,7 @@ func DiffUpdated(node1, node2 DataNode, comparingLoosely bool) ([]DataNode, []Da
 				first = len(d2children) - 1
 			} else {
 				id := d2.children[first].ID()
-				c, r := DiffUpdated(d1.Get(id), d2.children[first], comparingLoosely)
+				c, r := DiffUpdated(d1.Get(id), d2.children[first], disDupCmp)
 				created = append(created, c...)
 				replaced = append(replaced, r...)
 			}
@@ -71,7 +72,7 @@ func DiffUpdated(node1, node2 DataNode, comparingLoosely bool) ([]DataNode, []Da
 // DiffCreated() returns created nodes.
 // It returns all created nodes in node2 (including itself) against node1.
 // The deleted nodes can be obtained by the reverse input.
-func DiffCreated(node1, node2 DataNode, comparingLoosely bool) []DataNode {
+func DiffCreated(node1, node2 DataNode, disDupCmp bool) []DataNode {
 	if node1 == node2 {
 		return nil
 	}
@@ -92,8 +93,8 @@ func DiffCreated(node1, node2 DataNode, comparingLoosely bool) []DataNode {
 		// created
 		for first := 0; first < len(d2.children); first++ {
 			duplicatable := IsDuplicatable(d2.children[first].Schema())
-			if duplicatable && comparingLoosely {
-				c := DiffCreated(nil, d2.children[first], comparingLoosely)
+			if duplicatable && disDupCmp {
+				c := DiffCreated(nil, d2.children[first], disDupCmp)
 				created = append(created, c...)
 			} else if duplicatable {
 				name := d2.children[first].Name()
@@ -101,17 +102,17 @@ func DiffCreated(node1, node2 DataNode, comparingLoosely bool) []DataNode {
 				d2children := d2.GetAll(name)
 				for i := range d2children {
 					if i < len(d1children) {
-						c := DiffCreated(d1children[i], d2children[i], comparingLoosely)
+						c := DiffCreated(d1children[i], d2children[i], disDupCmp)
 						created = append(created, c...)
 					} else {
-						c := DiffCreated(nil, d2children[i], comparingLoosely)
+						c := DiffCreated(nil, d2children[i], disDupCmp)
 						created = append(created, c...)
 					}
 				}
 				first = len(d2children) - 1
 			} else {
 				id := d2.children[first].ID()
-				c := DiffCreated(d1.Get(id), d2.children[first], comparingLoosely)
+				c := DiffCreated(d1.Get(id), d2.children[first], disDupCmp)
 				created = append(created, c...)
 			}
 		}

@@ -30,7 +30,8 @@ const (
 
 	EAppTagUnknownError ErrorTag = iota + 100
 	EAppTagDataNodeMissing
-	EAppDataNodeExists
+	EAppTagDataNodeExists
+	EAppTagInvalidArgument
 )
 
 func (et ErrorTag) String() string {
@@ -79,7 +80,7 @@ func (et ErrorTag) String() string {
 		return "unknown-error"
 	case EAppTagDataNodeMissing:
 		return "data-node-missing"
-	case EAppDataNodeExists:
+	case EAppTagDataNodeExists:
 		return "data-node-exists"
 	default:
 		return "unknown"
