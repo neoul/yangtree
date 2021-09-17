@@ -12,8 +12,9 @@ type DataNode interface {
 	Name() string       // Name() returns the name of the data node.
 	ID() string         // ID() returns the ID of the data node. The ID is an XPath element combined with XPath predicates to identify the node instance.
 
-	Schema() *yang.Entry // Schema() returns the schema of the data node.
-	Parent() DataNode    // Parent() returns the parent if it is present.
+	Schema() *yang.Entry  // Schema() returns the schema of the data node.
+	Parent() DataNode     // Parent() returns the parent if it is present.
+	Children() []DataNode // Children() returns all child nodes.
 
 	Insert(child DataNode, opt ...Option) error // Insert() inserts a new child node. It replaces the old one.
 	Delete(child DataNode) error                // Delete() deletes the child node if it is present.

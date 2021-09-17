@@ -287,7 +287,8 @@ func (branch *DataBranch) Parent() DataNode {
 	}
 	return branch.parent
 }
-func (branch *DataBranch) Value() interface{} { return nil }
+func (branch *DataBranch) Children() []DataNode { return branch.children }
+func (branch *DataBranch) Value() interface{}   { return nil }
 
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
@@ -818,6 +819,7 @@ func (leaf *DataLeaf) Parent() DataNode {
 	}
 	return leaf.parent
 }
+func (leaf *DataLeaf) Children() []DataNode { return nil }
 func (leaf *DataLeaf) String() string {
 	if leaf.schema.IsLeaf() {
 		return leaf.schema.Name
