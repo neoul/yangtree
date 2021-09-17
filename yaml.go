@@ -389,6 +389,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 				continue
 			}
 			cynode.DataNode = node[i]
+			cynode.rfc7951s = ynode.rfc7951s
 			if disableFirstIndent {
 				disableFirstIndent = false
 			} else {

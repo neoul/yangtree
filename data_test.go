@@ -153,22 +153,28 @@ func TestNewDataNodes(t *testing.T) {
 		]`
 
 	schema := FindSchema(RootSchema, "sample/container-val/leaf-list-val")
-
-	jleaflistnode, err := NewDataNodes(schema, jleaflist)
+	jleaflistnodes, err := NewDataNodes(schema, jleaflist)
 	if err != nil {
 		t.Fatal(err)
 	}
-	j, _ := MarshalJSON(jleaflistnode)
-	t.Log(string(j))
+	if j, err := DataNodeList(jleaflistnodes).MarshalJSON(); err == nil {
+		t.Log(string(j))
+	}
+	if y, err := DataNodeList(jleaflistnodes).MarshalYAML(); err == nil {
+		t.Log(string(y))
+	}
 
 	schema = FindSchema(RootSchema, "sample/single-key-list")
-
-	jlistnode, err := NewDataNodes(schema, jlist)
+	jlistnodes, err := NewDataNodes(schema, jlist)
 	if err != nil {
 		t.Fatal(err)
 	}
-	j, _ = MarshalJSON(jlistnode)
-	t.Log(string(j))
+	if j, err := DataNodeList(jlistnodes).MarshalJSON(RFC7951Format{}); err == nil {
+		t.Log(string(j))
+	}
+	if y, err := DataNodeList(jlistnodes).MarshalYAML(RFC7951Format{}); err == nil {
+		t.Log(string(y))
+	}
 
 }
 
@@ -311,7 +317,7 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
 		{expectedNum: 5, path: "/sample/single-key-list[list-key=*]"},
 		{expectedNum: 13, path: "/sample/single-key-list/*"},
-		{expectedNum: 13, path: "/sample/single-key-list"},
+		{expectedNum: 5, path: "/sample/single-key-list"},
 		{expectedNum: 15, path: "/sample/*"},
 		{expectedNum: 54, path: "/sample/..."},
 		{expectedNum: 4, path: "/sample/...", findOption: StateOnly{}},
@@ -776,7 +782,7 @@ func TestEdit(t *testing.T) {
 				}
 				switch {
 				case got[0].IsLeafList():
-					b, err := MarshalJSONListableNodes(got, false)
+					b, err := DataNodeList(got).MarshalJSON()
 					if err != nil {
 						t.Errorf("Edit() error: %v", fmt.Errorf("marshalling json for %q failed: %v", tt.path, err))
 						return

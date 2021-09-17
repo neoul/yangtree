@@ -1012,13 +1012,13 @@ func NewDataNode(schema *yang.Entry, value ...string) (DataNode, error) {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //         // The collector is an yang anydata node to keep various data nodes.
 //    }
-func NewDataNodes(schema *yang.Entry, value string) (collector DataNode, err error) {
+func NewDataNodes(schema *yang.Entry, value string) ([]DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
 	var jval interface{}
-	if err = json.Unmarshal([]byte(value), &jval); err != nil {
-		return
+	if err := json.Unmarshal([]byte(value), &jval); err != nil {
+		return nil, err
 	}
 	c := NewDataNodeCollector().(*DataBranch)
 	switch jdata := jval.(type) {
@@ -1028,17 +1028,22 @@ func NewDataNodes(schema *yang.Entry, value string) (collector DataNode, err err
 		}
 		kname := GetKeynames(schema)
 		kval := make([]string, 0, len(kname))
-		if _, err = c.unmarshalJSONList(schema, kname, kval, jdata, nil); err != nil {
+		if _, err := c.unmarshalJSONList(schema, kname, kval, jdata, nil); err != nil {
 			return nil, err
 		}
-		collector = c
+		return c.children, nil
 	case []interface{}:
-		if _, err = c.unmarshalJSONListable(schema, GetKeynames(schema), jdata, nil); err != nil {
-			return
+		if _, err := c.unmarshalJSONListable(schema, GetKeynames(schema), jdata, nil); err != nil {
+			return nil, err
 		}
-		collector = c
+		return c.children, nil
+	default:
+		n, err := NewDataNode(schema, value)
+		if err != nil {
+			return nil, err
+		}
+		return []DataNode{n}, nil
 	}
-	return
 }
 
 func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
