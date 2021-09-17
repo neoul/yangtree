@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )
@@ -307,23 +306,41 @@ func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string,
 	}
 
 	var err error
-	var id strings.Builder
-	id.WriteString(cschema.Name)
+	pmap := make(map[string]interface{})
 	for i := range kname {
-		id.WriteString("[")
-		id.WriteString(kname[i])
-		id.WriteString("=")
-		id.WriteString(kval[i])
-		id.WriteString("]")
+		pmap[kname[i]] = kval[i]
 	}
-	child, created, err := branch.GetOrNew(id.String(), opt)
-	if err != nil {
+	op := opt.GetOperation()
+	iopt := opt.GetInsertOption()
+	id, groupSearch := GenerateID(cschema, pmap)
+	children := branch.find(cschema, &id, groupSearch, nil)
+	if IsDuplicatableList(cschema) {
+		switch iopt.(type) {
+		case InsertToAfter, InsertToBefore:
+			return nil, Errorf(ETagOperationNotSupported,
+				"insert option (after, before) not supported for non-key list")
+		}
+		children = nil // clear found nodes
+	}
+	var created bool
+	var child DataNode
+	if len(children) > 0 {
+		if op == EditCreate {
+			return nil, Errorf(ETagDataExists, "data node %q already exists", id)
+		}
+		child = children[0]
+	} else {
+		child, err = NewDataNode(cschema)
+		if err != nil {
+			return nil, err
+		}
+		created = true
+	}
+	if err = UpdateByMap(child, pmap); err != nil {
 		return nil, err
 	}
-	if !created {
-		if opt.GetOperation() == EditCreate {
-			return nil, Errorf(ETagDataExists, "data node %q already exists", child.ID())
-		}
+	if err = branch.insert(child, op, iopt); err != nil {
+		return nil, err
 	}
 
 	// Update DataNode
@@ -342,8 +359,7 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []str
 	nodes := make([]DataNode, 0, len(listentry))
 	for i := range listentry {
 		var err error
-		var id strings.Builder
-		id.WriteString(cschema.Name)
+		pmap := make(map[string]interface{})
 		switch jentry := listentry[i].(type) {
 		case map[string]interface{}:
 			for i := range kname {
@@ -351,11 +367,7 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []str
 				if err != nil {
 					return nil, err
 				}
-				id.WriteString(`[`)
-				id.WriteString(kname[i])
-				id.WriteString(`=`)
-				id.WriteString(valstr)
-				id.WriteString(`]`)
+				pmap[kname[i]] = valstr
 			}
 		// case []interface{}:
 		// 	return fmt.Errorf("unexpected json type '%T' for %s", listentry[i], cschema.Name)
@@ -364,10 +376,39 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []str
 			if err != nil {
 				return nil, err
 			}
-			id.WriteString(`[.=` + valstr + `]`)
+			pmap["."] = valstr
 		}
-		child, created, err := branch.GetOrNew(id.String(), opt)
-		if err != nil {
+
+		op := opt.GetOperation()
+		iopt := opt.GetInsertOption()
+		id, groupSearch := GenerateID(cschema, pmap)
+		children := branch.find(cschema, &id, groupSearch, nil)
+		if IsDuplicatableList(cschema) {
+			switch iopt.(type) {
+			case InsertToAfter, InsertToBefore:
+				return nil, Errorf(ETagOperationNotSupported,
+					"insert option (after, before) not supported for non-key list")
+			}
+			children = nil // clear found nodes
+		}
+		var created bool
+		var child DataNode
+		if len(children) > 0 {
+			if op == EditCreate {
+				return nil, Errorf(ETagDataExists, "data node %q already exists", id)
+			}
+			child = children[0]
+		} else {
+			child, err = NewDataNode(cschema)
+			if err != nil {
+				return nil, err
+			}
+			created = true
+		}
+		if err = UpdateByMap(child, pmap); err != nil {
+			return nil, err
+		}
+		if err = branch.insert(child, op, iopt); err != nil {
 			return nil, err
 		}
 
@@ -397,8 +438,8 @@ func unmarshalJSON(node DataNode, jval interface{}, opt *EditOption) error {
 				}
 				switch {
 				case IsListable(cschema):
-					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if _, err := n.unmarshalJSONListable(cschema, GetKeynames(cschema), rfc7951StyleList, opt); err != nil {
+					if list, ok := v.([]interface{}); ok {
+						if _, err := n.unmarshalJSONListable(cschema, GetKeynames(cschema), list, opt); err != nil {
 							return err
 						}
 					} else {
@@ -420,7 +461,7 @@ func unmarshalJSON(node DataNode, jval interface{}, opt *EditOption) error {
 							return err
 						}
 					} else {
-						child, err := New(cschema)
+						child, err := NewDataNode(cschema)
 						if err != nil {
 							return err
 						}
@@ -431,7 +472,6 @@ func unmarshalJSON(node DataNode, jval interface{}, opt *EditOption) error {
 							return err
 						}
 					}
-
 				}
 			}
 			return nil
@@ -537,7 +577,7 @@ func UnmarshalJSON(node DataNode, jbytes []byte) error {
 	return unmarshalJSON(node, jval, nil)
 }
 
-func MarshalJSONListableNodes(nodes []DataNode) ([]byte, error) {
+func MarshalJSONListableNodes(nodes []DataNode, rfc7951 bool) ([]byte, error) {
 	var comma bool
 	var buffer bytes.Buffer
 	buffer.WriteString("[")

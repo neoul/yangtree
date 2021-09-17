@@ -329,7 +329,7 @@ func buildCollectorSchema(option *SchemaOption, ext map[string]*yang.Entry, ms *
 // NewDataNodeCollector() creates a fake node that can be used to collect other data nodes.
 // Any of data nodes can be contained to the collector data node.
 func NewDataNodeCollector() DataNode {
-	node, _ := New(collector)
+	node, _ := NewDataNode(collector)
 	return node
 }
 

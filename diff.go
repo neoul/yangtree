@@ -136,7 +136,7 @@ func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNod
 	if !IsValid(root) {
 		return nil, nil, Errorf(EAppTagDataNodeMissing, "invalid root node")
 	}
-	new, err := New(root.Schema())
+	new, err := NewDataNode(root.Schema())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -155,7 +155,7 @@ func MergeDiff(root DataNode, path string, node DataNode) ([]DataNode, []DataNod
 	if !IsValid(root) {
 		return nil, nil, Errorf(EAppTagDataNodeMissing, "invalid root node")
 	}
-	new, err := New(root.Schema())
+	new, err := NewDataNode(root.Schema())
 	if err != nil {
 		return nil, nil, err
 	}

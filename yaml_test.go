@@ -15,7 +15,7 @@ func TestYAML(t *testing.T) {
 	max := 3
 	root := make([]DataNode, max)
 	for i := 0; i < max; i++ {
-		root[i], err = New(RootSchema)
+		root[i], err = NewDataNode(RootSchema)
 		if err != nil {
 			t.Errorf("yangtree creation error: %v\n", err)
 		}
@@ -58,7 +58,7 @@ func TestYAML(t *testing.T) {
 		if err != nil {
 			t.Errorf("yaml marshalling error: %v\n", err)
 		}
-		reversed[i], err = New(RootSchema)
+		reversed[i], err = NewDataNode(RootSchema)
 		if err != nil {
 			t.Errorf("yangtree creation error: %v\n", err)
 		}

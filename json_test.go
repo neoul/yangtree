@@ -13,7 +13,7 @@ func TestDataNode_JSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewDataNode(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewDataNode(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestDataNode_FindState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewDataNode(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

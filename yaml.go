@@ -44,7 +44,7 @@ func (branch *DataBranch) unmarshalYAMLListableNode(cschema *yang.Entry, kname [
 	var child DataNode
 	found := branch.Get(id.String())
 	if found == nil {
-		if child, err = branch.New(id.String()); err != nil {
+		if child, err = branch.NewDataNode(id.String()); err != nil {
 			return err
 		}
 	} else {
@@ -72,20 +72,20 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *yang.Entr
 			id.WriteString(fmt.Sprint(entry[kname[i]]))
 			id.WriteString("]")
 			// [FIXME] need to check id validation
-			// kchild, err := New(kschema, kval)
+			// kchild, err := NewDataNode(kschema, kval)
 			// if err != nil {
 			// 	return err
 			// }
 		}
 		var child DataNode
 		if IsDuplicatableList(cschema) {
-			if child, err = branch.New(id.String()); err != nil {
+			if child, err = branch.NewDataNode(id.String()); err != nil {
 				return err
 			}
 		} else {
 			found := branch.Get(id.String())
 			if found == nil {
-				if child, err = branch.New(id.String()); err != nil {
+				if child, err = branch.NewDataNode(id.String()); err != nil {
 					return err
 				}
 			} else {
@@ -167,7 +167,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						return fmt.Errorf("unexpected type inserted for %q", cschema.Name)
 					}
 					for i := range vv {
-						child, err := New(cschema)
+						child, err := NewDataNode(cschema)
 						if err != nil {
 							return err
 						}
@@ -187,7 +187,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 							return err
 						}
 					} else {
-						child, err := New(cschema)
+						child, err := NewDataNode(cschema)
 						if err != nil {
 							return err
 						}

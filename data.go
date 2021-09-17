@@ -353,23 +353,25 @@ func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
 		return nil
 	}
-	if index, ok := pmap["@index"]; ok {
-		j := i + index.(int)
-		if j < len(branch.children) && cschema == branch.children[j].Schema() {
-			return branch.children[j : j+1]
-		}
-		return nil
-	}
-	if _, ok := pmap["@last"]; ok {
-		last := i
-		for ; i < len(branch.children); i++ {
-			if cschema == branch.children[i].Schema() {
-				last = i
-			} else {
-				break
+	if pmap != nil {
+		if index, ok := pmap["@index"]; ok {
+			j := i + index.(int)
+			if j < len(branch.children) && cschema == branch.children[j].Schema() {
+				return branch.children[j : j+1]
 			}
+			return nil
 		}
-		return branch.children[last : last+1]
+		if _, ok := pmap["@last"]; ok {
+			last := i
+			for ; i < len(branch.children); i++ {
+				if cschema == branch.children[i].Schema() {
+					last = i
+				} else {
+					break
+				}
+			}
+			return branch.children[last : last+1]
+		}
 	}
 	max := i
 	var matched func() bool
@@ -450,7 +452,7 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	if len(children) > 0 {
 		return children[0], false, nil
 	}
-	child, err := New(cschema)
+	child, err := NewDataNode(cschema)
 	if err != nil {
 		return nil, false, err
 	}
@@ -463,7 +465,7 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	return child, true, nil
 }
 
-func (branch *DataBranch) New(id string, value ...string) (DataNode, error) {
+func (branch *DataBranch) NewDataNode(id string, value ...string) (DataNode, error) {
 	if len(value) > 1 {
 		return nil, Errorf(ETagInvalidValue, "a single value can only be set at a time")
 	}
@@ -512,7 +514,7 @@ func (branch *DataBranch) Set(value string) error {
 				if branch.Get(s.Name) != nil {
 					continue
 				}
-				c, err := New(s)
+				c, err := NewDataNode(s)
 				if err != nil {
 					return err
 				}
@@ -620,7 +622,7 @@ func (branch *DataBranch) SetMeta(meta ...map[string]string) error {
 	// 			branch.metadata = map[string]DataNode{}
 	// 		}
 
-	// 		metanode, err := New(schema, value)
+	// 		metanode, err := NewDataNode(schema, value)
 	// 		if err != nil {
 	// 			return fmt.Errorf("error in seting metadata: %v", err)
 	// 		}
@@ -845,7 +847,7 @@ func (leaf *DataLeaf) ValueString() string {
 	return ValueToString(leaf.value)
 }
 
-func (leaf *DataLeaf) New(id string, value ...string) (DataNode, error) {
+func (leaf *DataLeaf) NewDataNode(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("new is not supported on %q", leaf)
 }
 
@@ -967,7 +969,7 @@ func UpdateByMap(node DataNode, pmap map[string]interface{}) error {
 						return err
 					}
 				} else if found := node.Get(k); found == nil {
-					newnode, err := NewWithValue(GetSchema(schema, k), vstr)
+					newnode, err := NewDataNode(GetSchema(schema, k), vstr)
 					if err != nil {
 						return err
 					}
@@ -981,29 +983,62 @@ func UpdateByMap(node DataNode, pmap map[string]interface{}) error {
 	return nil
 }
 
-// New() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
-func New(schema *yang.Entry) (DataNode, error) {
-	if schema == nil {
-		return nil, fmt.Errorf("schema is nil")
-	}
-	return newDataNode(schema, IsCreatedWithDefault(schema))
-}
-
-// NewWithValue() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
+// NewDataNode() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
 // with its values. The values should be a string if the new DataNode is *DataLeaf.
 // The values should be JSON encoded bytes if the node is *DataBranch.
-func NewWithValue(schema *yang.Entry, value string) (DataNode, error) {
+func NewDataNode(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
-	node, err := newDataNode(schema, false)
+	node, err := newDataNode(schema, IsCreatedWithDefault(schema))
 	if err != nil {
 		return nil, err
 	}
-	if err = node.Set(value); err != nil {
-		return nil, err
+	for i := range value {
+		if err = node.Set(value[i]); err != nil {
+			return nil, err
+		}
 	}
 	return node, err
+}
+
+// NewDataNodes() creates a set of new DataNodes having the same schema.
+// To create a set of data nodes, the value must be encoded to a JSON object or a JSON array of the data.
+// It is useful to create multiple list nodes or leaf-list nodes.
+// The returned collector data node is a data node containing any data node.
+//    // e.g.
+//    collector, err := NewDataNodes(schema, `["leaf-list-value1", "leaf-list-value2"]`)
+//    for _, node := range collector.Children {
+//         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
+//         // The collector is an yang anydata node to keep various data nodes.
+//    }
+func NewDataNodes(schema *yang.Entry, value string) (collector DataNode, err error) {
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+	var jval interface{}
+	if err = json.Unmarshal([]byte(value), &jval); err != nil {
+		return
+	}
+	c := NewDataNodeCollector().(*DataBranch)
+	switch jdata := jval.(type) {
+	case map[string]interface{}:
+		if IsDuplicatableList(schema) {
+			return nil, fmt.Errorf("non-key list %q must have the array format of RFC7951", schema.Name)
+		}
+		kname := GetKeynames(schema)
+		kval := make([]string, 0, len(kname))
+		if _, err = c.unmarshalJSONList(schema, kname, kval, jdata, nil); err != nil {
+			return nil, err
+		}
+		collector = c
+	case []interface{}:
+		if _, err = c.unmarshalJSONListable(schema, GetKeynames(schema), jdata, nil); err != nil {
+			return
+		}
+		collector = c
+	}
+	return
 }
 
 func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
@@ -1028,7 +1063,7 @@ func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
 		if withDefault {
 			for _, s := range schema.Dir {
 				if !s.IsDir() && s.Default != "" {
-					c, err := New(s)
+					c, err := NewDataNode(s)
 					if err != nil {
 						return nil, err
 					}
@@ -1063,7 +1098,7 @@ func setLeafListValues(branch *DataBranch, cschema *yang.Entry, value string, op
 			if err != nil {
 				return nil, err
 			}
-			node, err := New(cschema)
+			node, err := NewDataNode(cschema)
 			if err != nil {
 				return nil, err
 			}
@@ -1253,7 +1288,7 @@ func setValue(root DataNode, pathnode []*PathNode, opt *EditOption, value ...str
 
 	switch len(children) {
 	case 0:
-		child, err := New(cschema)
+		child, err := NewDataNode(cschema)
 		if err != nil {
 			return nil, err
 		}
@@ -1384,7 +1419,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	id, groupSearch := GenerateID(cschema, pmap)
 	children := branch.find(cschema, &id, groupSearch, pmap)
 	if len(children) == 0 { // create
-		child, err := New(cschema)
+		child, err := NewDataNode(cschema)
 		if err != nil {
 			return err
 		}

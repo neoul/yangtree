@@ -25,8 +25,8 @@ type DataNode interface {
 
 	Remove() error // Remove() removes itself.
 
-	New(id string, value ...string) (DataNode, error)    // New() creates a cild using the node id (NODE_NAME[KEY=VALUE]).
-	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id using the input values.
+	NewDataNode(id string, value ...string) (DataNode, error) // NewDataNode() creates a cild using the node id (NODE_NAME[KEY=VALUE]).
+	Update(id string, value ...string) (DataNode, error)      // Update() updates a child that has the node id using the input values.
 
 	Exist(id string) bool              // Exist() is used to check a data node is present.
 	Get(id string) DataNode            // Get() is used to get the first child has the id.

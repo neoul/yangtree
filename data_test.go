@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestNew(t *testing.T) {
+func TestNewDataNode(t *testing.T) {
 	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -62,14 +62,14 @@ func TestNew(t *testing.T) {
 		}
 	   }
 	`
-	root1, err := NewWithValue(RootSchema, jbyte)
+	root1, err := NewDataNode(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
 	j, _ := MarshalJSON(root1)
 	t.Log(string(j))
 
-	root2, err := NewWithValue(RootSchema, jbyte)
+	root2, err := NewDataNode(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestNew(t *testing.T) {
 	if s == nil {
 		t.Error("schema multiple-key-list not found")
 	}
-	mnode, err := NewWithValue(s, mergingData)
+	mnode, err := NewDataNode(s, mergingData)
 	if err != nil {
 		t.Error("new failed", err)
 	}
@@ -124,12 +124,60 @@ func TestNew(t *testing.T) {
 	t.Log(string(j))
 }
 
+func TestNewDataNodes(t *testing.T) {
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jleaflist := `["leaf-list-first","leaf-list-fourth","leaf-list-second","leaf-list-third"]`
+	jlist := `[
+		{
+			"country-code": "KR",
+			"decimal-range": 1.01,
+			"empty-node": [
+			 null
+			],
+			"list-key": "BBB"
+		},
+		{"list-key":"CCC"},
+		{
+		 "country-code": "KR",
+		 "decimal-range": 1.01,
+		 "empty-node": [
+		  null
+		 ],
+		 "list-key": "AAA",
+		 "uint32-range": 100,
+		 "uint64-node": "1234567890"
+		}
+		]`
+
+	schema := FindSchema(RootSchema, "sample/container-val/leaf-list-val")
+
+	jleaflistnode, err := NewDataNodes(schema, jleaflist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ := MarshalJSON(jleaflistnode)
+	t.Log(string(j))
+
+	schema = FindSchema(RootSchema, "sample/single-key-list")
+
+	jlistnode, err := NewDataNodes(schema, jlist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ = MarshalJSON(jlistnode)
+	t.Log(string(j))
+
+}
+
 func TestChildDataNodeListing(t *testing.T) {
 	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewDataNode(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +239,7 @@ func TestDataNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewDataNode(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,6 +311,7 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 1, path: "/sample/single-key-list[list-key='AAA']"},
 		{expectedNum: 5, path: "/sample/single-key-list[list-key=*]"},
 		{expectedNum: 13, path: "/sample/single-key-list/*"},
+		{expectedNum: 13, path: "/sample/single-key-list"},
 		{expectedNum: 15, path: "/sample/*"},
 		{expectedNum: 54, path: "/sample/..."},
 		{expectedNum: 4, path: "/sample/...", findOption: StateOnly{}},
@@ -384,11 +433,11 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rootdata, err := New(rootschema)
+	rootdata, err := NewDataNode(rootschema)
 	if err != nil {
 		t.Fatal(err)
 	}
-	simpleChoiceCase, err := rootdata.New("simple-choice-case")
+	simpleChoiceCase, err := rootdata.NewDataNode("simple-choice-case")
 	if err != nil {
 		t.Error(err)
 	}
@@ -400,7 +449,7 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	choiceCaseAnonymousCase, err := rootdata.New("choice-case-anonymous-case")
+	choiceCaseAnonymousCase, err := rootdata.NewDataNode("choice-case-anonymous-case")
 	if err != nil {
 		t.Error(err)
 	}
@@ -416,7 +465,7 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	choiceCaseWithLeafref, err := rootdata.New("choice-case-with-leafref")
+	choiceCaseWithLeafref, err := rootdata.NewDataNode("choice-case-with-leafref")
 	if err != nil {
 		t.Error(err)
 	}
@@ -462,19 +511,19 @@ func TestCreatedWithDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rootdata, err := New(rootschema)
+	rootdata, err := NewDataNode(rootschema)
 	if err != nil {
 		t.Fatal(err)
 	}
-	test, err := rootdata.New("test")
+	test, err := rootdata.NewDataNode("test")
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = test.New("config")
+	_, err = test.NewDataNode("config")
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = test.New("state")
+	_, err = test.NewDataNode("state")
 	if err != nil {
 		t.Error(err)
 	}
@@ -514,14 +563,14 @@ func TestReplace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, err := New(rootschema)
+	root, err := NewDataNode(rootschema)
 	if err != nil {
 		t.Fatal(err)
 	}
 	schema := FindSchema(rootschema, "interfaces/interface")
 	for i := 1; i < 5; i++ {
 		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
-		new, err := NewWithValue(schema, v)
+		new, err := NewDataNode(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -532,7 +581,7 @@ func TestReplace(t *testing.T) {
 	}
 	for i := 3; i < 7; i++ {
 		v := `{ "config": {"enabled":"true"}, "state": {"admin-status":"UP"}}`
-		new, err := NewWithValue(schema, v)
+		new, err := NewDataNode(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -558,7 +607,7 @@ func TestLeafList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewDataNode(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -622,7 +671,7 @@ func TestEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, err := New(schema)
+	root, err := NewDataNode(schema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -665,7 +714,7 @@ func TestEdit(t *testing.T) {
 		// editing list nodes
 		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list", expected: 0, wantErr: true},
 		{opt: EditOption{Operation: EditRemove}, path: "/sample/single-key-list", expected: 0, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list", value: `{"AAA":{"uint32-range":100,"uint64-node":1234567890}}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list", value: `[{"list-key":"AAA","uint32-range":100,"uint64-node":1234567890}]`, expected: 1, wantErr: false},
 		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list", value: `{"AAA":{"uint32-range":100,"uint64-node":123456789}}`, expected: 1, wantErr: true},
 		{opt: EditOption{Operation: EditReplace}, path: "/sample/single-key-list", value: `{"BBB":{"uint32-range":101,"uint64-node":123456789}}`, expected: 1, wantErr: false},
 		{opt: EditOption{Operation: EditMerge}, path: "/sample/single-key-list", value: `{"CCC":{"uint32-range":151,"uint64-node":123456789}}`, expected: 1, wantErr: false},
@@ -727,7 +776,7 @@ func TestEdit(t *testing.T) {
 				}
 				switch {
 				case got[0].IsLeafList():
-					b, err := MarshalJSONListableNodes(got)
+					b, err := MarshalJSONListableNodes(got, false)
 					if err != nil {
 						t.Errorf("Edit() error: %v", fmt.Errorf("marshalling json for %q failed: %v", tt.path, err))
 						return
@@ -815,14 +864,14 @@ func TestAnyData(t *testing.T) {
 		}
 	   }
 	`
-	root1, err := NewWithValue(RootSchema, jbyte)
+	root1, err := NewDataNode(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
 	j, _ := MarshalJSON(root1)
 	t.Log(string(j))
 
-	root2, err := NewWithValue(RootSchema, jbyte)
+	root2, err := NewDataNode(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -893,7 +942,7 @@ non-key-list:
 // 	if err != nil {
 // 		b.Fatal(err)
 // 	}
-// 	root, err := New(schema)
+// 	root, err := NewDataNode(schema)
 // 	if err != nil {
 // 		b.Fatal(err)
 // 	}

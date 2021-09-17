@@ -61,7 +61,7 @@ func TestYANGMetaData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewDataNode(RootSchema)
 	if err != nil {
 		t.Fatalf("error in new yangtree: %v", err)
 	}
