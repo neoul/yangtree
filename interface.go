@@ -16,10 +16,10 @@ type DataNode interface {
 	Parent() DataNode     // Parent() returns the parent if it is present.
 	Children() []DataNode // Children() returns all child nodes.
 
-	Insert(child DataNode, opt ...Option) error // Insert() inserts a new child node. It replaces the old one.
-	Delete(child DataNode) error                // Delete() deletes the child node if it is present.
-	Replace(src DataNode) error                 // Replace() replaces itself to the src node.
-	Merge(src DataNode) error                   // Merge() merges the src node including all children to the current data node.
+	Insert(child DataNode, opt ...Option) (DataNode, error) // Insert() inserts a new child node. It replaces and returns the old one.
+	Delete(child DataNode) error                            // Delete() deletes the child node if it is present.
+	Replace(src DataNode) error                             // Replace() replaces itself to the src node.
+	Merge(src DataNode) error                               // Merge() merges the src node including all children to the current data node.
 
 	Set(value string) error // Set() writes the values to the data node. The value must be string.
 	// Reset() error // Reset() resets the value to the default.

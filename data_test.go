@@ -646,7 +646,8 @@ func TestLeafList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
-			_, err := Edit(EditOption{Operation: EditMerge}, RootData, tt.path, tt.value)
+			editopt := &EditOption{Operation: EditMerge}
+			err := Edit(editopt, RootData, tt.path, tt.value)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
@@ -689,57 +690,57 @@ func TestEdit(t *testing.T) {
 		wantErr  bool
 	}{
 		// editing a leaf node
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/str-val", value: "C1", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/str-val", value: "C2", expected: 0, wantErr: true},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/str-val", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/str-val", expected: 0, wantErr: true},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/str-val", value: "R1", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/str-val", value: "R2", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/str-val", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/str-val", expected: 0, wantErr: false},
-		{opt: EditOption{Operation: EditMerge}, path: "/sample/str-val", value: "M1", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/str-val", value: "C1", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/str-val", value: "C2", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/str-val", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/str-val", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/str-val", value: "R1", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/str-val", value: "R2", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/str-val", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/str-val", expected: 0, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, CollectChanges: true}, path: "/sample/str-val", value: "M1", expected: 1, wantErr: false},
 		// editing a container node
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/sample:container-val", value: `{"enum-val":"enum2"}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/sample:container-val", value: `{"enum-val":"enum3"}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditMerge}, path: "/sample/sample:container-val", value: `{"enum-val":"enum1"}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/sample:container-val", value: `{"enum-val":"enum2"}`, expected: 1, wantErr: true},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/sample:container-val", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/sample:container-val", expected: 1, wantErr: true},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/sample:container-val", expected: 0, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/sample:container-val", value: `{"enum-val":"enum2"}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/sample:container-val", value: `{"enum-val":"enum3"}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, CollectChanges: true}, path: "/sample/sample:container-val", value: `{"enum-val":"enum1"}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/sample:container-val", value: `{"enum-val":"enum2"}`, expected: 1, wantErr: true},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/sample:container-val", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/sample:container-val", expected: 1, wantErr: true},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/sample:container-val", expected: 0, wantErr: false},
 		// editing leaf-list nodes
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 0, wantErr: true},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, expected: 2, wantErr: false},
-		{opt: EditOption{Operation: EditMerge}, path: "/sample/container-val/leaf-list-val", value: `["fourth","fifth"]`, expected: 2, wantErr: false},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 0, wantErr: true},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/container-val/leaf-list-val", expected: 3, wantErr: false},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, expected: 2, wantErr: false},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/container-val/leaf-list-val", expected: 2, wantErr: false},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/container-val/leaf-list-val", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", value: `["fourth","fifth"]`, expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", expected: 3, wantErr: false},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/container-val/leaf-list-val", expected: 0, wantErr: true},
 		// editing list nodes
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list", expected: 0, wantErr: true},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/single-key-list", expected: 0, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list", value: `[{"list-key":"AAA","uint32-range":100,"uint64-node":1234567890}]`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list", value: `{"AAA":{"uint32-range":100,"uint64-node":123456789}}`, expected: 1, wantErr: true},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/single-key-list", value: `{"BBB":{"uint32-range":101,"uint64-node":123456789}}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditMerge}, path: "/sample/single-key-list", value: `{"CCC":{"uint32-range":151,"uint64-node":123456789}}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/single-key-list[list-key=AAA]", value: `{"uint32-range":200,"uint64-node":123456789}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/single-key-list[list-key=DDD]", value: `{"uint32-range":201,"uint64-node":123456789}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditMerge}, path: "/sample/single-key-list[list-key=EEE]", value: `{"uint32-range":202,"uint64-node":123456789}`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditMerge}, path: "/sample/single-key-list[list-key=BBB]/empty-node", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list[list-key=B]", expected: 0, wantErr: true},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list[list-key=BBB]", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list[list-key=BBB]", expected: 0, wantErr: true},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/single-key-list[list-key=BBB]", expected: 0, wantErr: false},
-		{opt: EditOption{Operation: EditRemove}, path: "/sample/single-key-list[list-key=DDD]", expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditDelete}, path: "/sample/single-key-list", expected: 3, wantErr: false},
-		{opt: EditOption{Operation: EditCreate}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"a"}]`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditReplace}, path: "/sample/non-key-list", value: `[{"uintval":"2","strval":"b"}]`, expected: 1, wantErr: false}, // replace all existent nodes.
-		{opt: EditOption{Operation: EditMerge}, path: "/sample/non-key-list", value: `[{"uintval":"3","strval":"c"}]`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToFirst{}}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"first"}]`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToLast{}}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"last"}]`, expected: 1, wantErr: false},
-		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToAfter{Key: "uintval"}}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"last"}]`, expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/single-key-list", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/single-key-list", expected: 0, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/single-key-list", value: `[{"list-key":"AAA","uint32-range":100,"uint64-node":1234567890}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/single-key-list", value: `{"AAA":{"uint32-range":100,"uint64-node":123456789}}`, expected: 1, wantErr: true},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/single-key-list", value: `{"BBB":{"uint32-range":101,"uint64-node":123456789}}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, CollectChanges: true}, path: "/sample/single-key-list", value: `{"CCC":{"uint32-range":151,"uint64-node":123456789}}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/single-key-list[list-key=AAA]", value: `{"uint32-range":200,"uint64-node":123456789}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/single-key-list[list-key=DDD]", value: `{"uint32-range":201,"uint64-node":123456789}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, CollectChanges: true}, path: "/sample/single-key-list[list-key=EEE]", value: `{"uint32-range":202,"uint64-node":123456789}`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, CollectChanges: true}, path: "/sample/single-key-list[list-key=BBB]/empty-node", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/single-key-list[list-key=B]", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/single-key-list[list-key=BBB]", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/single-key-list[list-key=BBB]", expected: 0, wantErr: true},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/single-key-list[list-key=BBB]", expected: 0, wantErr: false},
+		{opt: EditOption{Operation: EditRemove, CollectChanges: true}, path: "/sample/single-key-list[list-key=DDD]", expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditDelete, CollectChanges: true}, path: "/sample/single-key-list", expected: 3, wantErr: false},
+		{opt: EditOption{Operation: EditCreate, CollectChanges: true}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"a"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditReplace, CollectChanges: true}, path: "/sample/non-key-list", value: `[{"uintval":"2","strval":"b"}]`, expected: 1, wantErr: false}, // replace all existent nodes.
+		{opt: EditOption{Operation: EditMerge, CollectChanges: true}, path: "/sample/non-key-list", value: `[{"uintval":"3","strval":"c"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToFirst{}, CollectChanges: true}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"first"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToLast{}, CollectChanges: true}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"last"}]`, expected: 1, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, InsertOption: InsertToAfter{Key: "uintval"}, CollectChanges: true}, path: "/sample/non-key-list", value: `[{"uintval":"1","strval":"last"}]`, expected: 0, wantErr: true},
 	}
 	for _, tt := range tests {
 		name := tt.path + "," + tt.opt.String()
@@ -754,14 +755,33 @@ func TestEdit(t *testing.T) {
 			if tt.value != nil {
 				val = append(val, tt.value.(string))
 			}
-			got, err := Edit(tt.opt, root, tt.path, val...)
+			err := Edit(&tt.opt, root, tt.path, val...)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Edit(%s) error = %v, wantErr %v", name, err, tt.wantErr)
 				return
 			}
+			var got []DataNode
+			switch tt.opt.GetOperation() {
+			case EditRemove, EditDelete:
+				got = tt.opt.Deleted
+			default:
+				got = append(tt.opt.Created, tt.opt.Replaced...)
+			}
+
 			if !tt.wantErr {
 				if len(got) != tt.expected {
 					t.Errorf("Edit(%s) num = %v, expected %v", name, len(got), tt.expected)
+					if tt.opt.GetCollectChanges() {
+						for i := range tt.opt.Created {
+							t.Logf("Created %s\n", tt.opt.Created[i].Path())
+						}
+						for i := range tt.opt.Replaced {
+							t.Logf("Replaced %s\n", tt.opt.Replaced[i].Path())
+						}
+						for i := range tt.opt.Deleted {
+							t.Logf("Deleted %s\n", tt.opt.Deleted[i].Path())
+						}
+					}
 					return
 				}
 				_, err := Find(root, tt.path)
@@ -884,10 +904,10 @@ func TestAnyData(t *testing.T) {
 	j, _ = MarshalJSON(root2)
 	t.Log(string(j))
 
-	nodes, err := Edit(EditOption{}, root1, "sample/any")
-	if err != nil {
+	if err := Edit(&EditOption{}, root1, "sample/any"); err != nil {
 		t.Fatal(err)
 	}
+	nodes, err := Find(root1, "sample/any")
 	any := nodes[0]
 	nodes, err = Find(root2, "sample/non-key-list")
 	if err != nil {
@@ -900,7 +920,7 @@ func TestAnyData(t *testing.T) {
 		nodes = append(nodes, _nodes...)
 	}
 	for _, node := range nodes {
-		err = any.Insert(node)
+		_, err = any.Insert(node)
 		if err != nil {
 			t.Fatal(err)
 		}

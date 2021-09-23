@@ -15,10 +15,10 @@ const (
 // Traverse() loops the node's all children, descendants and itself to execute traverser() at each node.
 func Traverse(node DataNode, traverser func(DataNode, TrvsCallOption) error, calledAt TrvsCallOption, depth int, leafOnly bool) error {
 	if !IsValid(node) {
-		return Errorf(EAppTagInvalidArgument, "invalid data node inserted")
+		return Errorf(EAppTagInvalidArg, "invalid data node inserted")
 	}
 	if traverser == nil {
-		return Errorf(EAppTagInvalidArgument, "no traverser func inserted")
+		return Errorf(EAppTagInvalidArg, "no traverser func inserted")
 	}
 	err := traverse(node, &traverseArg{
 		traverser: traverser,
@@ -27,7 +27,7 @@ func Traverse(node DataNode, traverser func(DataNode, TrvsCallOption) error, cal
 		depth:     depth,
 	})
 	// if e, ok := err.(*YError); !ok {
-	// 	return Errorf(EAppTagInvalidArgument, "%v", e)
+	// 	return Errorf(EAppTagInvalidArg, "%v", e)
 	// }
 	return err
 }
