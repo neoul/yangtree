@@ -19,6 +19,7 @@ import (
 
 // SchemaOption is used to store global schema options for the creation/deletion of the data tree.
 type SchemaOption struct {
+	SingleLeafList     bool   // A single leaf-list node has multiple values if set.
 	CreatedWithDefault bool   // DataNode (data node) is created with the default value of the schema if set.
 	YANGLibrary2016    bool   // Load ietf-yang-library@2016-06-21
 	YANGLibrary2019    bool   // Load ietf-yang-library@2019-01-04
