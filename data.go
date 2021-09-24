@@ -63,7 +63,7 @@ func (op Operation) IsOption() {}
 type EditOption struct {
 	Operation
 	InsertOption
-	Callback func(old, new DataNodeGroup) error
+	Callback func(op Operation, new, old DataNodeGroup) error
 }
 
 func (edit *EditOption) String() string {
@@ -73,7 +73,7 @@ func (edit *EditOption) String() string {
 	if edit.InsertOption == nil {
 		return `operation=` + edit.Operation.String()
 	}
-	return `operation=` + edit.Operation.String() + edit.GetInsertOption().String()
+	return `operation=` + edit.Operation.String() + `,` + edit.GetInsertOption().String()
 }
 
 func (edit *EditOption) GetOperation() Operation {
@@ -89,7 +89,7 @@ func (edit *EditOption) GetInsertOption() InsertOption {
 	return edit.InsertOption
 }
 
-func (edit *EditOption) GetCallback() func(old, new DataNodeGroup) error {
+func (edit *EditOption) GetCallback() func(Operation, DataNodeGroup, DataNodeGroup) error {
 	if edit == nil {
 		return nil
 	}
@@ -1081,7 +1081,7 @@ func setGroupValue(branch *DataBranch, old DataNodeGroup, new DataNodeGroup, opt
 	switch op {
 	case EditDelete, EditRemove:
 		if callback := option.GetCallback(); callback != nil {
-			if err := callback(old, new); err != nil {
+			if err := callback(op, old, new); err != nil {
 				return err
 			}
 		}
@@ -1096,7 +1096,7 @@ func setGroupValue(branch *DataBranch, old DataNodeGroup, new DataNodeGroup, opt
 			branch.insert(new[i], op, option.GetInsertOption())
 		}
 		if callback := option.GetCallback(); callback != nil {
-			if err := callback(old, new); err != nil {
+			if err := callback(op, old, new); err != nil {
 				return err
 			}
 		}
@@ -1118,7 +1118,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			return Errorf(ETagDataExists, "data node %q already exists", root.ID())
 		case EditDelete, EditRemove:
 			if callback := option.GetCallback(); callback != nil {
-				if err := callback(DataNodeGroup{root}, nil); err != nil {
+				if err := callback(op, DataNodeGroup{root}, nil); err != nil {
 					return err
 				}
 			}
@@ -1126,17 +1126,18 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 				return err
 			}
 		default: // replace, merge
-			if len(value) == 1 {
-				if callback := option.GetCallback(); callback != nil {
-					old := Clone(root)
-					if err := root.Set(value[0]); err != nil {
-						return err
-					}
-					return callback(DataNodeGroup{old}, DataNodeGroup{root})
-				}
+			if len(value) == 0 {
+				return nil
+			}
+			if callback := option.GetCallback(); callback != nil {
+				old := Clone(root)
 				if err := root.Set(value[0]); err != nil {
 					return err
 				}
+				return callback(op, DataNodeGroup{old}, DataNodeGroup{root})
+			}
+			if err := root.Set(value[0]); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -1269,7 +1270,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 		}
 		if reachToEnd {
 			if callback := option.GetCallback(); callback != nil {
-				if err := callback(nil, DataNodeGroup{child}); err != nil {
+				if err := callback(op, nil, DataNodeGroup{child}); err != nil {
 					return err
 				}
 			}

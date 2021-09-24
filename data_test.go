@@ -684,7 +684,7 @@ func TestEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 	var updated, deleted DataNodeGroup
-	callback := func(old, new DataNodeGroup) error {
+	callback := func(op Operation, old, new DataNodeGroup) error {
 		for i := range new {
 			updated = append(updated, new[i])
 		}
