@@ -313,7 +313,7 @@ var collector *yang.Entry
 func buildCollectorSchema(option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) *yang.Entry {
 	if collector == nil {
 		e := &yang.Entry{
-			Name:   "anydata",
+			Name:   "collector",
 			Kind:   yang.AnyDataEntry,
 			Config: yang.TSTrue,
 			Dir:    make(map[string]*yang.Entry),
