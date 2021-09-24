@@ -16,10 +16,10 @@ type DataNode interface {
 	Parent() DataNode        // Parent() returns the parent if it is present.
 	Children() DataNodeGroup // Children() returns all child nodes.
 
-	Insert(child DataNode, opt ...Option) (DataNode, error) // Insert() inserts a new child node. It replaces and returns the old one.
-	Delete(child DataNode) error                            // Delete() deletes the child node if it is present.
-	Replace(src DataNode) error                             // Replace() replaces itself to the src node.
-	Merge(src DataNode) error                               // Merge() merges the src node including all children to the current data node.
+	Insert(child DataNode, edit *EditOption) (DataNode, error) // Insert() inserts a new child node. It replaces and returns the old one.
+	Delete(child DataNode) error                               // Delete() deletes the child node if it is present.
+	Replace(src DataNode) error                                // Replace() replaces itself to the src node.
+	Merge(src DataNode) error                                  // Merge() merges the src node including all children to the current data node.
 
 	Set(value string) error // Set() writes the values to the data node. The value must be string.
 	// Reset() error // Reset() resets the value to the default.
@@ -28,6 +28,7 @@ type DataNode interface {
 
 	NewDataNode(id string, value ...string) (DataNode, error) // NewDataNode() creates a cild using the node id (NODE_NAME[KEY=VALUE]).
 	Update(id string, value ...string) (DataNode, error)      // Update() updates a child that has the node id using the input values.
+	UpdateByMap(pmap map[string]interface{}) error            // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 
 	Exist(id string) bool                 // Exist() is used to check a data node is present.
 	Get(id string) DataNode               // Get() is used to get the first child has the id.

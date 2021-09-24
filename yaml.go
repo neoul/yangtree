@@ -174,7 +174,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						if err := unmarshalYAML(child, vv[i]); err != nil {
 							return err
 						}
-						if _, err := n.Insert(child); err != nil {
+						if _, err := n.insert(child, EditMerge, nil); err != nil {
 							return err
 						}
 					}
@@ -194,7 +194,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						if err := unmarshalYAML(child, v); err != nil {
 							return err
 						}
-						if _, err := n.Insert(child); err != nil {
+						if _, err := n.insert(child, EditMerge, nil); err != nil {
 							return err
 						}
 					}

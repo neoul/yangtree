@@ -467,7 +467,7 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	if err != nil {
 		return nil, false, err
 	}
-	if err = UpdateByMap(child, pmap); err != nil {
+	if err = child.UpdateByMap(pmap); err != nil {
 		return nil, false, err
 	}
 	if _, err = branch.insert(child, op, iopt); err != nil {
@@ -499,7 +499,7 @@ func (branch *DataBranch) NewDataNode(id string, value ...string) (DataNode, err
 	if err != nil {
 		return nil, err
 	}
-	if err := UpdateByMap(n, pmap); err != nil {
+	if err := n.UpdateByMap(pmap); err != nil {
 		return nil, err
 	}
 	if _, err := branch.insert(n, EditCreate, nil); err != nil {
@@ -531,7 +531,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := UpdateByMap(n, pmap); err != nil {
+	if err := n.UpdateByMap(pmap); err != nil {
 		return nil, err
 	}
 	if _, err := branch.insert(n, EditMerge, nil); err != nil {
@@ -594,19 +594,11 @@ func (branch *DataBranch) Remove() error {
 	return nil
 }
 
-func (branch *DataBranch) Insert(child DataNode, option ...Option) (DataNode, error) {
+func (branch *DataBranch) Insert(child DataNode, edit *EditOption) (DataNode, error) {
 	if !IsValid(child) {
 		return nil, fmt.Errorf("invalid child data node")
 	}
-	for i := range option {
-		switch o := option[i].(type) {
-		case EditOption:
-			return branch.insert(child, o.Operation, o.InsertOption)
-		case Operation:
-			return branch.insert(child, o, nil)
-		}
-	}
-	return branch.insert(child, EditMerge, nil)
+	return branch.insert(child, edit.GetOperation(), edit.GetInsertOption())
 }
 
 func (branch *DataBranch) Delete(child DataNode) error {
@@ -920,7 +912,7 @@ func (leaf *DataLeaf) Remove() error {
 	return nil
 }
 
-func (leaf *DataLeaf) Insert(child DataNode, option ...Option) (DataNode, error) {
+func (leaf *DataLeaf) Insert(child DataNode, edit *EditOption) (DataNode, error) {
 	return nil, fmt.Errorf("insert is not supported on %q", leaf)
 }
 
@@ -993,28 +985,35 @@ func (leaf *DataLeaf) ID() string {
 }
 
 // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
-func UpdateByMap(node DataNode, pmap map[string]interface{}) error {
-	schema := node.Schema()
+func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 	for k, v := range pmap {
 		if !strings.HasPrefix(k, "@") {
 			if vstr, ok := v.(string); ok {
 				if k == "." {
-					if node.ValueString() == vstr {
-						continue
-					}
-					if err := node.Set(vstr); err != nil {
-						return err
-					}
-				} else if found := node.Get(k); found == nil {
-					newnode, err := NewDataNode(GetSchema(schema, k), vstr)
+					continue
+				} else if found := branch.Get(k); found == nil {
+					newnode, err := NewDataNode(GetSchema(branch.Schema(), k), vstr)
 					if err != nil {
 						return err
 					}
-					if _, err := node.Insert(newnode); err != nil {
+					if _, err := branch.insert(newnode, EditMerge, nil); err != nil {
 						return err
 					}
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// UpdateByMap() updates the data node using pmap (path predicate map) and string values.
+func (leaf *DataLeaf) UpdateByMap(pmap map[string]interface{}) error {
+	if v, ok := pmap["."]; ok {
+		if leaf.ValueString() == v.(string) {
+			return nil
+		}
+		if err := leaf.Set(v.(string)); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1257,7 +1256,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 		if err != nil {
 			return err
 		}
-		if err = UpdateByMap(child, pmap); err != nil {
+		if err = child.UpdateByMap(pmap); err != nil {
 			return err
 		}
 		if reachToEnd && len(value) > 0 {
@@ -1339,8 +1338,12 @@ func Edit(opt *EditOption, root DataNode, path string, value ...string) error {
 }
 
 func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
+	branch, ok := root.(*DataBranch)
+	if !ok {
+		return fmt.Errorf("%q is not a branch", root)
+	}
 	if len(pathnode) == 0 {
-		_, err := root.Insert(node)
+		_, err := branch.insert(node, EditReplace, nil)
 		return err
 	}
 	switch pathnode[0].Select {
@@ -1362,10 +1365,6 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return fmt.Errorf("unable to specify the node position replaced")
 	}
 
-	branch, ok := root.(*DataBranch)
-	if !ok {
-		return fmt.Errorf("unable to find a child from %q", root)
-	}
 	cschema := GetSchema(branch.schema, pathnode[0].Name)
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
@@ -1392,11 +1391,11 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		if len(pathnode) > 1 {
 			return fmt.Errorf("invalid long tail path: %q", pathnode[1].Name)
 		}
-		err := UpdateByMap(node, pmap)
+		err := node.UpdateByMap(pmap)
 		if err != nil {
 			return err
 		}
-		if _, err := branch.Insert(node); err != nil {
+		if _, err := branch.insert(node, EditReplace, nil); err != nil {
 			return err
 		}
 		return nil
@@ -1409,10 +1408,10 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		if err != nil {
 			return err
 		}
-		if err = UpdateByMap(child, pmap); err != nil {
+		if err = child.UpdateByMap(pmap); err != nil {
 			return err
 		}
-		if _, err = branch.Insert(child); err != nil {
+		if _, err = branch.insert(child, EditReplace, nil); err != nil {
 			return err
 		}
 		err = replaceNode(child, pathnode[1:], node)
@@ -1674,7 +1673,7 @@ func cloneUp(destChild DataNode, src DataNode) (DataNode, error) {
 		}
 	}
 	if destChild != nil {
-		if _, err := destnode.Insert(destChild); err != nil {
+		if _, err := destnode.Insert(destChild, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -1707,7 +1706,7 @@ func Move(src, dest DataNode) error {
 	if err != nil {
 		return err
 	}
-	if _, err := parent.Insert(src); err != nil {
+	if _, err := parent.Insert(src, nil); err != nil {
 		return err
 	}
 

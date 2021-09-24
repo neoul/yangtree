@@ -928,7 +928,7 @@ func TestAnyData(t *testing.T) {
 		nodes = append(nodes, _nodes...)
 	}
 	for _, node := range nodes {
-		_, err = any.Insert(node)
+		_, err = any.Insert(node, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
