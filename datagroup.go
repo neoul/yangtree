@@ -129,11 +129,11 @@ func NewDataGroup(schema *yang.Entry, nodes []DataNode, value ...string) (DataNo
 			}
 			kname := GetKeynames(schema)
 			kval := make([]string, 0, len(kname))
-			if err := c.unmarshalJSONList(schema, kname, kval, jdata, nil); err != nil {
+			if err := c.unmarshalJSONList(schema, kname, kval, jdata); err != nil {
 				return nil, err
 			}
 		case []interface{}:
-			if err := c.unmarshalJSONListable(schema, GetKeynames(schema), jdata, nil); err != nil {
+			if err := c.unmarshalJSONListable(schema, GetKeynames(schema), jdata); err != nil {
 				return nil, err
 			}
 		default:

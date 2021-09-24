@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -1076,65 +1075,6 @@ func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
 		newdata = branch
 	}
 	return newdata, err
-}
-
-func setLeafListValues(branch *DataBranch, cschema *yang.Entry, value string, opt *EditOption) error {
-	op := opt.GetOperation()
-	iopt := opt.GetInsertOption()
-	var jval interface{}
-	if !strings.HasPrefix(value, "[") || !strings.HasSuffix(value, "]") {
-		return fmt.Errorf(`leaf-list %q must be set using json arrary e.g. ["a", "b"]`, cschema.Name)
-	}
-	err := json.Unmarshal([]byte(value), &jval)
-	if err != nil {
-		return err
-	}
-	switch jdata := jval.(type) {
-	case []interface{}:
-		for i := range jdata {
-			valstr, err := JSONValueToString(jdata[i])
-			if err != nil {
-				return err
-			}
-			node, err := NewDataNode(cschema)
-			if err != nil {
-				return err
-			}
-			if err = node.Set(valstr); err != nil {
-				return err
-			}
-			if _, err := branch.insert(node, op, iopt); err != nil {
-				return err
-			}
-		}
-		return nil
-	default:
-		return fmt.Errorf(`leaf-list %q must be set using json arrary e.g. ["a", "b"]`, cschema.Name)
-	}
-}
-
-func setListValues(branch *DataBranch, cschema *yang.Entry, value string, opt *EditOption) error {
-	var jval interface{}
-	if value == "" {
-		return nil
-	}
-	err := json.Unmarshal([]byte(value), &jval)
-	if err != nil {
-		return err
-	}
-	switch jdata := jval.(type) {
-	case map[string]interface{}:
-		if IsDuplicatableList(cschema) {
-			return fmt.Errorf("non-key list %q must have json array format", cschema.Name)
-		}
-		kname := GetKeynames(cschema)
-		kval := make([]string, 0, len(kname))
-		return branch.unmarshalJSONList(cschema, kname, kval, jdata, opt)
-	case []interface{}:
-		return branch.unmarshalJSONListable(cschema, GetKeynames(cschema), jdata, opt)
-	default:
-		return fmt.Errorf(`leaf-list %q must be set using json arrary e.g. ["ABC", "EFG"]`, cschema.Name)
-	}
 }
 
 func setGroupValue(branch *DataBranch, old []DataNode, new []DataNode, option *EditOption) error {
