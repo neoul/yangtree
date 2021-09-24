@@ -10,12 +10,12 @@ import (
 
 type DataNodeGroup []DataNode
 
-// MarshalJSON() encodes the data node list to a YAML document with a number of options.
+// MarshalJSON() encodes the data node group to a YAML document with a number of options.
 // The options available are [ConfigOnly, StateOnly, RFC7951Format].
 //   // usage:
-//   var node []DataNode
+//   var node DataNodeGroup
 //   jsonbytes, err := DataNodeGroup(got).MarshalYAML()
-func (list DataNodeGroup) MarshalJSON(option ...Option) ([]byte, error) {
+func (group DataNodeGroup) MarshalJSON(option ...Option) ([]byte, error) {
 	var comma bool
 	var buffer bytes.Buffer
 	buffer.WriteString("[")
@@ -33,7 +33,7 @@ func (list DataNodeGroup) MarshalJSON(option ...Option) ([]byte, error) {
 			rfc7951s = rfc7951Enabled
 		}
 	}
-	for _, n := range list {
+	for _, n := range group {
 		if comma {
 			buffer.WriteString(",")
 		}
@@ -48,12 +48,12 @@ func (list DataNodeGroup) MarshalJSON(option ...Option) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// MarshalYAML() encodes the data node list to a YAML document with a number of options.
+// MarshalYAML() encodes the data node group to a YAML document with a number of options.
 // The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
 //   // usage:
-//   var node []DataNode
+//   var node DataNodeGroup
 //   yamlbytes, err := DataNodeGroup(got).MarshalYAML()
-func (list DataNodeGroup) MarshalYAML(option ...Option) ([]byte, error) {
+func (group DataNodeGroup) MarshalYAML(option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
 	configOnly := yang.TSUnset
 	rfc7951s := rfc7951Disabled
@@ -73,7 +73,7 @@ func (list DataNodeGroup) MarshalYAML(option ...Option) ([]byte, error) {
 		}
 	}
 	comma := false
-	for _, n := range list {
+	for _, n := range group {
 		if comma {
 			buffer.WriteString(", ")
 		}
@@ -109,7 +109,7 @@ func (list DataNodeGroup) MarshalYAML(option ...Option) ([]byte, error) {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //         // The collector is an yang anydata node to keep various data nodes.
 //    }
-func NewDataGroup(schema *yang.Entry, nodes []DataNode, value ...string) (DataNodeGroup, error) {
+func NewDataGroup(schema *yang.Entry, nodes DataNodeGroup, value ...string) (DataNodeGroup, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
@@ -146,5 +146,5 @@ func NewDataGroup(schema *yang.Entry, nodes []DataNode, value ...string) (DataNo
 			}
 		}
 	}
-	return c.children, nil
+	return copyDataNodeGroup(c.children), nil
 }

@@ -63,7 +63,7 @@ func (op Operation) IsOption() {}
 type EditOption struct {
 	Operation
 	InsertOption
-	Callback func(old, new []DataNode) error
+	Callback func(old, new DataNodeGroup) error
 }
 
 func (edit *EditOption) String() string {
@@ -89,7 +89,7 @@ func (edit *EditOption) GetInsertOption() InsertOption {
 	return edit.InsertOption
 }
 
-func (edit *EditOption) GetCallback() func(old, new []DataNode) error {
+func (edit *EditOption) GetCallback() func(old, new DataNodeGroup) error {
 	if edit == nil {
 		return nil
 	}
@@ -280,7 +280,7 @@ type DataBranch struct {
 	schema   *yang.Entry
 	parent   *DataBranch
 	id       string
-	children []DataNode
+	children DataNodeGroup
 	metadata map[string]DataNode
 }
 
@@ -297,8 +297,8 @@ func (branch *DataBranch) Parent() DataNode {
 	}
 	return branch.parent
 }
-func (branch *DataBranch) Children() []DataNode { return branch.children }
-func (branch *DataBranch) Value() interface{}   { return nil }
+func (branch *DataBranch) Children() DataNodeGroup { return branch.children }
+func (branch *DataBranch) Value() interface{}      { return nil }
 
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
@@ -348,9 +348,9 @@ func (branch *DataBranch) String() string {
 }
 
 // copyDataNodeGroup clones the src nodes.
-func copyDataNodeGroup(src []DataNode) []DataNode {
+func copyDataNodeGroup(src DataNodeGroup) DataNodeGroup {
 	if len(src) > 0 {
-		result := make([]DataNode, len(src))
+		result := make(DataNodeGroup, len(src))
 		copy(result, src)
 		return result
 	}
@@ -358,7 +358,7 @@ func copyDataNodeGroup(src []DataNode) []DataNode {
 }
 
 // find() is used to find child data nodes using the id internally.
-func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool, pmap map[string]interface{}) []DataNode {
+func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool, pmap map[string]interface{}) DataNodeGroup {
 	i := indexFirst(branch, id)
 	if i >= len(branch.children) ||
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
@@ -402,7 +402,7 @@ func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool
 	}
 
 	if IsOrderedByUser(cschema) || IsDuplicatable(cschema) {
-		var node []DataNode
+		var node DataNodeGroup
 		for ; max < len(branch.children); max++ {
 			if cschema != branch.children[max].Schema() {
 				break
@@ -449,7 +449,7 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	if cschema == nil {
 		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-	var children []DataNode
+	var children DataNodeGroup
 	id, groupSearch := GenerateID(cschema, pmap)
 	children = branch.find(cschema, &id, groupSearch, pmap)
 	if IsDuplicatableList(cschema) {
@@ -700,12 +700,12 @@ func (branch *DataBranch) Get(id string) DataNode {
 	}
 }
 
-func (branch *DataBranch) GetAll(id string) []DataNode {
+func (branch *DataBranch) GetAll(id string) DataNodeGroup {
 	switch id {
 	case ".":
-		return []DataNode{branch}
+		return DataNodeGroup{branch}
 	case "..":
-		return []DataNode{branch.parent}
+		return DataNodeGroup{branch.parent}
 	case "*":
 		return branch.children
 	case "...":
@@ -713,7 +713,7 @@ func (branch *DataBranch) GetAll(id string) []DataNode {
 			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
 		i := indexFirst(branch, &id)
-		node := make([]DataNode, 0, len(branch.children)-i+1)
+		node := make(DataNodeGroup, 0, len(branch.children)-i+1)
 		for max := i; max < len(branch.children); max++ {
 			if branch.children[i].Schema() != branch.children[max].Schema() {
 				break
@@ -756,12 +756,12 @@ func (branch *DataBranch) GetValueString(id string) string {
 	}
 }
 
-func (branch *DataBranch) Lookup(prefix string) []DataNode {
+func (branch *DataBranch) Lookup(prefix string) DataNodeGroup {
 	switch prefix {
 	case ".":
-		return []DataNode{branch}
+		return DataNodeGroup{branch}
 	case "..":
-		return []DataNode{branch.parent}
+		return DataNodeGroup{branch.parent}
 	case "*":
 		return branch.children
 	case "...":
@@ -769,7 +769,7 @@ func (branch *DataBranch) Lookup(prefix string) []DataNode {
 			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
 		i := indexFirst(branch, &prefix)
-		node := make([]DataNode, 0, len(branch.children)-i+1)
+		node := make(DataNodeGroup, 0, len(branch.children)-i+1)
 		for max := i; max < len(branch.children); max++ {
 			if strings.HasPrefix(branch.children[max].ID(), prefix) {
 				node = append(node, branch.children[max])
@@ -851,7 +851,7 @@ func (leaf *DataLeaf) Parent() DataNode {
 	}
 	return leaf.parent
 }
-func (leaf *DataLeaf) Children() []DataNode { return nil }
+func (leaf *DataLeaf) Children() DataNodeGroup { return nil }
 func (leaf *DataLeaf) String() string {
 	if leaf.schema.IsLeaf() {
 		return leaf.schema.Name
@@ -943,7 +943,7 @@ func (leaf *DataLeaf) Get(id string) DataNode {
 	return nil
 }
 
-func (leaf *DataLeaf) GetAll(id string) []DataNode {
+func (leaf *DataLeaf) GetAll(id string) DataNodeGroup {
 	return nil
 }
 
@@ -955,7 +955,7 @@ func (leaf *DataLeaf) GetValueString(id string) string {
 	return ""
 }
 
-func (leaf *DataLeaf) Lookup(prefix string) []DataNode {
+func (leaf *DataLeaf) Lookup(prefix string) DataNodeGroup {
 	return nil
 }
 
@@ -1056,7 +1056,7 @@ func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
 	default: // list, container, anydata
 		branch := &DataBranch{
 			schema:   schema,
-			children: []DataNode{},
+			children: DataNodeGroup{},
 		}
 		if withDefault {
 			for _, s := range schema.Dir {
@@ -1077,7 +1077,7 @@ func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
 	return newdata, err
 }
 
-func setGroupValue(branch *DataBranch, old []DataNode, new []DataNode, option *EditOption) error {
+func setGroupValue(branch *DataBranch, old DataNodeGroup, new DataNodeGroup, option *EditOption) error {
 	op := option.GetOperation()
 	switch op {
 	case EditDelete, EditRemove:
@@ -1119,7 +1119,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			return Errorf(ETagDataExists, "data node %q already exists", root.ID())
 		case EditDelete, EditRemove:
 			if callback := option.GetCallback(); callback != nil {
-				if err := callback([]DataNode{root}, nil); err != nil {
+				if err := callback(DataNodeGroup{root}, nil); err != nil {
 					return err
 				}
 			}
@@ -1133,7 +1133,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 					if err := root.Set(value[0]); err != nil {
 						return err
 					}
-					return callback([]DataNode{old}, []DataNode{root})
+					return callback(DataNodeGroup{old}, DataNodeGroup{root})
 				}
 				if err := root.Set(value[0]); err != nil {
 					return err
@@ -1238,7 +1238,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 	}
 
 	if reachToEnd && nodeGroup {
-		var new []DataNode
+		var new DataNodeGroup
 		switch op {
 		case EditMerge:
 			new, err = NewDataGroup(cschema, children, value...)
@@ -1248,7 +1248,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 		if err != nil {
 			return err
 		}
-		return setGroupValue(branch, copyDataNodeGroup(children), copyDataNodeGroup(new), option)
+		return setGroupValue(branch, copyDataNodeGroup(children), new, option)
 	}
 
 	switch len(children) {
@@ -1270,7 +1270,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 		}
 		if reachToEnd {
 			if callback := option.GetCallback(); callback != nil {
-				if err := callback(nil, []DataNode{child}); err != nil {
+				if err := callback(nil, DataNodeGroup{child}); err != nil {
 					return err
 				}
 			}
@@ -1456,7 +1456,7 @@ func Delete(root DataNode, path string) error {
 	return setValue(root, pathnode, &EditOption{Operation: EditRemove})
 }
 
-func returnFound(node DataNode, option ...Option) []DataNode {
+func returnFound(node DataNode, option ...Option) DataNodeGroup {
 	for i := range option {
 		switch option[i].(type) {
 		case ConfigOnly:
@@ -1464,31 +1464,31 @@ func returnFound(node DataNode, option ...Option) []DataNode {
 			if meta.IsState {
 				return nil
 			}
-			return []DataNode{node}
+			return DataNodeGroup{node}
 		case StateOnly:
 			meta := GetSchemaMeta(node.Schema())
 			if meta.IsState {
-				return []DataNode{node}
+				return DataNodeGroup{node}
 			}
 			return nil
 		case HasState:
 			meta := GetSchemaMeta(node.Schema())
 			if meta.IsState {
-				return []DataNode{node}
+				return DataNodeGroup{node}
 			} else if meta.HasState {
-				return []DataNode{node}
+				return DataNodeGroup{node}
 			}
 			return nil
 		}
 	}
-	return []DataNode{node}
+	return DataNodeGroup{node}
 }
 
-func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode {
+func findNode(root DataNode, pathnode []*PathNode, option ...Option) DataNodeGroup {
 	if len(pathnode) == 0 {
 		return returnFound(root, option...)
 	}
-	var node, children []DataNode
+	var node, children DataNodeGroup
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
 		return findNode(root, pathnode[1:], option...)
@@ -1530,7 +1530,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	if LeafListValueAsKey {
 		if root.IsDataLeaf() {
 			if pathnode[0].Name == root.ValueString() {
-				return []DataNode{root}
+				return DataNodeGroup{root}
 			}
 			return nil
 		}
@@ -1564,7 +1564,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 }
 
 // Find() finds all data nodes in the path. xpath format is used for the path.
-func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
+func Find(root DataNode, path string, option ...Option) (DataNodeGroup, error) {
 	if !IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
 	}
@@ -1886,7 +1886,7 @@ func (leaf *DataLeaf) Replace(src DataNode) error {
 }
 
 // Map converts the data node list to a map using the path.
-func Map(node []DataNode) map[string]DataNode {
+func Map(node DataNodeGroup) map[string]DataNode {
 	m := map[string]DataNode{}
 	for i := range node {
 		m[node[i].Path()] = node[i]
@@ -1896,7 +1896,7 @@ func Map(node []DataNode) map[string]DataNode {
 
 // FindAllInRoute() find all parent nodes in the path.
 // The path must indicate an unique node. (not support wildcard and multiple node selection)
-func FindAllInRoute(path string) []DataNode {
+func FindAllInRoute(path string) DataNodeGroup {
 	return nil
 }
 

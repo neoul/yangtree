@@ -273,7 +273,7 @@ func (ynode *yDataNode) getQname() string {
 	return ynode.Schema().Name
 }
 
-func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode) (int, error) {
+func marshalYAMLListableNode(buffer *bytes.Buffer, node DataNodeGroup, i int, indent int, parent *yDataNode) (int, error) {
 	schema := node[i].Schema()
 	ynode := *parent         // copy options
 	ynode.DataNode = node[i] // update the marshalling target

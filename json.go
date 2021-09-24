@@ -123,7 +123,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 	return nil
 }
 
-func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma bool, parent *jDataNode) (int, bool, error) {
+func marshalJSONListableNode(buffer *bytes.Buffer, node DataNodeGroup, i int, comma bool, parent *jDataNode) (int, bool, error) {
 	first := *parent
 	first.DataNode = node[i]
 	schema := first.Schema()

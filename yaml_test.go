@@ -13,7 +13,7 @@ func TestYAML(t *testing.T) {
 		t.Fatalf("model open err: %v\n", err)
 	}
 	max := 3
-	root := make([]DataNode, max)
+	root := make(DataNodeGroup, max)
 	for i := 0; i < max; i++ {
 		root[i], err = NewDataNode(RootSchema)
 		if err != nil {
@@ -49,7 +49,7 @@ func TestYAML(t *testing.T) {
 		}
 	}
 	option := []Option{InternalFormat{}, RFC7951Format{}, nil}
-	reversed := make([]DataNode, max)
+	reversed := make(DataNodeGroup, max)
 	for i := 0; i < max; i++ {
 		if len(option) > 0 {
 			option = option[:len(option)-1]

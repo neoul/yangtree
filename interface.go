@@ -12,9 +12,9 @@ type DataNode interface {
 	Name() string       // Name() returns the name of the data node.
 	ID() string         // ID() returns the ID of the data node. The ID is an XPath element combined with XPath predicates to identify the node instance.
 
-	Schema() *yang.Entry  // Schema() returns the schema of the data node.
-	Parent() DataNode     // Parent() returns the parent if it is present.
-	Children() []DataNode // Children() returns all child nodes.
+	Schema() *yang.Entry     // Schema() returns the schema of the data node.
+	Parent() DataNode        // Parent() returns the parent if it is present.
+	Children() DataNodeGroup // Children() returns all child nodes.
 
 	Insert(child DataNode, opt ...Option) (DataNode, error) // Insert() inserts a new child node. It replaces and returns the old one.
 	Delete(child DataNode) error                            // Delete() deletes the child node if it is present.
@@ -29,12 +29,12 @@ type DataNode interface {
 	NewDataNode(id string, value ...string) (DataNode, error) // NewDataNode() creates a cild using the node id (NODE_NAME[KEY=VALUE]).
 	Update(id string, value ...string) (DataNode, error)      // Update() updates a child that has the node id using the input values.
 
-	Exist(id string) bool              // Exist() is used to check a data node is present.
-	Get(id string) DataNode            // Get() is used to get the first child has the id.
-	GetValue(id string) interface{}    // GetValue() is used to get the value of the child that has the ID.
-	GetValueString(id string) string   // GetValueString() is used to get the value, converted to string, of the child that has the ID.
-	GetAll(id string) []DataNode       // GetAll() is used to get all children that have the id.
-	Lookup(idPrefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix string of the node ID.
+	Exist(id string) bool                 // Exist() is used to check a data node is present.
+	Get(id string) DataNode               // Get() is used to get the first child has the id.
+	GetValue(id string) interface{}       // GetValue() is used to get the value of the child that has the ID.
+	GetValueString(id string) string      // GetValueString() is used to get the value, converted to string, of the child that has the ID.
+	GetAll(id string) DataNodeGroup       // GetAll() is used to get all children that have the id.
+	Lookup(idPrefix string) DataNodeGroup // Lookup() is used to get all children on which their keys start with the prefix string of the node ID.
 
 	Len() int                 // Len() returns the length of children.
 	Index(id string) int      // Index() finds all children by the node id and returns the position.

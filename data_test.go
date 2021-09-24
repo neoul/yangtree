@@ -124,7 +124,7 @@ func TestNewDataNode(t *testing.T) {
 	t.Log(string(j))
 }
 
-func TestNewDataNodes(t *testing.T) {
+func TestNewDataGroup(t *testing.T) {
 	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -157,10 +157,10 @@ func TestNewDataNodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if j, err := DataNodeGroup(jleaflistnodes).MarshalJSON(); err == nil {
+	if j, err := jleaflistnodes.MarshalJSON(); err == nil {
 		t.Log(string(j))
 	}
-	if y, err := DataNodeGroup(jleaflistnodes).MarshalYAML(); err == nil {
+	if y, err := jleaflistnodes.MarshalYAML(); err == nil {
 		t.Log(string(y))
 	}
 
@@ -169,13 +169,12 @@ func TestNewDataNodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if j, err := DataNodeGroup(jlistnodes).MarshalJSON(RFC7951Format{}); err == nil {
+	if j, err := jlistnodes.MarshalJSON(RFC7951Format{}); err == nil {
 		t.Log(string(j))
 	}
-	if y, err := DataNodeGroup(jlistnodes).MarshalYAML(RFC7951Format{}); err == nil {
+	if y, err := jlistnodes.MarshalYAML(RFC7951Format{}); err == nil {
 		t.Log(string(y))
 	}
-
 }
 
 func TestChildDataNodeListing(t *testing.T) {
@@ -333,7 +332,7 @@ func TestDataNode(t *testing.T) {
 	for _, tt := range testfinds {
 		t.Run(fmt.Sprintf("Find(%s,%v)", tt.path, tt.findOption), func(t *testing.T) {
 			var err error
-			var node []DataNode
+			var node DataNodeGroup
 			node, err = Find(RootData, tt.path, tt.findOption)
 			if err != nil {
 				t.Errorf("Find() path %v error = %v", tt.path, err)
@@ -684,8 +683,8 @@ func TestEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var updated, deleted []DataNode
-	callback := func(old, new []DataNode) error {
+	var updated, deleted DataNodeGroup
+	callback := func(old, new DataNodeGroup) error {
 		for i := range new {
 			updated = append(updated, new[i])
 		}
@@ -774,7 +773,7 @@ func TestEdit(t *testing.T) {
 				t.Errorf("Edit(%s) error = %v, wantErr %v", name, err, tt.wantErr)
 				return
 			}
-			var got []DataNode
+			var got DataNodeGroup
 			switch tt.opt.GetOperation() {
 			case EditRemove, EditDelete:
 				got = deleted
