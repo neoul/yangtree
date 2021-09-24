@@ -18,7 +18,7 @@ func Traverse(node DataNode, traverser func(DataNode, TrvsCallOption) error, cal
 		return Errorf(EAppTagInvalidArg, "invalid data node inserted")
 	}
 	if traverser == nil {
-		return Errorf(EAppTagInvalidArg, "no traverser func inserted")
+		return Errorf(EAppTagInvalidArg, "no traverser")
 	}
 	err := traverse(node, &traverseArg{
 		traverser: traverser,
