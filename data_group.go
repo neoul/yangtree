@@ -11,15 +11,15 @@ import (
 // A set of data nodes that have the same schema.
 type DataNodeGroup []DataNode
 
-// NewDataGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
+// NewDataNodeGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
 // To create a set of data nodes, the value must be encoded to a JSON object or a JSON array of the data.
 // It is useful to create multiple list or leaf-list nodes.
 //    // e.g.
-//    groups, err := NewDataGroup(schema, `["leaf-list-value1", "leaf-list-value2"]`)
+//    groups, err := NewDataNodeGroup(schema, `["leaf-list-value1", "leaf-list-value2"]`)
 //    for _, node := range groups {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
-func NewDataGroup(schema *yang.Entry, base DataNodeGroup, value ...string) (DataNodeGroup, error) {
+func NewDataNodeGroup(schema *yang.Entry, base DataNodeGroup, value ...string) (DataNodeGroup, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}

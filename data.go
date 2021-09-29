@@ -501,9 +501,9 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 		var new DataNodeGroup
 		switch op {
 		case EditMerge:
-			new, err = NewDataGroup(cschema, children, value...)
+			new, err = NewDataNodeGroup(cschema, children, value...)
 		case EditReplace, EditCreate:
-			new, err = NewDataGroup(cschema, nil, value...)
+			new, err = NewDataNodeGroup(cschema, nil, value...)
 		}
 		if err != nil {
 			return err
@@ -874,6 +874,15 @@ func clone(destParent *DataBranch, src DataNode) (DataNode, error) {
 			}
 		}
 		dest = b
+	case *DataLeafList:
+		dnode := &DataLeafList{
+			schema: node.schema,
+		}
+		if len(node.value) > 0 {
+			dnode.value = make([]interface{}, len(node.value))
+			copy(dnode.value, node.value)
+		}
+		dest = dnode
 	case *DataLeaf:
 		dest = &DataLeaf{
 			schema: node.schema,
@@ -907,6 +916,15 @@ func cloneUp(destChild DataNode, src DataNode) (DataNode, error) {
 					}
 				}
 			}
+		}
+		destnode = dnode
+	case *DataLeafList:
+		dnode := &DataLeafList{
+			schema: node.schema,
+		}
+		if len(node.value) > 0 {
+			dnode.value = make([]interface{}, len(node.value))
+			copy(dnode.value, node.value)
 		}
 		destnode = dnode
 	case *DataLeaf:
@@ -997,6 +1015,17 @@ func Equal(node1, node2 DataNode) bool {
 			}
 		}
 		return true
+	case *DataLeafList:
+		d2 := node2.(*DataLeafList)
+		if len(d1.value) != len(d2.value) {
+			return false
+		}
+		for i := range d1.value {
+			if d1.value[i] != d2.value[i] {
+				return false
+			}
+		}
+		return true
 	case *DataLeaf:
 		d2 := node2.(*DataLeaf)
 		if _, ok := d2.value.(yang.Number); ok {
@@ -1034,6 +1063,14 @@ func merge(dest, src DataNode) error {
 					}
 				}
 			}
+		}
+	case *DataLeafList:
+		d := dest.(*DataLeafList)
+		if len(s.value) > 0 {
+			d.value = make([]interface{}, len(s.value))
+			copy(d.value, s.value)
+		} else {
+			d.value = nil
 		}
 	case *DataLeaf:
 		d := dest.(*DataLeaf)

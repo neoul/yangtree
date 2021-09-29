@@ -327,7 +327,7 @@ func buildCollectorSchema(option *SchemaOption, ext map[string]*yang.Entry, ms *
 	return collector
 }
 
-// NewDataNodeCollector() creates a fake node that can be used to collect other data nodes.
+// NewDataNodeCollector() creates a fake node that can be used to collect all kindes of data nodes.
 // Any of data nodes can be contained to the collector data node.
 func NewDataNodeCollector() DataNode {
 	node, _ := NewDataNode(collector)
@@ -419,6 +419,14 @@ func IsOrderedByUser(schema *yang.Entry) bool {
 // IsAnyData() returns true if the schema node is anydata.
 func IsAnyData(schema *yang.Entry) bool {
 	return schema.Kind == yang.AnyDataEntry
+}
+
+func GetSchemaOption(schema *yang.Entry) *SchemaOption {
+	if m, ok := schema.Annotation["meta"]; ok {
+		meta := m.(*SchemaMetadata)
+		return meta.Option
+	}
+	return nil
 }
 
 // GetAllModules() returns a module map of the loaded yangtree.
