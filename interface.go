@@ -21,8 +21,8 @@ type DataNode interface {
 	Replace(src DataNode) error                                // Replace() replaces itself to the src node.
 	Merge(src DataNode) error                                  // Merge() merges the src node including all children to the current data node.
 
-	Set(value string) error // Set() writes the values to the data node. The value must be string.
-	// Reset() error // Reset() resets the value to the default.
+	Set(value ...string) error   // Set() writes the values to the data node. The value must be string.
+	Unset(value ...string) error // Unset() clear the value of the data node to the default.
 
 	Remove() error // Remove() removes itself.
 

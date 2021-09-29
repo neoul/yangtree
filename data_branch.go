@@ -1,14 +1,17 @@
 package yangtree
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
+	"gopkg.in/yaml.v2"
 )
 
-// Data node structure for container and list data nodes.
+// The node structure of yangtree for container and list data nodes.
 type DataBranch struct {
 	schema   *yang.Entry
 	parent   *DataBranch
@@ -273,7 +276,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	return n, nil
 }
 
-func (branch *DataBranch) Set(value string) error {
+func (branch *DataBranch) Set(value ...string) error {
 	if IsCreatedWithDefault(branch.schema) {
 		for _, s := range branch.schema.Dir {
 			if !s.IsDir() && s.Default != "" {
@@ -291,14 +294,20 @@ func (branch *DataBranch) Set(value string) error {
 			}
 		}
 	}
-	if value == "" {
-		return nil
-	}
-	err := branch.UnmarshalJSON([]byte(value))
-	if err != nil {
-		return err
+	for i := range value {
+		if value[i] == "" {
+			continue
+		}
+		err := branch.UnmarshalJSON([]byte(value[i]))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func (branch *DataBranch) Unset(value ...string) error {
+	return Errorf(ETagOperationNotSupported, "branch data node doesn't support unset")
 }
 
 func (branch *DataBranch) Remove() error {
@@ -576,4 +585,92 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 		}
 	}
 	return nil
+}
+
+func (branch *DataBranch) UnmarshalJSON(jbytes []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jbytes, &jval)
+	if err != nil {
+		return err
+	}
+	return unmarshalJSON(branch, jval) // merge
+}
+
+func (branch *DataBranch) MarshalJSON() ([]byte, error) {
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: branch}
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: branch}
+	jnode.rfc7951s = rfc7951Enabled
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// UnmarshalYAML updates the branch data node using YAML-encoded data.
+func (branch *DataBranch) UnmarshalYAML(in []byte) error {
+	var ydata interface{}
+	err := yaml.Unmarshal(in, &ydata)
+	if err != nil {
+		return err
+	}
+	return unmarshalYAML(branch, ydata)
+}
+
+// MarshalYAML encodes the branch data node to a YAML document.
+func (branch *DataBranch) MarshalYAML() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: branch, indentStr: " ", iformat: true}
+	// ynode := &yDataNode{DataNode: branch, indentStr: " "}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// MarshalYAML_RFC7951 encodes the branch data node to a YAML document using RFC7951 namespace-qualified name.
+// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
+func (branch *DataBranch) MarshalYAML_RFC7951() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: branch, indentStr: " ", rfc7951s: rfc7951Enabled}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// Replace() replaces itself to the src node.
+func (branch *DataBranch) Replace(src DataNode) error {
+	if !IsValid(src) {
+		return fmt.Errorf("invalid src data node")
+	}
+	if branch.parent == nil {
+		return fmt.Errorf("no parent node")
+	}
+	if branch.schema != src.Schema() {
+		return fmt.Errorf("unable to replace the different schema nodes")
+	}
+	if IsDuplicatableList(branch.schema) {
+		return fmt.Errorf("replace is not supported for non-key list")
+	}
+	_, err := branch.parent.insert(src, EditReplace, nil)
+	return err
+}
+
+// Merge() merges the src data node to the branch data node.
+func (branch *DataBranch) Merge(src DataNode) error {
+	if !IsValid(src) {
+		return fmt.Errorf("invalid src data node")
+	}
+	return merge(branch, src)
 }

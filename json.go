@@ -119,6 +119,25 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 			return err
 		}
 		buffer.Write(b)
+	case *DataLeafList:
+		rfc7951enabled := false
+		if jnode.rfc7951s != rfc7951Disabled {
+			rfc7951enabled = true
+		}
+		comma := false
+		buffer.WriteString("[")
+		for i := range datanode.value {
+			if comma {
+				buffer.WriteString(",")
+			}
+			b, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
+			if err != nil {
+				return err
+			}
+			buffer.Write(b)
+			comma = true
+		}
+		buffer.WriteString("]")
 	}
 	return nil
 }
@@ -241,48 +260,6 @@ func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
 		}
 	}
 	return nil
-}
-
-func (branch *DataBranch) MarshalJSON() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: branch}
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: leaf}
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: branch}
-	jnode.rfc7951s = rfc7951Enabled
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: leaf}
-	jnode.rfc7951s = rfc7951Enabled
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
 }
 
 // unmarshalJSONList decode jval to the list that has the keys.
@@ -468,27 +445,24 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 			return err
 		}
 		return n.Set(valstr)
+	case *DataLeafList:
+		list, ok := jval.([]interface{})
+		if !ok {
+			return fmt.Errorf("leaf-list node requires json array")
+		}
+		for i := range list {
+			valstr, err := JSONValueToString(list[i])
+			if err != nil {
+				return err
+			}
+			if err := n.Set(valstr); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown data node type: %T", node)
 	}
-}
-
-func (branch *DataBranch) UnmarshalJSON(jbytes []byte) error {
-	var jval interface{}
-	err := json.Unmarshal(jbytes, &jval)
-	if err != nil {
-		return err
-	}
-	return unmarshalJSON(branch, jval) // merge
-}
-
-func (leaf *DataLeaf) UnmarshalJSON(jbytes []byte) error {
-	var jval interface{}
-	err := json.Unmarshal(jbytes, &jval)
-	if err != nil {
-		return err
-	}
-	return unmarshalJSON(leaf, jval) // merge
 }
 
 // MarshalJSON returns the JSON encoding of DataNode.

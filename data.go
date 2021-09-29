@@ -175,14 +175,6 @@ func indexFirst(parent *DataBranch, id *string) int {
 	return i
 }
 
-// indexMatched() return true if the child data node indexed in the parent has the same node id.
-func indexMatched(parent *DataBranch, index int, id *string) bool {
-	if index < len(parent.children) && *id == parent.children[index].ID() {
-		return true
-	}
-	return false
-}
-
 // indexRangeBySchema() returns the index of a child related to the node id
 func indexRangeBySchema(parent *DataBranch, id *string) (i, max int) {
 	i = indexFirst(parent, id)
@@ -274,19 +266,6 @@ func (branch *DataBranch) insert(child DataNode, op Operation, iopt InsertOption
 	return nil, nil
 }
 
-// UpdateByMap() updates the data node using pmap (path predicate map) and string values.
-func (leaf *DataLeaf) UpdateByMap(pmap map[string]interface{}) error {
-	if v, ok := pmap["."]; ok {
-		if leaf.ValueString() == v.(string) {
-			return nil
-		}
-		if err := leaf.Set(v.(string)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // NewDataNode() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
 // with its values. The values should be a string if the new DataNode is *DataLeaf.
 // The values should be JSON encoded bytes if the node is *DataBranch.
@@ -294,7 +273,7 @@ func NewDataNode(schema *yang.Entry, value ...string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
-	node, err := newDataNode(schema, IsCreatedWithDefault(schema))
+	node, err := newDataNode(schema)
 	if err != nil {
 		return nil, err
 	}
@@ -306,26 +285,39 @@ func NewDataNode(schema *yang.Entry, value ...string) (DataNode, error) {
 	return node, err
 }
 
-func newDataNode(schema *yang.Entry, withDefault bool) (DataNode, error) {
+func newDataNode(schema *yang.Entry) (DataNode, error) {
 	var err error
 	var newdata DataNode
+	soption := GetSchemaMeta(schema).Option
 	switch {
 	case schema.Dir == nil: // leaf, leaf-list
-		leaf := &DataLeaf{
-			schema: schema,
-		}
-		if withDefault && schema.Default != "" {
-			if err := leaf.Set(schema.Default); err != nil {
-				return nil, err
+		if soption.SingleLeafList && schema.ListAttr != nil {
+			leaflist := &DataLeafList{
+				schema: schema,
 			}
+			if schema.Default != "" && soption.CreatedWithDefault {
+				if err := leaflist.Set(schema.Default); err != nil {
+					return nil, err
+				}
+			}
+			newdata = leaflist
+		} else {
+			leaf := &DataLeaf{
+				schema: schema,
+			}
+			if schema.Default != "" && soption.CreatedWithDefault {
+				if err := leaf.Set(schema.Default); err != nil {
+					return nil, err
+				}
+			}
+			newdata = leaf
 		}
-		newdata = leaf
 	default: // list, container, anydata
 		branch := &DataBranch{
 			schema:   schema,
 			children: DataNodeGroup{},
 		}
-		if withDefault {
+		if soption.CreatedWithDefault {
 			for _, s := range schema.Dir {
 				if !s.IsDir() && s.Default != "" {
 					c, err := NewDataNode(s)
@@ -592,17 +584,6 @@ func Edit(opt *EditOption, root DataNode, path string, value ...string) error {
 	if err := setValue(root, pathnode, opt, value...); err != nil {
 		return err
 	}
-	// if opt != nil {
-	// 	for i := range opt.Created {
-	// 		fmt.Printf("Created %s\n", opt.Created[i].Path())
-	// 	}
-	// 	for i := range opt.Replaced {
-	// 		fmt.Printf("Replaced %s\n", opt.Replaced[i].Path())
-	// 	}
-	// 	for i := range opt.Deleted {
-	// 		fmt.Printf("Deleted %s\n", opt.Deleted[i].Path())
-	// 	}
-	// }
 	return err
 }
 
@@ -643,13 +624,6 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return err
 	}
 	switch {
-	// case IsDuplicatableList(cschema):
-	// 	id, _ := GenerateID(cschema, pmap)
-	// 	first := indexFirst(branch, &id)
-	// 	if indexMatched(branch, first, &id) {
-	// 		return replaceNode(branch.children[first], pathnode[1:], node)
-	// 	}
-	// 	return nil
 	case cschema.IsLeafList():
 		if LeafListValueAsKey && len(pathnode) == 2 {
 			pmap["."] = pathnode[1].Name
@@ -1102,55 +1076,6 @@ func Merge(root DataNode, path string, src DataNode) error {
 	default:
 		return fmt.Errorf("more than one data node found - cannot specify the merged node")
 	}
-}
-
-// Merge() merges the src data node to the branch data node.
-func (branch *DataBranch) Merge(src DataNode) error {
-	if !IsValid(src) {
-		return fmt.Errorf("invalid src data node")
-	}
-	return merge(branch, src)
-}
-
-// Merge() merges the src data node to the leaf data node.
-func (leaf *DataLeaf) Merge(src DataNode) error {
-	if !IsValid(src) {
-		return fmt.Errorf("invalid src data node")
-	}
-	return merge(leaf, src)
-}
-
-// Replace() replaces itself to the src node.
-func (branch *DataBranch) Replace(src DataNode) error {
-	if !IsValid(src) {
-		return fmt.Errorf("invalid src data node")
-	}
-	if branch.parent == nil {
-		return fmt.Errorf("no parent node")
-	}
-	if branch.schema != src.Schema() {
-		return fmt.Errorf("unable to replace the different schema nodes")
-	}
-	if IsDuplicatableList(branch.schema) {
-		return fmt.Errorf("replace is not supported for non-key list")
-	}
-	_, err := branch.parent.insert(src, EditReplace, nil)
-	return err
-}
-
-// Replace() replaces itself to the src node.
-func (leaf *DataLeaf) Replace(src DataNode) error {
-	if !IsValid(src) {
-		return fmt.Errorf("invalid src data node")
-	}
-	if leaf.schema != src.Schema() {
-		return fmt.Errorf("unable to replace the different schema nodes")
-	}
-	if leaf.parent == nil {
-		return fmt.Errorf("no parent node")
-	}
-	_, err := leaf.parent.insert(src, EditReplace, nil)
-	return err
 }
 
 // Map converts the data node list to a map using the path.

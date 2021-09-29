@@ -1,11 +1,15 @@
 package yangtree
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/openconfig/goyang/pkg/yang"
+	"gopkg.in/yaml.v2"
 )
 
+// DataLeaf - The node structure of yangtree for list or leaf-list nodes.
 type DataLeaf struct {
 	schema *yang.Entry
 	parent *DataBranch
@@ -64,7 +68,28 @@ func (leaf *DataLeaf) Update(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("update is not supported %q", leaf)
 }
 
-func (leaf *DataLeaf) Set(value string) error {
+func (leaf *DataLeaf) Set(value ...string) error {
+	if leaf.parent != nil {
+		if leaf.IsLeafList() {
+			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
+		}
+		if IsKeyNode(leaf.schema) {
+			// ignore id update
+			// return fmt.Errorf("unable to update id node %q if used", leaf)
+			return nil
+		}
+	}
+	for i := range value {
+		v, err := StringToValue(leaf.schema, leaf.schema.Type, value[i])
+		if err != nil {
+			return err
+		}
+		leaf.value = v
+	}
+	return nil
+}
+
+func (leaf *DataLeaf) Unset(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -76,12 +101,13 @@ func (leaf *DataLeaf) Set(value string) error {
 		}
 	}
 
-	v, err := StringToValue(leaf.schema, leaf.schema.Type, value)
-	if err != nil {
-		return err
+	if IsCreatedWithDefault(leaf.schema) && leaf.schema.Default != "" {
+		v, err := StringToValue(leaf.schema, leaf.schema.Type, leaf.schema.Default)
+		if err != nil {
+			return err
+		}
+		leaf.value = v
 	}
-	leaf.value = v
-	// fmt.Printf("\n##leaf.value Type %T %v\n", leaf.value, leaf.value)
 	return nil
 }
 
@@ -165,4 +191,101 @@ func (leaf *DataLeaf) ID() string {
 	}
 	// leaf-list id format: LEAF[.=VALUE]
 	return leaf.schema.Name + `[.=` + ValueToString(leaf.value) + `]`
+}
+
+// UpdateByMap() updates the data node using pmap (path predicate map) and string values.
+func (leaf *DataLeaf) UpdateByMap(pmap map[string]interface{}) error {
+	if v, ok := pmap["."]; ok {
+		if leaf.ValueString() == v.(string) {
+			return nil
+		}
+		if err := leaf.Set(v.(string)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (leaf *DataLeaf) UnmarshalJSON(jbytes []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jbytes, &jval)
+	if err != nil {
+		return err
+	}
+	return unmarshalJSON(leaf, jval) // merge
+}
+
+func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: leaf}
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func (leaf *DataLeaf) MarshalJSON_IETF() ([]byte, error) {
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: leaf}
+	jnode.rfc7951s = rfc7951Enabled
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// UnmarshalYAML updates the leaf data node using YAML-encoded data.
+func (leaf *DataLeaf) UnmarshalYAML(in []byte) error {
+	var ydata interface{}
+	err := yaml.Unmarshal(in, &ydata)
+	if err != nil {
+		return err
+	}
+	return unmarshalYAML(leaf, ydata)
+}
+
+// MarshalYAML encodes the leaf data node to a YAML document.
+func (leaf *DataLeaf) MarshalYAML() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: leaf, indentStr: " "}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// MarshalYAML_RFC7951 encodes the leaf data node to a YAML document using RFC7951 namespace-qualified name.
+// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
+func (leaf *DataLeaf) MarshalYAML_RFC7951() ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yDataNode{DataNode: leaf, indentStr: " ", rfc7951s: rfc7951Enabled}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// Replace() replaces itself to the src node.
+func (leaf *DataLeaf) Replace(src DataNode) error {
+	if !IsValid(src) {
+		return fmt.Errorf("invalid src data node")
+	}
+	if leaf.schema != src.Schema() {
+		return fmt.Errorf("unable to replace the different schema nodes")
+	}
+	if leaf.parent == nil {
+		return fmt.Errorf("no parent node")
+	}
+	_, err := leaf.parent.insert(src, EditReplace, nil)
+	return err
+}
+
+// Merge() merges the src data node to the leaf data node.
+func (leaf *DataLeaf) Merge(src DataNode) error {
+	if !IsValid(src) {
+		return fmt.Errorf("invalid src data node")
+	}
+	return merge(leaf, src)
 }

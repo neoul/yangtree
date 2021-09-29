@@ -367,8 +367,11 @@ func GetRootSchema(schema *yang.Entry) *yang.Entry {
 
 // IsDuplicatableList() checks the data nodes can be inserted to the data tree several times.
 func IsDuplicatable(schema *yang.Entry) bool {
-	return (schema.IsList() && schema.Key == "") ||
-		(schema.IsLeafList() && IsState(schema))
+	if schema.IsDir() {
+		return schema.ListAttr != nil && schema.Key == ""
+	}
+	meta := GetSchemaMeta(schema)
+	return (schema.IsLeafList() && meta.IsState && !meta.Option.SingleLeafList)
 }
 
 // IsDuplicatableList() checks the data nodes is a list node and it can be inserted to the data tree several times.
@@ -387,8 +390,15 @@ func IsList(schema *yang.Entry) bool {
 }
 
 // IsListable() checks the data node is a list or a leaf-list node.
+// if SingleLeafList is set, a leaf-list node has several values and it is not listable.
 func IsListable(schema *yang.Entry) bool {
-	return schema.ListAttr != nil
+	if schema.IsDir() {
+		return schema.ListAttr != nil
+	}
+	if schema.ListAttr != nil {
+		return !GetSchemaMeta(schema).Option.SingleLeafList
+	}
+	return false
 }
 
 // IsUpdatable() is used to check the schema is updatable.
