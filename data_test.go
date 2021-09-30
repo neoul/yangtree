@@ -669,7 +669,7 @@ func TestEdit(t *testing.T) {
 		{opt: EditOption{Operation: EditCreate, Callback: callback}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 1, wantErr: false},
 		{opt: EditOption{Operation: EditCreate, Callback: callback}, path: "/sample/container-val/leaf-list-val", value: `["first"]`, expected: 0, wantErr: true},
 		{opt: EditOption{Operation: EditReplace, Callback: callback}, path: "/sample/container-val/leaf-list-val", value: `["second","third"]`, expected: 2, wantErr: false},
-		{opt: EditOption{Operation: EditMerge, Callback: callback}, path: "/sample/container-val/leaf-list-val", value: `["fourth","fifth"]`, expected: 2, wantErr: false},
+		{opt: EditOption{Operation: EditMerge, Callback: callback}, path: "/sample/container-val/leaf-list-val", value: `["fifth","fourth"]`, expected: 2, wantErr: false},
 		{opt: EditOption{Operation: EditRemove, Callback: callback}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 1, wantErr: false},
 		{opt: EditOption{Operation: EditDelete, Callback: callback}, path: "/sample/container-val/leaf-list-val[.=third]", value: `third`, expected: 0, wantErr: true},
 		{opt: EditOption{Operation: EditDelete, Callback: callback}, path: "/sample/container-val/leaf-list-val", expected: 3, wantErr: false},
@@ -725,7 +725,18 @@ func TestEdit(t *testing.T) {
 			case EditRemove, EditDelete:
 				got = deleted
 			default:
-				got = updated
+				got = nil
+				for i := range updated {
+					equal := false
+					for j := range deleted {
+						if Equal(updated[i], deleted[j]) {
+							equal = true
+						}
+					}
+					if !equal {
+						got = append(got, updated[i])
+					}
+				}
 			}
 
 			if !tt.wantErr {

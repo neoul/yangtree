@@ -26,6 +26,11 @@ type DataNode interface {
 
 	Remove() error // Remove() removes itself.
 
+	// GetOrNew() gets or creates a node having the id and returns
+	// the found or created node with the boolean value that
+	// indicates the returned node is created.
+	GetOrNew(id string, opt *EditOption) (DataNode, bool, error)
+
 	NewDataNode(id string, value ...string) (DataNode, error) // NewDataNode() creates a cild using the node id (NODE_NAME[KEY=VALUE]).
 	Update(id string, value ...string) (DataNode, error)      // Update() updates a child that has the node id using the input values.
 	UpdateByMap(pmap map[string]interface{}) error            // UpdateByMap() updates the data node using pmap (path predicate map) and string values.

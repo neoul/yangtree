@@ -248,10 +248,18 @@ func (branch *DataBranch) insert(child DataNode, op Operation, iopt InsertOption
 		i = sort.Search(len(branch.children),
 			func(j int) bool { return name <= branch.children[j].ID() })
 	case InsertToBefore:
+		if IsDuplicatableList(schema) {
+			return nil, Errorf(ETagOperationNotSupported,
+				"insert option (before) not supported for non-key list")
+		}
 		target := child.Name() + o.Key
 		i = sort.Search(len(branch.children),
 			func(j int) bool { return target <= branch.children[j].ID() })
 	case InsertToAfter:
+		if IsDuplicatableList(schema) {
+			return nil, Errorf(ETagOperationNotSupported,
+				"insert option (after) not supported for non-key list")
+		}
 		target := child.Name() + o.Key
 		i = sort.Search(len(branch.children),
 			func(j int) bool { return target <= branch.children[j].ID() })
@@ -349,12 +357,26 @@ func setGroupValue(branch *DataBranch, old DataNodeGroup, new DataNodeGroup, opt
 			branch.Delete(old[i])
 		}
 	case EditMerge, EditReplace, EditCreate:
+		var err error
 		for i := range old {
 			branch.Delete(old[i])
 		}
 		for i := range new {
-			branch.insert(new[i], op, option.GetInsertOption())
+			_, err = branch.insert(new[i], op, option.GetInsertOption())
+			if err != nil {
+				break
+			}
 		}
+		if err != nil {
+			for i := range new {
+				branch.Delete(new[i])
+			}
+			for i := range old {
+				branch.insert(old[i], EditMerge, nil)
+			}
+			return err
+		}
+
 		if callback := option.GetCallback(); callback != nil {
 			if err := callback(op, old, new); err != nil {
 				return err
@@ -498,6 +520,13 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 	}
 
 	if reachToEnd && nodeGroup {
+		// if callback := option.GetCallback(); callback == nil {
+		// 	if op == EditMerge && IsDuplicatableList(cschema) {
+		// 		if new, err = NewDataNodeGroup(cschema, nil, value...); err != nil {
+		// 			return err
+		// 		}
+		// 	}
+		// }
 		var new DataNodeGroup
 		switch op {
 		case EditMerge:
@@ -1142,4 +1171,83 @@ func GetKeyValues(node DataNode) ([]string, []string) {
 		keyvals = append(keyvals, keynode.ValueString())
 	}
 	return keynames, keyvals
+}
+
+// GetOrNew returns the target data node and a created top data node along the path from the root.
+func GetOrNew(root DataNode, path string, opt *EditOption) (DataNode, DataNode, error) {
+	if !IsValid(root) {
+		return nil, nil, fmt.Errorf("invalid root data node")
+	}
+
+	op := opt.GetOperation()
+	iopt := opt.GetInsertOption()
+	if op == EditRemove || op == EditDelete {
+		return nil, nil, Errorf(ETagOperationNotSupported, "delete or remove is not supported for GetOrNew")
+	}
+
+	pathnode, err := ParsePath(&path)
+	if err != nil {
+		return nil, nil, err
+	}
+	var ok bool
+	var created DataNode
+	var branch *DataBranch
+	var pmap map[string]interface{}
+	for i := range pathnode {
+		branch, ok = root.(*DataBranch)
+		if !ok {
+			err = fmt.Errorf("%q is not a branch", root)
+			break
+		}
+		pmap, err = pathnode[i].PredicatesToMap()
+		if err != nil {
+			break
+		}
+		cschema := GetSchema(branch.schema, pathnode[0].Name)
+		if cschema == nil {
+			err = fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+			break
+		}
+		var children DataNodeGroup
+		id, groupSearch := GenerateID(cschema, pmap)
+		children = branch.find(cschema, &id, groupSearch, pmap)
+		if IsDuplicatableList(cschema) {
+			switch iopt.(type) {
+			case InsertToAfter, InsertToBefore:
+				err = Errorf(ETagOperationNotSupported,
+					"insert option (after, before) not supported for non-key list")
+			}
+			children = nil // clear found nodes
+		}
+
+		switch len(children) {
+		case 0:
+			child, err := NewDataNode(cschema)
+			if err != nil {
+				return nil, nil, err
+			}
+			if err = child.UpdateByMap(pmap); err != nil {
+				return nil, nil, err
+			}
+			if _, err = branch.insert(child, op, iopt); err != nil {
+				return nil, nil, err
+			}
+			if created == nil {
+				created = child
+			}
+			root = child
+		case 1:
+			root = children[0]
+		default:
+			return nil, nil, Errorf(ETagOperationNotSupported,
+				"multiple nodes are selected for GetOrNew")
+		}
+	}
+	if err != nil {
+		if created != nil {
+			created.Remove()
+		}
+		return nil, nil, err
+	}
+	return root, created, nil
 }

@@ -60,6 +60,12 @@ func (leaf *DataLeaf) ValueString() string {
 	return ValueToString(leaf.value)
 }
 
+// GetOrNew() gets or creates a node having the id and returns the found or created node
+// with the boolean value that indicates the returned node is created.
+func (leaf *DataLeaf) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
+	return nil, false, fmt.Errorf("leaf node doesn't support GetOrNew")
+}
+
 func (leaf *DataLeaf) NewDataNode(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("new is not supported on %q", leaf)
 }

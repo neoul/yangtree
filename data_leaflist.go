@@ -64,6 +64,12 @@ func (leaflist *DataLeafList) ValueString() string {
 	return ValueToString(leaflist.value)
 }
 
+// GetOrNew() gets or creates a node having the id and returns the found or created node
+// with the boolean value that indicates the returned node is created.
+func (leaflist *DataLeafList) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
+	return nil, false, fmt.Errorf("leaf-list node doesn't support GetOrNew")
+}
+
 func (leaflist *DataLeafList) NewDataNode(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("new is not supported on %q", leaflist)
 }
