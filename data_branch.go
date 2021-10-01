@@ -306,6 +306,44 @@ func (branch *DataBranch) Set(value ...string) error {
 	return nil
 }
 
+func (branch *DataBranch) SetSafe(value ...string) error {
+	var err error
+	backup := Clone(branch)
+	if IsCreatedWithDefault(branch.schema) {
+		for _, s := range branch.schema.Dir {
+			if !s.IsDir() && s.Default != "" {
+				if branch.Get(s.Name) != nil {
+					continue
+				}
+				var c DataNode
+				c, err = NewDataNode(s)
+				if err != nil {
+					break
+				}
+				_, err = branch.insert(c, EditMerge, nil)
+				if err != nil {
+					break
+				}
+			}
+		}
+	}
+	if err == nil {
+		for i := range value {
+			if value[i] == "" {
+				continue
+			}
+			err = branch.UnmarshalJSON([]byte(value[i]))
+			if err != nil {
+				break
+			}
+		}
+	}
+	if err != nil {
+		recover(branch, backup)
+	}
+	return nil
+}
+
 func (branch *DataBranch) Unset(value ...string) error {
 	return Errorf(ETagOperationNotSupported, "branch data node doesn't support unset")
 }

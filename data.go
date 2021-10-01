@@ -30,17 +30,18 @@ func (f ConfigOnly) String() string { return "config-only" }
 func (f StateOnly) String() string  { return "state-only" }
 func (f HasState) String() string   { return "has-state" }
 
-type Operation int
+// EditOperation [EditMerge, EditCreate, EditReplace, EditDelete, EditRemove] for yangtree
+type EditOp int
 
 const (
-	EditMerge   Operation = iota // netconf edit-config: merge
-	EditCreate                   // netconf edit-config: create
-	EditReplace                  // netconf edit-config: replace
-	EditDelete                   // netconf edit-config: delete
-	EditRemove                   // netconf edit-config: remove
+	EditMerge   EditOp = iota // similar to NETCONF edit-config: merge operation
+	EditCreate                // similar to NETCONF edit-config: create operation
+	EditReplace               // similar to NETCONF edit-config: replace operation
+	EditDelete                // similar to NETCONF edit-config: delete operation
+	EditRemove                // similar to NETCONF edit-config: remove operation
 )
 
-func (op Operation) String() string {
+func (op EditOp) String() string {
 	switch op {
 	case EditMerge:
 		return "merge"
@@ -57,12 +58,14 @@ func (op Operation) String() string {
 	}
 }
 
-func (op Operation) IsOption() {}
+func (op EditOp) IsOption() {}
 
+// EditOption is used for yangtree set operation.
 type EditOption struct {
-	Operation
-	InsertOption
-	Callback func(op Operation, new, old DataNodeGroup) error
+	EditOp                                                        // EditOperation
+	InsertOption                                                  // Insert option for ordered-by yang option
+	Callback        func(op EditOp, old, new DataNodeGroup) error // Callback is invoked upon the node changes.
+	FailureRecovery bool
 }
 
 func (edit *EditOption) String() string {
@@ -70,17 +73,18 @@ func (edit *EditOption) String() string {
 		return ""
 	}
 	if edit.InsertOption == nil {
-		return `operation=` + edit.Operation.String()
+		return `operation=` + edit.EditOp.String()
 	}
-	return `operation=` + edit.Operation.String() + `,` + edit.GetInsertOption().String()
+	return `operation=` + edit.EditOp.String() + `,` + edit.GetInsertOption().String()
 }
 
-func (edit *EditOption) GetOperation() Operation {
+func (edit *EditOption) GetOperation() EditOp {
 	if edit == nil {
 		return EditMerge
 	}
-	return edit.Operation
+	return edit.EditOp
 }
+
 func (edit *EditOption) GetInsertOption() InsertOption {
 	if edit == nil {
 		return nil
@@ -88,7 +92,14 @@ func (edit *EditOption) GetInsertOption() InsertOption {
 	return edit.InsertOption
 }
 
-func (edit *EditOption) GetCallback() func(Operation, DataNodeGroup, DataNodeGroup) error {
+func (edit *EditOption) GetFailureRecovery() bool {
+	if edit == nil {
+		return false
+	}
+	return edit.FailureRecovery
+}
+
+func (edit *EditOption) GetCallback() func(EditOp, DataNodeGroup, DataNodeGroup) error {
 	if edit == nil {
 		return nil
 	}
@@ -147,6 +158,8 @@ func setParent(node DataNode, parent *DataBranch, id *string) {
 		if c.schema.Name != *id {
 			c.id = *id
 		}
+	case *DataLeafList:
+		c.parent = parent
 	}
 }
 
@@ -163,6 +176,8 @@ func resetParent(node DataNode) {
 		if c.id != "" {
 			c.id = ""
 		}
+	case *DataLeafList:
+		c.parent = nil
 	}
 }
 
@@ -189,7 +204,7 @@ func indexRangeBySchema(parent *DataBranch, id *string) (i, max int) {
 
 // insert() insert a child node to the branch node according to the operation and insert option.
 // It returns a data node that becomes replaced.
-func (branch *DataBranch) insert(child DataNode, op Operation, iopt InsertOption) (DataNode, error) {
+func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (DataNode, error) {
 	if child.Parent() != nil {
 		if child.Parent() == branch {
 			return nil, nil
@@ -459,14 +474,14 @@ func setGroupValue(branch *DataBranch, cschema *yang.Entry, oldnodes DataNodeGro
 //  // - EditOption (merge): update the node. (default)
 //  // - EditOption (delete): delete the node. It returns data-missing error if it doesn't exist.
 //  // - EditOption (remove): delete the node. It doesn't return data-missing error.
-func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...*string) error {
-	op := option.GetOperation()
+func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*string) error {
+	op := eopt.GetOperation()
 	if len(pathnode) == 0 || pathnode[0].Name == "" {
 		switch op {
 		case EditCreate:
 			return Errorf(ETagDataExists, "data node %q already exists", root.ID())
 		case EditDelete, EditRemove:
-			if callback := option.GetCallback(); callback != nil {
+			if callback := eopt.GetCallback(); callback != nil {
 				if err := callback(op, DataNodeGroup{root}, nil); err != nil {
 					return err
 				}
@@ -478,28 +493,34 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			if len(value) == 0 {
 				return nil
 			}
-			if callback := option.GetCallback(); callback != nil {
+			if callback := eopt.GetCallback(); callback != nil {
+				var err error
 				old := Clone(root)
-				if err := root.Set(*(value[0])); err != nil {
-					return err
+				err = root.Set(*(value[0]))
+				if err == nil {
+					err = callback(op, DataNodeGroup{old}, DataNodeGroup{root})
 				}
-				return callback(op, DataNodeGroup{old}, DataNodeGroup{root})
-			}
-			if err := root.Set(*(value[0])); err != nil {
+				if err != nil {
+					recover(root, old)
+				}
 				return err
 			}
+			if eopt.GetFailureRecovery() {
+				return root.SetSafe(*(value[0]))
+			}
+			return root.Set(*(value[0]))
 		}
 		return nil
 	}
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
-		return setValue(root, pathnode[1:], option, value...)
+		return setValue(root, pathnode[1:], eopt, value...)
 	case NodeSelectParent:
 		if root.Parent() == nil {
 			return fmt.Errorf("unknown parent node selected from %q", root)
 		}
 		root = root.Parent()
-		return setValue(root, pathnode[1:], option, value...)
+		return setValue(root, pathnode[1:], eopt, value...)
 	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
@@ -510,14 +531,14 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			return fmt.Errorf("select children from non-branch node %q", root)
 		}
 		for i := 0; i < len(branch.children); i++ {
-			err := setValue(branch.Child(i), pathnode[1:], option, value...)
+			err := setValue(branch.Child(i), pathnode[1:], eopt, value...)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
 	case NodeSelectAll:
-		err := setValue(root, pathnode[1:], option, value...)
+		err := setValue(root, pathnode[1:], eopt, value...)
 		if err != nil {
 			return err
 		}
@@ -526,7 +547,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			return fmt.Errorf("select children from non-branch node %q", root)
 		}
 		for i := 0; i < len(branch.children); i++ {
-			err := setValue(root.Child(i), pathnode, option, value...)
+			err := setValue(root.Child(i), pathnode, eopt, value...)
 			if err != nil {
 				return err
 			}
@@ -587,7 +608,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 	}
 
 	if reachToEnd && nodeGroup {
-		return setGroupValue(branch, cschema, copyDataNodeGroup(children), option, value...)
+		return setGroupValue(branch, cschema, copyDataNodeGroup(children), eopt, value...)
 	}
 
 	switch len(children) {
@@ -604,11 +625,11 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 				return err
 			}
 		}
-		if _, err = branch.insert(child, op, option.GetInsertOption()); err != nil {
+		if _, err = branch.insert(child, op, eopt.GetInsertOption()); err != nil {
 			return err
 		}
 		if reachToEnd {
-			if callback := option.GetCallback(); callback != nil {
+			if callback := eopt.GetCallback(); callback != nil {
 				if err := callback(op, nil, DataNodeGroup{child}); err != nil {
 					return err
 				}
@@ -616,7 +637,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			return nil
 		}
 
-		if err := setValue(child, pathnode[1:], option, value...); err != nil {
+		if err := setValue(child, pathnode[1:], eopt, value...); err != nil {
 			child.Remove()
 			return err
 		}
@@ -624,7 +645,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 
 	default:
 		for _, child := range children {
-			if err := setValue(child, pathnode[1:], option, value...); err != nil {
+			if err := setValue(child, pathnode[1:], eopt, value...); err != nil {
 				return err
 			}
 		}
@@ -785,7 +806,7 @@ func Delete(root DataNode, path string) error {
 	if err != nil {
 		return err
 	}
-	return setValue(root, pathnode, &EditOption{Operation: EditRemove})
+	return setValue(root, pathnode, &EditOption{EditOp: EditRemove})
 }
 
 func returnFound(node DataNode, option ...Option) DataNodeGroup {
@@ -1183,7 +1204,7 @@ func Merge(root DataNode, path string, src DataNode) error {
 	}
 	switch len(node) {
 	case 0:
-		editopt := &EditOption{Operation: EditMerge}
+		editopt := &EditOption{EditOp: EditMerge}
 		err = Edit(editopt, root, path)
 		if err != nil {
 			return err
@@ -1328,4 +1349,38 @@ func replace(a, b DataNode) error {
 		}
 	}
 	return fmt.Errorf("the node to replace not found")
+}
+
+func recover(target, backup DataNode) error {
+	switch t := target.(type) {
+	case *DataBranch:
+		b, ok := backup.(*DataBranch)
+		if !ok {
+			return fmt.Errorf("different type data node inserted for recovery")
+		}
+		for i := range t.children {
+			resetParent(t.children[i])
+			t.children[i] = nil
+		}
+		t.children = make([]DataNode, len(b.children))
+		for i := range b.children {
+			id := b.children[i].ID()
+			t.children[i] = b.children[i]
+			setParent(b.children[i], t, &id)
+		}
+	case *DataLeaf:
+		b, ok := backup.(*DataLeaf)
+		if !ok {
+			return fmt.Errorf("different type data node inserted for recovery")
+		}
+		t.value = b.value
+	case *DataLeafList:
+		b, ok := backup.(*DataLeafList)
+		if !ok {
+			return fmt.Errorf("different type data node inserted for recovery")
+		}
+		t.value = make([]interface{}, len(b.value))
+		copy(t.value, b.value)
+	}
+	return nil
 }

@@ -120,6 +120,57 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 	return nil
 }
 
+func (leaflist *DataLeafList) SetSafe(value ...string) error {
+	if leaflist.parent != nil {
+		// leaflist allows the set operation
+		// if leaflist.IsLeafList() {
+		// 	return fmt.Errorf("leaflist-list %q must be inserted or deleted", leaflist)
+		// }
+		if IsKeyNode(leaflist.schema) {
+			// ignore id update
+			// return fmt.Errorf("unable to update id node %q if used", leaflist)
+			return nil
+		}
+	}
+
+	var backup []interface{}
+	if len(leaflist.value) > 0 {
+		backup = make([]interface{}, len(leaflist.value))
+		copy(backup, leaflist.value)
+	}
+	for i := range value {
+		if strings.HasPrefix(value[i], "[") && strings.HasSuffix(value[i], "]") {
+			err := leaflist.UnmarshalJSON([]byte(value[i]))
+			if err != nil {
+				leaflist.value = backup
+				return err
+			}
+		} else {
+			var index int
+			if IsConfig(leaflist.schema) {
+				index = sort.Search(len(leaflist.value),
+					func(j int) bool {
+						return ValueToString(leaflist.value[j]) >= value[i]
+					})
+				if index < len(leaflist.value) && ValueToString(leaflist.value[index]) == value[i] {
+					continue
+				}
+			} else {
+				index = len(leaflist.value)
+			}
+			v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
+			if err != nil {
+				leaflist.value = backup
+				return err
+			}
+			leaflist.value = append(leaflist.value, nil)
+			copy(leaflist.value[index+1:], leaflist.value[index:])
+			leaflist.value[index] = v
+		}
+	}
+	return nil
+}
+
 func (leaflist *DataLeafList) Unset(value ...string) error {
 	if leaflist.parent != nil {
 		if IsKeyNode(leaflist.schema) {

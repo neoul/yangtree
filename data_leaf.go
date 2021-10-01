@@ -95,6 +95,29 @@ func (leaf *DataLeaf) Set(value ...string) error {
 	return nil
 }
 
+func (leaf *DataLeaf) SetSafe(value ...string) error {
+	if leaf.parent != nil {
+		if leaf.IsLeafList() {
+			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
+		}
+		if IsKeyNode(leaf.schema) {
+			// ignore id update
+			// return fmt.Errorf("unable to update id node %q if used", leaf)
+			return nil
+		}
+	}
+	backup := leaf.value
+	for i := range value {
+		v, err := StringToValue(leaf.schema, leaf.schema.Type, value[i])
+		if err != nil {
+			leaf.value = backup
+			return err
+		}
+		leaf.value = v
+	}
+	return nil
+}
+
 func (leaf *DataLeaf) Unset(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
