@@ -344,46 +344,113 @@ func newDataNode(schema *yang.Entry) (DataNode, error) {
 	return newdata, err
 }
 
-func setGroupValue(branch *DataBranch, old DataNodeGroup, new DataNodeGroup, option *EditOption) error {
-	op := option.GetOperation()
+// merge and report changed child nodes.
+func mergeChildren(dest, src DataNode, edit *EditOption) (DataNodeGroup, DataNodeGroup, error) {
+	switch s := src.(type) {
+	case *DataBranch:
+		var err error
+		var n DataNode
+		var before DataNodeGroup
+		var after DataNodeGroup
+		d := dest.(*DataBranch)
+		for i := range s.children {
+			schema := s.children[i].Schema()
+			if IsDuplicatableList(schema) {
+				n = Clone(s.children[i])
+				_, err = d.insert(n, edit.GetOperation(), edit.GetInsertOption())
+				if err != nil {
+					break
+				}
+				after = append(after, n)
+			} else {
+				dchild := d.Get(s.children[i].ID())
+				if dchild != nil {
+					before = append(before, Clone(dchild))
+					if err = merge(dchild, s.children[i]); err != nil {
+						break
+					}
+					after = append(after, dchild)
+				} else {
+					n = Clone(s.children[i])
+					_, err = d.insert(n, edit.GetOperation(), edit.GetInsertOption())
+					if err != nil {
+						break
+					}
+					after = append(after, n)
+				}
+			}
+		}
+		return before, after, err
+	case *DataLeaf, *DataLeafList:
+		return nil, nil, fmt.Errorf("it is a branch node doesn't have children")
+	default:
+		return nil, nil, fmt.Errorf("invalid data node type: %T", s)
+	}
+}
+
+func setGroupValue(branch *DataBranch, cschema *yang.Entry, oldnodes DataNodeGroup, edit *EditOption, value ...*string) error {
+	var err error
+	var newnodes DataNodeGroup
+	op := edit.GetOperation()
+	iop := edit.GetInsertOption()
 	switch op {
 	case EditDelete, EditRemove:
-		if callback := option.GetCallback(); callback != nil {
-			if err := callback(op, old, new); err != nil {
+		if callback := edit.GetCallback(); callback != nil {
+			if err = callback(op, oldnodes, nil); err != nil {
 				return err
 			}
 		}
-		for i := range old {
-			branch.Delete(old[i])
+		for i := range oldnodes {
+			branch.Delete(oldnodes[i])
 		}
-	case EditMerge, EditReplace, EditCreate:
-		var err error
-		for i := range old {
-			branch.Delete(old[i])
+		return nil
+	case EditReplace, EditCreate:
+		var new *DataBranch
+		new, err = newDataNodeGroup(cschema, value...)
+		if err != nil {
+			return err
 		}
-		for i := range new {
-			_, err = branch.insert(new[i], op, option.GetInsertOption())
+		newnodes = copyDataNodeGroup(new.children)
+		for i := range oldnodes {
+			branch.Delete(oldnodes[i])
+		}
+		for i := range newnodes {
+			_, err = branch.insert(newnodes[i], op, iop)
 			if err != nil {
 				break
 			}
 		}
+		if err == nil {
+			if callback := edit.GetCallback(); callback != nil {
+				if err = callback(op, oldnodes, newnodes); err != nil {
+					break
+				}
+			}
+		}
+	case EditMerge:
+		var new *DataBranch
+		new, err = newDataNodeGroup(cschema, value...)
 		if err != nil {
-			for i := range new {
-				branch.Delete(new[i])
-			}
-			for i := range old {
-				branch.insert(old[i], EditMerge, nil)
-			}
 			return err
 		}
-
-		if callback := option.GetCallback(); callback != nil {
-			if err := callback(op, old, new); err != nil {
-				return err
+		oldnodes, newnodes, err = mergeChildren(branch, new, edit)
+		if err == nil {
+			if callback := edit.GetCallback(); callback != nil {
+				if err = callback(op, oldnodes, newnodes); err != nil {
+					break
+				}
 			}
 		}
 	}
-	return nil
+	if err != nil {
+		for i := range newnodes {
+			branch.Delete(newnodes[i])
+		}
+		for i := range oldnodes {
+			branch.insert(oldnodes[i], EditMerge, nil)
+		}
+	}
+	return err
 }
 
 // setValue() create or update a target data node using the value.
@@ -392,7 +459,7 @@ func setGroupValue(branch *DataBranch, old DataNodeGroup, new DataNodeGroup, opt
 //  // - EditOption (merge): update the node. (default)
 //  // - EditOption (delete): delete the node. It returns data-missing error if it doesn't exist.
 //  // - EditOption (remove): delete the node. It doesn't return data-missing error.
-func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...string) error {
+func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...*string) error {
 	op := option.GetOperation()
 	if len(pathnode) == 0 || pathnode[0].Name == "" {
 		switch op {
@@ -413,12 +480,12 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			}
 			if callback := option.GetCallback(); callback != nil {
 				old := Clone(root)
-				if err := root.Set(value[0]); err != nil {
+				if err := root.Set(*(value[0])); err != nil {
 					return err
 				}
 				return callback(op, DataNodeGroup{old}, DataNodeGroup{root})
 			}
-			if err := root.Set(value[0]); err != nil {
+			if err := root.Set(*(value[0])); err != nil {
 				return err
 			}
 		}
@@ -496,9 +563,9 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 	case cschema.IsList():
 		if len(value) > 0 {
 			if v, ok := pmap["."]; ok {
-				if v.(string) != value[0] {
+				if v.(string) != *(value[0]) {
 					return fmt.Errorf(`value %q must be equal with the xpath predicate of %s[.=%s]`,
-						value, cschema.Name, pmap["."].(string))
+						*value[0], cschema.Name, pmap["."].(string))
 				}
 			}
 		}
@@ -520,24 +587,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 	}
 
 	if reachToEnd && nodeGroup {
-		// if callback := option.GetCallback(); callback == nil {
-		// 	if op == EditMerge && IsDuplicatableList(cschema) {
-		// 		if new, err = NewDataNodeGroup(cschema, nil, value...); err != nil {
-		// 			return err
-		// 		}
-		// 	}
-		// }
-		var new DataNodeGroup
-		switch op {
-		case EditMerge:
-			new, err = NewDataNodeGroup(cschema, children, value...)
-		case EditReplace, EditCreate:
-			new, err = NewDataNodeGroup(cschema, nil, value...)
-		}
-		if err != nil {
-			return err
-		}
-		return setGroupValue(branch, copyDataNodeGroup(children), new, option)
+		return setGroupValue(branch, cschema, copyDataNodeGroup(children), option, value...)
 	}
 
 	switch len(children) {
@@ -550,7 +600,7 @@ func setValue(root DataNode, pathnode []*PathNode, option *EditOption, value ...
 			return err
 		}
 		if reachToEnd && len(value) > 0 {
-			if err = child.Set(value[0]); err != nil {
+			if err = child.Set(*(value[0])); err != nil {
 				return err
 			}
 		}
@@ -593,7 +643,14 @@ func Set(root DataNode, path string, value ...string) error {
 	if err != nil {
 		return err
 	}
-	return setValue(root, pathnode, nil, value...)
+	if len(value) == 0 {
+		return setValue(root, pathnode, nil)
+	}
+	vv := make([]*string, 0, len(value))
+	for i := range value {
+		vv = append(vv, &(value[i]))
+	}
+	return setValue(root, pathnode, nil, vv...)
 }
 
 // Edit sets a value to the target DataNode in the path.
@@ -610,10 +667,14 @@ func Edit(opt *EditOption, root DataNode, path string, value ...string) error {
 	if err != nil {
 		return err
 	}
-	if err := setValue(root, pathnode, opt, value...); err != nil {
-		return err
+	if len(value) == 0 {
+		return setValue(root, pathnode, opt)
 	}
-	return err
+	vv := make([]*string, 0, len(value))
+	for i := range value {
+		vv = append(vv, &(value[i]))
+	}
+	return setValue(root, pathnode, opt, vv...)
 }
 
 func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
@@ -1174,29 +1235,22 @@ func GetKeyValues(node DataNode) ([]string, []string) {
 }
 
 // GetOrNew returns the target data node and a created top data node along the path from the root.
-func GetOrNew(root DataNode, path string, opt *EditOption) (DataNode, DataNode, error) {
+func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err error) {
 	if !IsValid(root) {
 		return nil, nil, fmt.Errorf("invalid root data node")
 	}
-
-	op := opt.GetOperation()
-	iopt := opt.GetInsertOption()
-	if op == EditRemove || op == EditDelete {
-		return nil, nil, Errorf(ETagOperationNotSupported, "delete or remove is not supported for GetOrNew")
-	}
-
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil, nil, err
 	}
 	var ok bool
-	var created DataNode
 	var branch *DataBranch
 	var pmap map[string]interface{}
+	node = root
 	for i := range pathnode {
-		branch, ok = root.(*DataBranch)
+		branch, ok = node.(*DataBranch)
 		if !ok {
-			err = fmt.Errorf("%q is not a branch", root)
+			err = fmt.Errorf("%q is not a branch", node)
 			break
 		}
 		pmap, err = pathnode[i].PredicatesToMap()
@@ -1212,12 +1266,7 @@ func GetOrNew(root DataNode, path string, opt *EditOption) (DataNode, DataNode, 
 		id, groupSearch := GenerateID(cschema, pmap)
 		children = branch.find(cschema, &id, groupSearch, pmap)
 		if IsDuplicatableList(cschema) {
-			switch iopt.(type) {
-			case InsertToAfter, InsertToBefore:
-				err = Errorf(ETagOperationNotSupported,
-					"insert option (after, before) not supported for non-key list")
-			}
-			children = nil // clear found nodes
+			children = nil // clear found nodes to create a new one.
 		}
 
 		switch len(children) {
@@ -1229,15 +1278,15 @@ func GetOrNew(root DataNode, path string, opt *EditOption) (DataNode, DataNode, 
 			if err = child.UpdateByMap(pmap); err != nil {
 				return nil, nil, err
 			}
-			if _, err = branch.insert(child, op, iopt); err != nil {
+			if _, err = branch.insert(child, EditMerge, nil); err != nil {
 				return nil, nil, err
 			}
 			if created == nil {
 				created = child
 			}
-			root = child
+			node = child
 		case 1:
-			root = children[0]
+			node = children[0]
 		default:
 			return nil, nil, Errorf(ETagOperationNotSupported,
 				"multiple nodes are selected for GetOrNew")
@@ -1249,5 +1298,34 @@ func GetOrNew(root DataNode, path string, opt *EditOption) (DataNode, DataNode, 
 		}
 		return nil, nil, err
 	}
-	return root, created, nil
+	return node, created, nil
+}
+
+// replace() replaces a to b.
+func replace(a, b DataNode) error {
+	if a.Schema() != b.Schema() {
+		return fmt.Errorf("unable to replace the different schema nodes")
+	}
+	parent := a.Parent()
+	if parent == nil {
+		return fmt.Errorf("no parent node")
+	}
+	idA := a.ID()
+	idB := b.ID()
+	if idA != idB {
+		return fmt.Errorf("replaced child has different id")
+	}
+	branch := parent.(*DataBranch)
+	i := indexFirst(branch, &idA)
+	if i < len(branch.children) && idA == branch.children[i].ID() {
+		for ; i < len(branch.children); i++ {
+			if branch.children[i] == a {
+				resetParent(branch.children[i])
+				branch.children[i] = b
+				setParent(b, branch, &idB)
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("the node to replace not found")
 }

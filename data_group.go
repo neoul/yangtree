@@ -19,17 +19,26 @@ type DataNodeGroup []DataNode
 //    for _, node := range groups {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
-func NewDataNodeGroup(schema *yang.Entry, base DataNodeGroup, value ...string) (DataNodeGroup, error) {
+func NewDataNodeGroup(schema *yang.Entry, value ...string) (DataNodeGroup, error) {
+	vv := make([]*string, len(value))
+	for i := range value {
+		vv[i] = &(value[i])
+	}
+	collector, err := newDataNodeGroup(schema, vv...)
+	if err != nil {
+		return nil, err
+	}
+	return copyDataNodeGroup(collector.children), nil
+}
+
+func newDataNodeGroup(schema *yang.Entry, value ...*string) (*DataBranch, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
 	c := NewDataNodeCollector().(*DataBranch)
-	for i := range base {
-		c.insert(Clone(base[i]), EditMerge, nil)
-	}
 	for i := range value {
 		var jval interface{}
-		if err := json.Unmarshal([]byte(value[i]), &jval); err != nil {
+		if err := json.Unmarshal([]byte(*(value[i])), &jval); err != nil {
 			return nil, err
 		}
 		switch jdata := jval.(type) {
@@ -47,7 +56,7 @@ func NewDataNodeGroup(schema *yang.Entry, base DataNodeGroup, value ...string) (
 				return nil, err
 			}
 		default:
-			n, err := NewDataNode(schema, value...)
+			n, err := NewDataNode(schema, *(value[i]))
 			if err != nil {
 				return nil, err
 			}
@@ -56,7 +65,7 @@ func NewDataNodeGroup(schema *yang.Entry, base DataNodeGroup, value ...string) (
 			}
 		}
 	}
-	return copyDataNodeGroup(c.children), nil
+	return c, nil
 }
 
 // MarshalJSON() encodes the data node group to a YAML document with a number of options.

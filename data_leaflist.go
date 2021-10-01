@@ -18,7 +18,6 @@ type DataLeafList struct {
 	schema *yang.Entry
 	parent *DataBranch
 	value  []interface{}
-	id     string
 }
 
 func (leaflist *DataLeafList) IsYangDataNode()     {}
