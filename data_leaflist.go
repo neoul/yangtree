@@ -346,14 +346,7 @@ func (leaflist *DataLeafList) Replace(src DataNode) error {
 	if !IsValid(src) {
 		return fmt.Errorf("invalid src data node")
 	}
-	if leaflist.schema != src.Schema() {
-		return fmt.Errorf("unable to replace the different schema nodes")
-	}
-	if leaflist.parent == nil {
-		return fmt.Errorf("no parent node")
-	}
-	_, err := leaflist.parent.insert(src, EditReplace, nil)
-	return err
+	return replace(leaflist, src)
 }
 
 // Merge() merges the src data node to the leaflist data node.

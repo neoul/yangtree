@@ -526,7 +526,7 @@ func TestReplace(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		err = Replace(root, "/interfaces/interface", new)
+		err = Replace(root, fmt.Sprintf("/interfaces/interface[name=e%d]", i), new)
 		if err != nil {
 			t.Error(err)
 		}

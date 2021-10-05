@@ -495,13 +495,13 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 			}
 			if callback := eopt.GetCallback(); callback != nil {
 				var err error
-				old := Clone(root)
+				backup := Clone(root)
 				err = root.Set(*(value[0]))
 				if err == nil {
-					err = callback(op, DataNodeGroup{old}, DataNodeGroup{root})
+					err = callback(op, DataNodeGroup{backup}, DataNodeGroup{root})
 				}
 				if err != nil {
-					recover(root, old)
+					recover(root, backup)
 				}
 				return err
 			}
@@ -794,6 +794,17 @@ func Replace(root DataNode, path string, new DataNode) error {
 		return err
 	}
 	return replaceNode(root, pathnode, new)
+	// n, c, err := GetOrNew(root, path)
+	// if err == nil {
+	// 	err = n.Replace(new)
+	// }
+	// if err != nil {
+	// 	if c != nil {
+	// 		c.Remove()
+	// 	}
+	// 	return err
+	// }
+	// return nil
 }
 
 // Delete() deletes the target data node in the path if the value is not specified.
@@ -1255,7 +1266,7 @@ func GetKeyValues(node DataNode) ([]string, []string) {
 	return keynames, keyvals
 }
 
-// GetOrNew returns the target data node and a created top data node along the path from the root.
+// GetOrNew returns the target data node and the ancestor node that was created first along the path from the root.
 func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err error) {
 	if !IsValid(root) {
 		return nil, nil, fmt.Errorf("invalid root data node")
@@ -1278,9 +1289,9 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 		if err != nil {
 			break
 		}
-		cschema := GetSchema(branch.schema, pathnode[0].Name)
+		cschema := GetSchema(branch.schema, pathnode[i].Name)
 		if cschema == nil {
-			err = fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+			err = fmt.Errorf("schema %q not found from %q", pathnode[i].Name, branch.schema.Name)
 			break
 		}
 		var children DataNodeGroup
@@ -1323,27 +1334,36 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 }
 
 // replace() replaces a to b.
-func replace(a, b DataNode) error {
-	if a.Schema() != b.Schema() {
+func replace(from, to DataNode) error {
+	schema := from.Schema()
+	if schema != to.Schema() {
 		return fmt.Errorf("unable to replace the different schema nodes")
 	}
-	parent := a.Parent()
+	parent := from.Parent()
 	if parent == nil {
 		return fmt.Errorf("no parent node")
 	}
-	idA := a.ID()
-	idB := b.ID()
+	keynames := GetKeynames(schema)
+	for i := range keynames {
+		keynode := from.Get(keynames[i])
+		if keynode != nil {
+			to.Insert(Clone(keynode), nil)
+		}
+	}
+
+	idA := from.ID()
+	idB := to.ID()
 	if idA != idB {
-		return fmt.Errorf("replaced child has different id")
+		return fmt.Errorf("replaced child has different id %s, %s", idA, idB)
 	}
 	branch := parent.(*DataBranch)
 	i := indexFirst(branch, &idA)
 	if i < len(branch.children) && idA == branch.children[i].ID() {
 		for ; i < len(branch.children); i++ {
-			if branch.children[i] == a {
+			if branch.children[i] == from {
 				resetParent(branch.children[i])
-				branch.children[i] = b
-				setParent(b, branch, &idB)
+				branch.children[i] = to
+				setParent(to, branch, &idB)
 				return nil
 			}
 		}
@@ -1351,6 +1371,7 @@ func replace(a, b DataNode) error {
 	return fmt.Errorf("the node to replace not found")
 }
 
+// recover recovers the target node using the backup data node.
 func recover(target, backup DataNode) error {
 	switch t := target.(type) {
 	case *DataBranch:

@@ -692,17 +692,7 @@ func (branch *DataBranch) Replace(src DataNode) error {
 	if !IsValid(src) {
 		return fmt.Errorf("invalid src data node")
 	}
-	if branch.parent == nil {
-		return fmt.Errorf("no parent node")
-	}
-	if branch.schema != src.Schema() {
-		return fmt.Errorf("unable to replace the different schema nodes")
-	}
-	if IsDuplicatableList(branch.schema) {
-		return fmt.Errorf("replace is not supported for non-key list")
-	}
-	_, err := branch.parent.insert(src, EditReplace, nil)
-	return err
+	return replace(branch, src)
 }
 
 // Merge() merges the src data node to the branch data node.

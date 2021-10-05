@@ -301,14 +301,7 @@ func (leaf *DataLeaf) Replace(src DataNode) error {
 	if !IsValid(src) {
 		return fmt.Errorf("invalid src data node")
 	}
-	if leaf.schema != src.Schema() {
-		return fmt.Errorf("unable to replace the different schema nodes")
-	}
-	if leaf.parent == nil {
-		return fmt.Errorf("no parent node")
-	}
-	_, err := leaf.parent.insert(src, EditReplace, nil)
-	return err
+	return replace(leaf, src)
 }
 
 // Merge() merges the src data node to the leaf data node.

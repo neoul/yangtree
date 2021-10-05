@@ -2,6 +2,7 @@ package yangtree
 
 import "github.com/openconfig/goyang/pkg/yang"
 
+// yangtree consists of the data node.
 type DataNode interface {
 	IsYangDataNode()
 	IsNil() bool        // IsNil() is used to check the data node is null.
