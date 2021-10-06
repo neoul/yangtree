@@ -215,7 +215,7 @@ func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (
 	}
 	schema := child.Schema()
 	if !IsAnyData(branch.schema) {
-		if branch.Schema() != GetPresentParentSchema(schema) {
+		if branch.Schema() != schema.Parent {
 			return nil, fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
 		}
 	}
@@ -289,10 +289,17 @@ func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (
 	return nil, nil
 }
 
+// NewDataNodeCollector() creates a fake node that can be used to collect all kindes of data nodes.
+// Any of data nodes can be contained to the collector data node.
+func NewDataNodeCollector() DataNode {
+	node, _ := NewDataNode(collector)
+	return node
+}
+
 // NewDataNode() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
 // with its values. The values should be a string if the new DataNode is *DataLeaf.
 // The values should be JSON encoded bytes if the node is *DataBranch.
-func NewDataNode(schema *yang.Entry, value ...string) (DataNode, error) {
+func NewDataNode(schema *SchemaNode, value ...string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
@@ -308,12 +315,12 @@ func NewDataNode(schema *yang.Entry, value ...string) (DataNode, error) {
 	return node, err
 }
 
-func newDataNode(schema *yang.Entry) (DataNode, error) {
+func newDataNode(schema *SchemaNode) (DataNode, error) {
 	var err error
 	var newdata DataNode
-	soption := GetSchemaMeta(schema).Option
+	soption := schema.Option
 	switch {
-	case schema.Dir == nil: // leaf, leaf-list
+	case schema.IsLeaf() || schema.IsLeafList(): // leaf, leaf-list
 		if soption.SingleLeafList && schema.ListAttr != nil {
 			leaflist := &DataLeafList{
 				schema: schema,
@@ -341,7 +348,7 @@ func newDataNode(schema *yang.Entry) (DataNode, error) {
 			children: []DataNode{},
 		}
 		if soption.CreatedWithDefault {
-			for _, s := range schema.Dir {
+			for _, s := range schema.Children {
 				if !s.IsDir() && s.Default != "" {
 					c, err := NewDataNode(s)
 					if err != nil {
@@ -403,7 +410,7 @@ func mergeChildren(dest, src DataNode, edit *EditOption) ([]DataNode, []DataNode
 	}
 }
 
-func setGroupValue(branch *DataBranch, cschema *yang.Entry, oldnodes []DataNode, edit *EditOption, value ...*string) error {
+func setGroupValue(branch *DataBranch, cschema *SchemaNode, oldnodes []DataNode, edit *EditOption, value ...*string) error {
 	var err error
 	var newnodes []DataNode
 	op := edit.GetOperation()
@@ -824,22 +831,20 @@ func returnFound(node DataNode, option ...Option) []DataNode {
 	for i := range option {
 		switch option[i].(type) {
 		case ConfigOnly:
-			meta := GetSchemaMeta(node.Schema())
-			if meta.IsState {
+			if node.Schema().IsState {
 				return nil
 			}
 			return []DataNode{node}
 		case StateOnly:
-			meta := GetSchemaMeta(node.Schema())
-			if meta.IsState {
+			if node.Schema().IsState {
 				return []DataNode{node}
 			}
 			return nil
 		case HasState:
-			meta := GetSchemaMeta(node.Schema())
-			if meta.IsState {
+			s := node.Schema()
+			if s.IsState {
 				return []DataNode{node}
-			} else if meta.HasState {
+			} else if s.HasState {
 				return []DataNode{node}
 			}
 			return nil

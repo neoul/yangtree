@@ -28,11 +28,12 @@ type SchemaOption struct {
 
 func (schemaoption SchemaOption) IsOption() {}
 
-// SchemaMetadata is used to keep the additional data for each schema entry.
-type SchemaMetadata struct {
+type SchemaNode struct {
+	*yang.Entry
+	Parent        *SchemaNode
 	Module        *yang.Module // used to store the module of the schema entry
-	Child         []*yang.Entry
-	Dir           map[string]*yang.Entry // used to store the children of the schema entry with all schema entry's aliases
+	Children      []*SchemaNode
+	Directory     map[string]*SchemaNode // used to store the children of the schema entry with all schema entry's aliases
 	Enum          map[string]int64       // used to store all enumeration string
 	Identityref   map[string]string      // used to store all identity values of the schema entry
 	Keyname       []string               // used to store key list
@@ -44,22 +45,95 @@ type SchemaMetadata struct {
 	HasState      bool                   // used to indicate the schema entry has a state node at least.
 	OrderedByUser bool
 	Option        *SchemaOption
-	Extension     map[string]*yang.Entry
+	Extension     map[string]*SchemaNode
+	Modules       *yang.Modules
 }
 
-func newSchemaAnnotation(schema *yang.Entry, option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) {
-	if schema.Annotation == nil {
-		schema.Annotation = make(map[string]interface{})
+func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *SchemaOption, ext map[string]*SchemaNode, ms *yang.Modules) (*SchemaNode, error) {
+	n := &SchemaNode{
+		Entry:     e,
+		Parent:    parent,
+		Directory: map[string]*SchemaNode{},
+		Option:    option,
+		Extension: ext,
+		Modules:   ms,
 	}
-	if schema.Annotation["meta"] == nil {
-		schema.Annotation["meta"] = &SchemaMetadata{
-			// Enum:   map[string]int64{},
-			Dir:       map[string]*yang.Entry{},
-			Option:    option,
-			Extension: ext,
+	n.Directory["."] = n
+	n.Module = getModule(e, baseModule, ms)
+
+	orderedByUser := false
+	if e.ListAttr != nil {
+		if e.ListAttr.OrderedBy != nil {
+			if e.ListAttr.OrderedBy.Name == "user" {
+				orderedByUser = true
+			}
+		}
+		n.OrderedByUser = orderedByUser
+	}
+
+	// namespace-qualified name of RFC 7951
+	qname := strings.Join([]string{n.Module.Name, ":", e.Name}, "")
+	n.QName = qname
+	n.Qboundary = true
+
+	// set keyname
+	if e.Key != "" {
+		n.Keyname = strings.Split(e.Key, " ")
+	}
+
+	if parent != nil {
+		switch {
+		case parent.IsChoice(), parent.IsCase():
+			for parent.Parent != nil {
+				parent = parent.Parent
+				if !parent.IsChoice() && !parent.IsCase() {
+					break
+				}
+			}
+			if parent == nil {
+				return nil, fmt.Errorf("no parent found ... updating schema tree failed")
+			}
+		}
+		if parent.Module == n.Module {
+			n.Qboundary = false
+		}
+		n.Parent = parent
+		parent.Directory[e.Prefix.Name+":"+e.Name] = n
+		parent.Directory[n.Module.Name+":"+e.Name] = n
+		parent.Directory[e.Name] = n
+		parent.Directory[".."] = parent
+		parent.Children = append(parent.Children, n)
+
+		for i := range parent.Keyname {
+			if parent.Keyname[i] == e.Name {
+				n.IsKey = true
+			}
+		}
+		var isconfig yang.TriState
+		for s := e; s != nil; s = s.Parent {
+			isconfig = s.Config
+			if isconfig != yang.TSUnset {
+				break
+			}
+		}
+		if isconfig == yang.TSFalse {
+			n.IsState = true
+		}
+		if e.Config == yang.TSFalse {
+			for p := parent; p != nil; p = p.Parent {
+				p.HasState = true
+			}
 		}
 	}
-	schema.Annotation["modules"] = ms
+	if err := updatType(n, e.Type); err != nil {
+		return nil, err
+	}
+	for _, ce := range e.Dir {
+		if _, err := buildSchemaNode(ce, n.Module, n, option, ext, ms); err != nil {
+			return nil, err
+		}
+	}
+	return n, nil
 }
 
 func resolveGlobs(globs []string) ([]string, error) {
@@ -146,12 +220,12 @@ func sanitizeArrayFlagValue(ls []string) []string {
 }
 
 // CollectSchemaEntries returns all entries of the schema tree.
-func CollectSchemaEntries(e *yang.Entry, leafOnly bool) []*yang.Entry {
+func CollectSchemaEntries(e *SchemaNode, leafOnly bool) []*SchemaNode {
 	if e == nil {
-		return []*yang.Entry{}
+		return []*SchemaNode{}
 	}
-	collected := make([]*yang.Entry, 0, 128)
-	for _, child := range e.Dir {
+	collected := make([]*SchemaNode, 0, 128)
+	for _, child := range e.Children {
 		collected = append(collected,
 			CollectSchemaEntries(child, leafOnly)...)
 	}
@@ -172,7 +246,7 @@ func CollectSchemaEntries(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	return collected
 }
 
-func GeneratePath(schema *yang.Entry, keyPrint, prefixTagging bool) string {
+func GeneratePath(schema *SchemaNode, keyPrint, prefixTagging bool) string {
 	path := ""
 	for e := schema; e != nil && e.Parent != nil; e = e.Parent {
 		if e.IsCase() || e.IsChoice() {
@@ -196,112 +270,45 @@ func GeneratePath(schema *yang.Entry, keyPrint, prefixTagging bool) string {
 	return path
 }
 
-func getEnum(schema *yang.Entry) map[string]int64 {
-	if schema == nil || schema.Annotation == nil {
-		return nil
-	}
-	if data, ok := schema.Annotation["meta"]; ok {
-		if m, ok := data.(*SchemaMetadata); ok {
-			return m.Enum
-		}
-	}
-	return nil
+func IsCreatedWithDefault(schema *SchemaNode) bool {
+	return schema.Option.CreatedWithDefault
 }
 
-func setEnum(schema *yang.Entry, enum map[string]int64) error {
-	if schema == nil || schema.Annotation == nil {
-		return fmt.Errorf("nil schema or annotation for setting enum")
-	}
-	if data, ok := schema.Annotation["meta"]; ok {
-		if m, ok := data.(*SchemaMetadata); ok {
-			m.Enum = enum
-			return nil
-		}
-	}
-	return fmt.Errorf("no schema meta data for setting enum")
-}
-
-func getIdentityref(schema *yang.Entry) map[string]string {
-	if schema == nil || schema.Annotation == nil {
-		return nil
-	}
-	if data, ok := schema.Annotation["meta"]; ok {
-		if m, ok := data.(*SchemaMetadata); ok {
-			return m.Identityref
-		}
-	}
-	return nil
-}
-
-func setIdentityref(schema *yang.Entry, identityref map[string]string) error {
-	if schema == nil || schema.Annotation == nil {
-		return fmt.Errorf("nil schema or annotation for setting identityref")
-	}
-	if data, ok := schema.Annotation["meta"]; ok {
-		if m, ok := data.(*SchemaMetadata); ok {
-			m.Identityref = identityref
-			return nil
-		}
-	}
-	return fmt.Errorf("no schema meta data for setting identityref")
-}
-
-func IsCreatedWithDefault(schema *yang.Entry) bool {
-	if data, ok := schema.Annotation["meta"]; ok {
-		if m, ok := data.(*SchemaMetadata); ok {
-			return m.Option.CreatedWithDefault
-		}
-	}
-	return false
-}
-
-func updateSchemaMetaForType(schema *yang.Entry, typ *yang.YangType) error {
+func updatType(schema *SchemaNode, typ *yang.YangType) error {
 	if typ == nil {
 		return nil
 	}
 	switch typ.Kind {
 	case yang.Ybits:
-		var enum map[string]int64
-		if enum = getEnum(schema); enum == nil {
-			enum = map[string]int64{}
+		if schema.Enum == nil {
+			schema.Enum = map[string]int64{}
 		}
 		newenum := typ.Bit.NameMap()
 		for bs, bi := range newenum {
-			enum[bs] = bi
-		}
-		if err := setEnum(schema, enum); err != nil {
-			return err
+			schema.Enum[bs] = bi
 		}
 	case yang.Yenum:
-		var enum map[string]int64
-		if enum = getEnum(schema); enum == nil {
-			enum = map[string]int64{}
+		if schema.Enum == nil {
+			schema.Enum = map[string]int64{}
 		}
 		newenum := typ.Enum.NameMap()
 		for bs, bi := range newenum {
-			enum[bs] = bi
-		}
-		if err := setEnum(schema, enum); err != nil {
-			return err
+			schema.Enum[bs] = bi
 		}
 	case yang.Yidentityref:
-		var identityref map[string]string
-		if identityref = getIdentityref(schema); identityref == nil {
-			identityref = map[string]string{}
+		if schema.Identityref == nil {
+			schema.Identityref = map[string]string{}
 		}
 		for i := range typ.IdentityBase.Values {
 			QValue := fmt.Sprintf("%s:%s",
 				yang.RootNode(typ.IdentityBase.Values[i]).Name, typ.IdentityBase.Values[i].NName())
-			identityref[typ.IdentityBase.Values[i].NName()] = QValue
+			schema.Identityref[typ.IdentityBase.Values[i].NName()] = QValue
 			// identityref[typ.IdentityBase.Values[i].NName()] = typ.IdentityBase.Values[i].PrefixedName()
 			// identityref[typ.IdentityBase.Values[i].PrefixedName()] = typ.IdentityBase.Values[i].NName()
 		}
-		if err := setIdentityref(schema, identityref); err != nil {
-			return err
-		}
 	case yang.Yunion:
 		for i := range typ.Type {
-			if err := updateSchemaMetaForType(schema, typ.Type[i]); err != nil {
+			if err := updatType(schema, typ.Type[i]); err != nil {
 				return err
 			}
 		}
@@ -309,55 +316,39 @@ func updateSchemaMetaForType(schema *yang.Entry, typ *yang.YangType) error {
 	return nil
 }
 
-var collector *yang.Entry
-
-func buildCollectorSchema(option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) *yang.Entry {
-	if collector == nil {
-		e := &yang.Entry{
-			Name:   "collector",
-			Kind:   yang.AnyDataEntry,
-			Config: yang.TSTrue,
-			Dir:    make(map[string]*yang.Entry),
-		}
-		newSchemaAnnotation(e, option, ext, ms)
-		meta := GetSchemaMeta(e)
-		meta.IsRoot = false
-		collector = e
-	}
-	return collector
-}
-
-// NewDataNodeCollector() creates a fake node that can be used to collect all kindes of data nodes.
-// Any of data nodes can be contained to the collector data node.
-func NewDataNodeCollector() DataNode {
-	node, _ := NewDataNode(collector)
-	return node
-}
+var collector *SchemaNode
 
 // buildRootSchema() builds the fake root schema node of the loaded yangtree.
-func buildRootSchema(module *yang.Module, option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) *yang.Entry {
-	e := yang.ToEntry(module)
-	root := e.Dir["root"]
-	newSchemaAnnotation(root, option, ext, ms)
-	meta := GetSchemaMeta(root)
-	meta.IsRoot = true
+func buildRootSchema(module *yang.Module, option *SchemaOption, ext map[string]*SchemaNode, ms *yang.Modules) *SchemaNode {
+	me := yang.ToEntry(module)
+	e := me.Dir["root"]
+	root, err := buildSchemaNode(e, module, nil, option, ext, ms)
+	if err != nil {
+		panic(err)
+	}
+	root.IsRoot = true
 	root.Parent = nil
+	if collector == nil {
+		e = me.Dir["collector"]
+		collector, err = buildSchemaNode(e, module, nil, option, ext, ms)
+		if err != nil {
+			panic(err)
+		}
+		collector.IsRoot = true
+		collector.Parent = nil
+	}
 	return root
 }
 
 // IsRootSchema() returns true if the schema node is the root schema node.
-func IsRootSchema(schema *yang.Entry) bool {
-	if m, ok := schema.Annotation["meta"]; ok {
-		meta := m.(*SchemaMetadata)
-		return meta.IsRoot
-	}
-	return false
+func IsRootSchema(schema *SchemaNode) bool {
+	return schema.IsRoot
 }
 
 // GetRootSchema() returns its root schema node.
-func GetRootSchema(schema *yang.Entry) *yang.Entry {
+func GetRootSchema(schema *SchemaNode) *SchemaNode {
 	for schema != nil {
-		if IsRootSchema(schema) {
+		if schema.IsRoot {
 			return schema
 		}
 		schema = schema.Parent
@@ -366,240 +357,130 @@ func GetRootSchema(schema *yang.Entry) *yang.Entry {
 }
 
 // IsDuplicatableList() checks the data nodes can be inserted to the data tree several times.
-func IsDuplicatable(schema *yang.Entry) bool {
-	if schema.IsDir() {
+func IsDuplicatable(schema *SchemaNode) bool {
+	if len(schema.Children) > 0 {
 		return schema.ListAttr != nil && schema.Key == ""
 	}
-	meta := GetSchemaMeta(schema)
-	return (schema.IsLeafList() && meta.IsState && !meta.Option.SingleLeafList)
+	return (schema.IsLeafList() && schema.IsState && !schema.Option.SingleLeafList)
 }
 
 // IsDuplicatableList() checks the data nodes is a list node and it can be inserted to the data tree several times.
-func IsDuplicatableList(schema *yang.Entry) bool {
+func IsDuplicatableList(schema *SchemaNode) bool {
 	return schema.IsList() && schema.Key == ""
 }
 
 // IsListHasKey() checks the list nodes has keys.
-func IsListHasKey(schema *yang.Entry) bool {
+func IsListHasKey(schema *SchemaNode) bool {
 	return schema.IsList() && schema.Key != ""
 }
 
 // IsList() checks the data node is a list node.
-func IsList(schema *yang.Entry) bool {
+func IsList(schema *SchemaNode) bool {
 	return schema.IsList()
 }
 
 // IsListable() checks the data node is a list or a leaf-list node.
 // if SingleLeafList is set, a leaf-list node has several values and it is not listable.
-func IsListable(schema *yang.Entry) bool {
+func IsListable(schema *SchemaNode) bool {
 	if schema.IsDir() {
 		return schema.ListAttr != nil
 	}
 	if schema.ListAttr != nil {
-		return !GetSchemaMeta(schema).Option.SingleLeafList
+		return !schema.Option.SingleLeafList
 	}
 	return false
 }
 
 // IsUpdatable() is used to check the schema is updatable.
 // Leaf-list and non-key list nodes are unable to be updated (not modified).
-func IsUpdatable(schema *yang.Entry) bool {
+func IsUpdatable(schema *SchemaNode) bool {
 	return !(schema.ListAttr != nil && schema.Key == "")
 }
 
 // IsOrderedByUser() is used to check the node is ordered by the user.
-func IsOrderedByUser(schema *yang.Entry) bool {
-	if m, ok := schema.Annotation["meta"]; ok {
-		meta := m.(*SchemaMetadata)
-		return meta.OrderedByUser
-	}
-	return false
+func IsOrderedByUser(schema *SchemaNode) bool {
+	return schema.OrderedByUser
 }
 
 // IsAnyData() returns true if the schema node is anydata.
-func IsAnyData(schema *yang.Entry) bool {
+func IsAnyData(schema *SchemaNode) bool {
 	return schema.Kind == yang.AnyDataEntry
 }
 
-func GetSchemaOption(schema *yang.Entry) *SchemaOption {
-	if m, ok := schema.Annotation["meta"]; ok {
-		meta := m.(*SchemaMetadata)
-		return meta.Option
-	}
-	return nil
+func GetSchemaOption(schema *SchemaNode) *SchemaOption {
+	return schema.Option
 }
 
-// GetAllModules() returns a module map of the loaded yangtree.
-func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
-	if schema == nil {
-		return nil
-	}
-	for schema.Parent != nil {
-		schema = schema.Parent
-	}
-	if m, ok := schema.Annotation["modules"]; ok {
-		modules := m.(*yang.Modules)
-		return modules.Modules
-	}
-	return nil
-}
-
-// GetSchemaMeta() returns the metadata updated by the yangtree.
-func GetSchemaMeta(schema *yang.Entry) *SchemaMetadata {
-	if m, ok := schema.Annotation["meta"]; ok {
-		return m.(*SchemaMetadata)
-	}
-	return nil
-}
+// // GetAllModules() returns a module map of the loaded yangtree.
+// func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
+// 	if schema == nil {
+// 		return nil
+// 	}
+// 	for schema.Parent != nil {
+// 		schema = schema.Parent
+// 	}
+// 	if m, ok := schema.Annotation["modules"]; ok {
+// 		modules := m.(*yang.Modules)
+// 		return modules.Modules
+// 	}
+// 	return nil
+// }
 
 // GetQName() returns the qname (namespace-qualified name e.g. module-name:node-name) of the schema node.
-func GetQName(schema *yang.Entry) (string, bool) {
-	if m, ok := schema.Annotation["meta"]; ok {
-		meta := m.(*SchemaMetadata)
-		return meta.QName, meta.Qboundary
-	}
-	return "", false
+func GetQName(schema *SchemaNode) (string, bool) {
+	return schema.QName, schema.Qboundary
 }
 
-// GetModule() returns the module strcture of the schema node.
-func GetModule(schema *yang.Entry) *yang.Module {
-	modules := getModules(schema)
-	if modules == nil {
-		modules := schema.Modules()
-		if modules == nil {
-			return nil
+// getModule() returns the module strcture of the schema node.
+func getModule(e *yang.Entry, base *yang.Module, ms *yang.Modules) *yang.Module {
+	var m *yang.Module
+	if e.Node != nil {
+		nname := strings.SplitN(e.Node.NName(), ":", 2)
+		if len(nname) > 1 {
+			return yang.FindModuleByPrefix(base, nname[0])
+		} else if base != nil {
+			return base
 		}
-		m, _ := modules.FindModuleByPrefix(schema.Prefix.Name)
-		return m
 	}
-	m, _ := modules.FindModuleByPrefix(schema.Prefix.Name)
+	if m == nil {
+		if e.Prefix != nil && e.Prefix.Name != "" {
+			m, _ = ms.FindModuleByPrefix(e.Prefix.Name)
+		}
+	}
+	if m == nil {
+		if ns := e.Namespace(); ns.Name != "" {
+			m, _ = ms.FindModuleByNamespace(ns.Name)
+		}
+	}
 	return m
 }
 
-func getModules(schema *yang.Entry) *yang.Modules {
-	if m, ok := schema.Annotation["modules"]; ok {
-		return m.(*yang.Modules)
-	}
-	return nil
-}
-
-func updateSchemaEntry(parent, child *yang.Entry, pmodule *yang.Module, option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) error {
-	newSchemaAnnotation(child, option, ext, ms)
-	meta := GetSchemaMeta(child)
-	module := GetModule(child)
-	meta.Module = module
-
-	orderedByUser := false
-	if child.ListAttr != nil {
-		if child.ListAttr.OrderedBy != nil {
-			if child.ListAttr.OrderedBy.Name == "user" {
-				orderedByUser = true
-			}
-		}
-		meta.OrderedByUser = orderedByUser
-	}
-
-	// namespace-qualified name of RFC 7951
-	qname := strings.Join([]string{module.Name, ":", child.Name}, "")
-	meta.QName = qname
-	if pmodule != module {
-		meta.Qboundary = true
-	}
-
-	// set keyname
-	if child.Key != "" {
-		meta.Keyname = strings.Split(child.Key, " ")
-	}
-
-	if parent != nil {
-		switch {
-		case parent.IsChoice(), parent.IsCase():
-			for parent.Parent != nil {
-				parent = parent.Parent
-				if !parent.IsChoice() && !parent.IsCase() {
-					break
-				}
-			}
-			if parent == nil {
-				return fmt.Errorf("no parent found ... updating schema tree failed")
-			}
-		}
-		// Using the Annotation, update addtional information for the schema.
-		newSchemaAnnotation(parent, option, ext, ms)
-		pmeta := GetSchemaMeta(parent)
-		pmeta.Dir[child.Prefix.Name+":"+child.Name] = child
-		pmeta.Dir[module.Name+":"+child.Name] = child
-		pmeta.Dir[child.Name] = child
-		pmeta.Dir["."] = child
-		pmeta.Dir[".."] = GetPresentParentSchema(child)
-		pmeta.Child = append(pmeta.Child, child)
-
-		for i := range pmeta.Keyname {
-			if pmeta.Keyname[i] == child.Name {
-				meta.IsKey = true
-			}
-		}
-		var isconfig yang.TriState
-		for s := child; s != nil; s = s.Parent {
-			isconfig = s.Config
-			if isconfig != yang.TSUnset {
-				break
-			}
-		}
-		if isconfig == yang.TSFalse {
-			meta.IsState = true
-		}
-		if child.Config == yang.TSFalse {
-			for p := parent; p != nil; p = p.Parent {
-				if m := GetSchemaMeta(p); m != nil {
-					m.HasState = true
-				}
-			}
-		}
-	}
-	if err := updateSchemaMetaForType(child, child.Type); err != nil {
-		return err
-	}
-
-	for _, cchild := range child.Dir {
-		if err := updateSchemaEntry(child, cchild, module, option, ext, ms); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func getNameAndFindModule(n yang.Node, module *yang.Module) (string, *yang.Module) {
+func getNameAndModule(n yang.Node, base *yang.Module) (string, *yang.Module) {
 	nname := strings.SplitN(n.NName(), ":", 2)
 	if len(nname) > 1 {
-		return nname[1], yang.FindModuleByPrefix(module, nname[0])
+		return nname[1], yang.FindModuleByPrefix(base, nname[0])
 	} else {
-		return nname[0], module
+		return nname[0], base
 	}
 }
 
-func collectExtension(module *yang.Module, option *SchemaOption, ext map[string]*yang.Entry, ms *yang.Modules) error {
+func collectExtension(module *yang.Module, option *SchemaOption, ext map[string]*SchemaNode, ms *yang.Modules) error {
 	// yang-metadadta
 	for _, extstatement := range module.Extensions {
-		name, mod := getNameAndFindModule(extstatement, module)
+		name, mod := getNameAndModule(extstatement, module)
 		if mod == nil {
 			mod = module
 		}
 		extEntry := &yang.Entry{
-			Name: name,
-			Dir:  map[string]*yang.Entry{},
-			Annotation: map[string]interface{}{
-				"modules": ms,
-				"meta": &SchemaMetadata{
-					Dir:    map[string]*yang.Entry{},
-					Option: option,
-				},
-			},
+			Node:   extstatement,
+			Name:   name,
+			Parent: nil,
 		}
+		presentExt := false
 		for _, substatement := range extstatement.SubStatements() {
 			if substatement.Kind() == "type" {
 				var typedef *yang.Typedef
-				tname, tmod := getNameAndFindModule(substatement, module)
+				tname, tmod := getNameAndModule(substatement, module)
 				if tmod == nil {
 					tmod = mod
 				}
@@ -615,29 +496,35 @@ func collectExtension(module *yang.Module, option *SchemaOption, ext map[string]
 				}
 				extEntry.Kind = yang.LeafEntry
 				extEntry.Type = typedef.YangType
+				presentExt = true
 			}
 			if substatement.Kind() == "uses" {
-				usesname, usemod := getNameAndFindModule(substatement, module)
+				extEntry.Dir = map[string]*yang.Entry{}
+				extEntry.Kind = yang.DirectoryEntry
+				usesname, usemod := getNameAndModule(substatement, module)
 				if usemod == nil {
 					usemod = mod
 				}
 				for k := range mod.Grouping {
-					gname, _ := getNameAndFindModule(mod.Grouping[k], usemod)
+					gname, _ := getNameAndModule(mod.Grouping[k], usemod)
 					if usesname == gname {
-						entry := yang.ToEntry(mod.Grouping[k])
-						for _, e := range entry.Dir {
-							e.Parent = extEntry
-							extEntry.Dir[e.Name] = e
-							if err := updateSchemaEntry(extEntry, e, nil, option, ext, ms); err != nil {
-								return err
-							}
+						e := yang.ToEntry(mod.Grouping[k])
+						for _, ce := range e.Dir {
+							ce.Parent = extEntry
+							extEntry.Dir[e.Name] = ce
 						}
 					}
 				}
-				extEntry.Kind = yang.DirectoryEntry
+				presentExt = true
 			}
 		}
-		ext[name] = extEntry
+		if presentExt {
+			extNode, err := buildSchemaNode(extEntry, mod, nil, option, ext, ms)
+			if err != nil {
+				panic(err)
+			}
+			ext[name] = extNode
+		}
 	}
 	return nil
 }
@@ -652,7 +539,7 @@ func (me MultipleError) Error() string {
 	return errstr.String()
 }
 
-func generateSchemaTree(d, f, e []string, option ...Option) (*yang.Entry, error) {
+func generateSchemaTree(d, f, e []string, option ...Option) (*SchemaNode, error) {
 	if len(f) == 0 {
 		return nil, fmt.Errorf("no yang file")
 	}
@@ -665,7 +552,7 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*yang.Entry, error)
 			schemaOption = o
 		}
 	}
-	ext := make(map[string]*yang.Entry)
+	ext := make(map[string]*SchemaNode)
 
 	// built-in data model loading
 	if yfile, err := Unzip(builtInYangtreeRoot); err == nil {
@@ -720,7 +607,6 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*yang.Entry, error)
 		}
 		modnames = append(modnames, modname)
 	}
-	buildCollectorSchema(&schemaOption, ext, ms)
 
 	sort.Strings(modnames)
 	for _, modname := range modnames {
@@ -734,27 +620,27 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*yang.Entry, error)
 			collectExtension(ms.Modules[modname], &schemaOption, ext, ms)
 			entry := yang.ToEntry(ms.Modules[modname])
 			for _, schema := range entry.Dir {
-				if _, ok := root.Dir[schema.Name]; ok {
+				if _, ok := root.Entry.Dir[schema.Name]; ok {
 					return nil, fmt.Errorf(
 						"duplicated schema %q found", entry.Name)
 				}
-				schema.Parent = root
-				root.Dir[schema.Name] = schema
-				if err := updateSchemaEntry(root, schema, nil, &schemaOption, ext, ms); err != nil {
+				schema.Parent = root.Entry
+				root.Entry.Dir[schema.Name] = schema
+				if _, err := buildSchemaNode(schema, ms.Modules[modname], root, &schemaOption, ext, ms); err != nil {
 					return nil, err
 				}
 			}
 		}
 	}
-	err := loadYanglibrary(root, ms.Modules, e)
-	if err != nil {
-		return nil, err
-	}
+	// err := loadYanglibrary(root, ms.Modules, e)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	return root, nil
 }
 
 // Load loads all yang files (file) from dir directories and build the schema tree.
-func Load(file, dir, excluded []string, option ...Option) (*yang.Entry, error) {
+func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 	dir = sanitizeArrayFlagValue(dir)
 	file = sanitizeArrayFlagValue(file)
 	excluded = sanitizeArrayFlagValue(excluded)
@@ -793,46 +679,39 @@ func Load(file, dir, excluded []string, option ...Option) (*yang.Entry, error) {
 }
 
 // GetAllChildSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
-func GetAllChildSchema(schema *yang.Entry) []*yang.Entry {
+func GetAllChildSchema(schema *SchemaNode) []*SchemaNode {
 	if schema == nil {
 		return nil
 	}
-	if meta := GetSchemaMeta(schema); meta != nil {
-		return meta.Child
-	}
-	return nil
+	return schema.Children
 }
 
 // GetSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
-func GetSchema(schema *yang.Entry, name string) *yang.Entry {
-	var child *yang.Entry
+func GetSchema(schema *SchemaNode, name string) *SchemaNode {
 	if schema == nil {
 		return nil
 	}
-	if meta := GetSchemaMeta(schema); meta != nil {
-		child = meta.Dir[name]
-	}
-	return child
+	return schema.Directory[name]
 }
 
-// GetPresentParentSchema() is used to get the non-choice and non-case parent schema entry.
-func GetPresentParentSchema(schema *yang.Entry) *yang.Entry {
-	for p := schema.Parent; p != nil; p = p.Parent {
-		if !p.IsCase() && !p.IsChoice() {
-			return p
-		}
-	}
-	return nil
-}
+// // GetPresentParentSchema() is used to get the non-choice and non-case parent schema entry.
+// func GetPresentParentSchema(schema *yang.Entry) *yang.Entry {
+// 	for p := schema.Parent; p != nil; p = p.Parent {
+// 		if !p.IsCase() && !p.IsChoice() {
+// 			return p
+// 		}
+// 	}
+// 	return nil
+// }
 
-// IsEqualSchema() checks if they have the same schema.
-func IsEqualSchema(a, b DataNode) bool {
-	return a.Schema() == b.Schema()
-}
+// // IsEqualSchema() checks if they have the same schema.
+// func IsEqualSchema(a, b DataNode) bool {
+// 	return a.Schema() == b.Schema()
+// }
 
 // FindSchema() returns a descendant schema node. It provides the child name tagged its prefix or module name.
-func FindSchema(schema *yang.Entry, path string) *yang.Entry {
-	var target *yang.Entry
+func FindSchema(schema *SchemaNode, path string) *SchemaNode {
+	var target *SchemaNode
 	pathnode, err := ParsePath(&path)
 	if err != nil {
 		return nil
@@ -848,7 +727,7 @@ func FindSchema(schema *yang.Entry, path string) *yang.Entry {
 		switch pathnode[i].Select {
 		case NodeSelectSelf:
 		case NodeSelectParent:
-			target = GetPresentParentSchema(target)
+			target = target.Parent
 		case NodeSelectFromRoot:
 			target = GetRootSchema(target)
 		case NodeSelectAllChildren, NodeSelectAll:
@@ -856,25 +735,21 @@ func FindSchema(schema *yang.Entry, path string) *yang.Entry {
 			return nil
 		}
 		if pathnode[i].Name != "" {
-			meta := GetSchemaMeta(target)
-			if meta == nil {
-				return nil
-			}
-			target = meta.Dir[pathnode[i].Name]
+			target = target.Directory[pathnode[i].Name]
 		}
 	}
 	return target
 }
 
-func FindModule(schema *yang.Entry, path string) *yang.Module {
+func FindModule(schema *SchemaNode, path string) *yang.Module {
 	e := FindSchema(schema, path)
 	if e == nil {
 		return nil
 	}
-	return GetModule(e)
+	return e.Module
 }
 
-func HasUniqueListParent(schema *yang.Entry) bool {
+func HasUniqueListParent(schema *SchemaNode) bool {
 	for n := schema; n != nil; n = n.Parent {
 		if IsListHasKey(n) {
 			return true
@@ -883,24 +758,20 @@ func HasUniqueListParent(schema *yang.Entry) bool {
 	return false
 }
 
-func GetKeynames(schema *yang.Entry) []string {
-	meta := GetSchemaMeta(schema)
-	return meta.Keyname
+func GetKeynames(schema *SchemaNode) []string {
+	return schema.Keyname
 }
 
-func IsKeyNode(schema *yang.Entry) bool {
-	meta := GetSchemaMeta(schema)
-	return meta.IsKey
+func IsKeyNode(schema *SchemaNode) bool {
+	return schema.IsKey
 }
 
-func IsConfig(schema *yang.Entry) bool {
-	meta := GetSchemaMeta(schema)
-	return !meta.IsState
+func IsConfig(schema *SchemaNode) bool {
+	return !schema.IsState
 }
 
-func IsState(schema *yang.Entry) bool {
-	meta := GetSchemaMeta(schema)
-	return meta.IsState
+func IsState(schema *SchemaNode) bool {
+	return schema.IsState
 }
 
 // ExtractSchemaName extracts the schema name from the keystr.
@@ -994,7 +865,7 @@ func ExtractKeyValues(keys []string, keystr *string) ([]string, error) {
 
 // StringToValue converts string to the yangtree value
 // It also check the range, length and pattern of the schema.
-func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interface{}, error) {
+func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interface{}, error) {
 	switch typ.Kind {
 	case yang.Ystring, yang.Ybinary:
 		if len(typ.Range) > 0 {
@@ -1083,19 +954,17 @@ func StringToValue(schema *yang.Entry, typ *yang.YangType, value string) (interf
 		}
 		return number, nil
 	case yang.Ybits, yang.Yenum:
-		emap := getEnum(schema)
-		if _, ok := emap[value]; ok {
+		if _, ok := schema.Enum[value]; ok {
 			return value, nil
 		}
 	case yang.Yidentityref:
-		imap := getIdentityref(schema)
 		if i := strings.Index(value, ":"); i >= 0 {
 			iref := value[i+1:]
-			if _, ok := imap[iref]; ok {
+			if _, ok := schema.Identityref[iref]; ok {
 				return iref, nil
 			}
 		} else {
-			if _, ok := imap[value]; ok {
+			if _, ok := schema.Identityref[value]; ok {
 				return value, nil
 			}
 		}
@@ -1172,7 +1041,7 @@ func ValueToString(value interface{}) string {
 	return fmt.Sprint(value)
 }
 
-func ValueToJSONBytes(schema *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
+func ValueToJSONBytes(schema *SchemaNode, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
 	switch typ.Kind {
 	case yang.Yunion:
 		for i := range typ.Type {
@@ -1205,8 +1074,7 @@ func ValueToJSONBytes(schema *yang.Entry, typ *yang.YangType, value interface{},
 			return []byte("[null]"), nil
 		case yang.Yidentityref:
 			if s, ok := value.(string); ok {
-				imap := getIdentityref(schema)
-				qvalue, ok := imap[s]
+				qvalue, ok := schema.Identityref[s]
 				if !ok {
 					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
 				}
@@ -1262,7 +1130,7 @@ func JSONValueToString(jval interface{}) (string, error) {
 }
 
 // GetMust returns the when XPath statement of e if able.
-func GetMust(schema *yang.Entry) []*yang.Must {
+func GetMust(schema *SchemaNode) []*yang.Must {
 	switch n := schema.Node.(type) {
 	case *yang.Container:
 		return n.Must

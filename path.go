@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/PaesslerAG/gval"
-	"github.com/openconfig/goyang/pkg/yang"
 )
 
 // XPath for yangtree
@@ -132,7 +131,7 @@ LOOP:
 
 // GenerateID generates the node ID of the schema using the value in the pmap.
 // It also returns a boolean value to true if the ID is used for the access of multiple data nodes.
-func GenerateID(schema *yang.Entry, pmap map[string]interface{}) (string, bool) {
+func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool) {
 	if _, ok := pmap["@index"]; ok {
 		return schema.Name, false
 	}
@@ -586,7 +585,7 @@ func RemovePredicates(path *string) (string, bool) {
 }
 
 // FindAllPossiblePath finds all possible paths. It resolves the gNMI path wildcards.
-func FindAllPossiblePath(schema *yang.Entry, spath string) []string {
+func FindAllPossiblePath(schema *SchemaNode, spath string) []string {
 	if schema == nil {
 		return nil
 	}
@@ -601,7 +600,7 @@ func FindAllPossiblePath(schema *yang.Entry, spath string) []string {
 	return findAllPossiblePath(schema, prefix, pathnode)
 }
 
-func findAllPossiblePath(schema *yang.Entry, prefix []string, pathnode []*PathNode) []string {
+func findAllPossiblePath(schema *SchemaNode, prefix []string, pathnode []*PathNode) []string {
 	if len(pathnode) == 0 {
 		return []string{strings.Join(prefix, "/")}
 	}

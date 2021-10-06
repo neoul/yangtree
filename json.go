@@ -87,9 +87,8 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 				continue
 			}
 			// container, leaf
-			m := GetSchemaMeta(schema)
-			if (jnode.configOnly == yang.TSTrue && m.IsState) ||
-				(jnode.configOnly == yang.TSFalse && !m.IsState && !m.HasState) {
+			if (jnode.configOnly == yang.TSTrue && schema.IsState) ||
+				(jnode.configOnly == yang.TSFalse && !schema.IsState && !schema.HasState) {
 				i++
 				continue
 			}
@@ -146,10 +145,9 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 	first := *parent
 	first.DataNode = node[i]
 	schema := first.Schema()
-	m := GetSchemaMeta(schema)
 	switch first.configOnly {
 	case yang.TSTrue:
-		if m.IsState {
+		if schema.IsState {
 			for ; i < len(node); i++ {
 				if schema != node[i].Schema() {
 					return i, comma, nil
@@ -157,7 +155,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 			}
 		}
 	case yang.TSFalse: // stateOnly
-		if !m.IsState && !m.HasState {
+		if !schema.IsState && !schema.HasState {
 			for ; i < len(node); i++ {
 				if schema != node[i].Schema() {
 					return i, comma, nil
@@ -263,7 +261,7 @@ func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
 }
 
 // unmarshalJSONList decode jval to the list that has the keys.
-func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string, kval []string, jval interface{}) error {
+func (branch *DataBranch) unmarshalJSONList(cschema *SchemaNode, kname []string, kval []string, jval interface{}) error {
 	jdata, ok := jval.(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", jval, jval, cschema.Name)
@@ -321,7 +319,7 @@ func (branch *DataBranch) unmarshalJSONList(cschema *yang.Entry, kname []string,
 	return nil
 }
 
-func (branch *DataBranch) unmarshalJSONListable(cschema *yang.Entry, kname []string, listentry []interface{}) error {
+func (branch *DataBranch) unmarshalJSONListable(cschema *SchemaNode, kname []string, listentry []interface{}) error {
 	for i := range listentry {
 		var err error
 		pmap := make(map[string]interface{})

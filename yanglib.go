@@ -11,7 +11,7 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
-func GetYangLibrary(schema *yang.Entry) DataNode {
+func GetYangLibrary(schema *SchemaNode) DataNode {
 	schema = GetRootSchema(schema)
 	n, ok := schema.Annotation["ietf-yang-libary"]
 	if ok {
@@ -171,7 +171,7 @@ func getConformanceType(m *yang.Module, excluded []string) (conformancetype stri
 
 var moduleSetNum int
 
-func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, excluded []string) error {
+func loadYanglibrary(rootschema *SchemaNode, module map[string]*yang.Module, excluded []string) error {
 	moduleSetNum++
 	ylib := module["ietf-yang-library"]
 	if ylib == nil {
@@ -182,9 +182,8 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 	switch ylib.Current() {
 	case "2019-01-04":
 		moduleSetName := fmt.Sprintf("set-%d", moduleSetNum)
-		meta := GetSchemaMeta(rootschema)
-		if meta.Option != nil && meta.Option.SchemaSetName != "" {
-			moduleSetName = meta.Option.SchemaSetName
+		if rootschema.Option != nil && rootschema.Option.SchemaSetName != "" {
+			moduleSetName = rootschema.Option.SchemaSetName
 		}
 		top, err = NewDataNode(GetSchema(rootschema, "yang-library"))
 		if err != nil {

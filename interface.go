@@ -1,7 +1,5 @@
 package yangtree
 
-import "github.com/openconfig/goyang/pkg/yang"
-
 // yangtree consists of the data node.
 type DataNode interface {
 	IsYangDataNode()
@@ -13,7 +11,7 @@ type DataNode interface {
 	Name() string       // Name() returns the name of the data node.
 	ID() string         // ID() returns the ID of the data node. The ID is an XPath element combined with XPath predicates to identify the node instance.
 
-	Schema() *yang.Entry  // Schema() returns the schema of the data node.
+	Schema() *SchemaNode  // Schema() returns the schema of the data node.
 	Parent() DataNode     // Parent() returns the parent if it is present.
 	Children() []DataNode // Children() returns all child nodes.
 

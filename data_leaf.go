@@ -11,7 +11,7 @@ import (
 
 // DataLeaf - The node structure of yangtree for list or leaf-list nodes.
 type DataLeaf struct {
-	schema *yang.Entry
+	schema *SchemaNode
 	parent *DataBranch
 	value  interface{}
 	id     string
@@ -23,7 +23,7 @@ func (leaf *DataLeaf) IsDataBranch() bool  { return false }
 func (leaf *DataLeaf) IsDataLeaf() bool    { return true }
 func (leaf *DataLeaf) IsLeaf() bool        { return leaf.schema.IsLeaf() }
 func (leaf *DataLeaf) IsLeafList() bool    { return leaf.schema.IsLeafList() }
-func (leaf *DataLeaf) Schema() *yang.Entry { return leaf.schema }
+func (leaf *DataLeaf) Schema() *SchemaNode { return leaf.schema }
 func (leaf *DataLeaf) Parent() DataNode {
 	if leaf.parent == nil {
 		return nil

@@ -11,7 +11,7 @@ import (
 )
 
 // unmarshalYAMLListableNode constructs list entries of a data node using YAML values.
-func (branch *DataBranch) unmarshalYAMLListableNode(cschema *yang.Entry, kname []string, kval []interface{}, yval interface{}) error {
+func (branch *DataBranch) unmarshalYAMLListableNode(cschema *SchemaNode, kname []string, kval []interface{}, yval interface{}) error {
 	jdata, ok := yval.(map[interface{}]interface{})
 	if !ok {
 		if yval == nil {
@@ -55,7 +55,7 @@ func (branch *DataBranch) unmarshalYAMLListableNode(cschema *yang.Entry, kname [
 }
 
 // unmarshalYAMLListableNodeForRFC7951 constructs list entries of a data node using YAML values.
-func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *yang.Entry, kname []string, listentry []interface{}) error {
+func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *SchemaNode, kname []string, listentry []interface{}) error {
 	for i := range listentry {
 		entry, ok := listentry[i].(map[interface{}]interface{})
 		if !ok {
@@ -257,10 +257,9 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 	schema := node[i].Schema()
 	ynode := *parent         // copy options
 	ynode.DataNode = node[i] // update the marshalling target
-	m := GetSchemaMeta(schema)
 	switch ynode.configOnly {
 	case yang.TSTrue:
-		if m.IsState {
+		if schema.IsState {
 			for ; i < len(node); i++ {
 				if schema != node[i].Schema() {
 					return i, nil
@@ -268,7 +267,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 			}
 		}
 	case yang.TSFalse: // stateOnly
-		if !m.IsState && !m.HasState {
+		if !schema.IsState && !schema.HasState {
 			for ; i < len(node); i++ {
 				if schema != node[i].Schema() {
 					return i, nil
@@ -361,9 +360,8 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 				continue
 			}
 			// container, leaf, single leaf-list node
-			m := GetSchemaMeta(schema)
-			if (ynode.configOnly == yang.TSTrue && m.IsState) ||
-				(ynode.configOnly == yang.TSFalse && !m.IsState && !m.HasState) {
+			if (ynode.configOnly == yang.TSTrue && schema.IsState) ||
+				(ynode.configOnly == yang.TSFalse && !schema.IsState && !schema.HasState) {
 				// skip the node according to the retrieval option
 				i++
 				continue
@@ -480,7 +478,7 @@ func writeIndent(buffer *bytes.Buffer, indent int, indentStr string) {
 }
 
 // ValueToYAMLBytes encodes the value to a YAML-encoded data. the schema and the type of the value must be set.
-func ValueToYAMLBytes(schema *yang.Entry, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
+func ValueToYAMLBytes(schema *SchemaNode, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
 	switch typ.Kind {
 	case yang.Yunion:
 		for i := range typ.Type {
@@ -515,8 +513,7 @@ func ValueToYAMLBytes(schema *yang.Entry, typ *yang.YangType, value interface{},
 		// 	return []byte(""), nil
 		case yang.Yidentityref:
 			if s, ok := value.(string); ok {
-				imap := getIdentityref(schema)
-				qvalue, ok := imap[s]
+				qvalue, ok := schema.Identityref[s]
 				if !ok {
 					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
 				}

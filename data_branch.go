@@ -7,13 +7,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/openconfig/goyang/pkg/yang"
 	"gopkg.in/yaml.v2"
 )
 
 // The node structure of yangtree for container and list data nodes.
 type DataBranch struct {
-	schema   *yang.Entry
+	schema   *SchemaNode
 	parent   *DataBranch
 	id       string
 	children []DataNode
@@ -26,7 +25,7 @@ func (branch *DataBranch) IsDataBranch() bool  { return true }
 func (branch *DataBranch) IsDataLeaf() bool    { return false }
 func (branch *DataBranch) IsLeaf() bool        { return false }
 func (branch *DataBranch) IsLeafList() bool    { return false }
-func (branch *DataBranch) Schema() *yang.Entry { return branch.schema }
+func (branch *DataBranch) Schema() *SchemaNode { return branch.schema }
 func (branch *DataBranch) Parent() DataNode {
 	if branch.parent == nil {
 		return nil
@@ -94,7 +93,7 @@ func copyDataNodeList(src []DataNode) []DataNode {
 }
 
 // find() is used to find child data nodes using the id internally.
-func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool, pmap map[string]interface{}) []DataNode {
+func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch bool, pmap map[string]interface{}) []DataNode {
 	i := indexFirst(branch, id)
 	if i >= len(branch.children) ||
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
@@ -278,7 +277,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 
 func (branch *DataBranch) Set(value ...string) error {
 	if IsCreatedWithDefault(branch.schema) {
-		for _, s := range branch.schema.Dir {
+		for _, s := range branch.schema.Children {
 			if !s.IsDir() && s.Default != "" {
 				if branch.Get(s.Name) != nil {
 					continue
@@ -310,7 +309,7 @@ func (branch *DataBranch) SetSafe(value ...string) error {
 	var err error
 	backup := Clone(branch)
 	if IsCreatedWithDefault(branch.schema) {
-		for _, s := range branch.schema.Dir {
+		for _, s := range branch.schema.Children {
 			if !s.IsDir() && s.Default != "" {
 				if branch.Get(s.Name) != nil {
 					continue
@@ -412,10 +411,10 @@ func (branch *DataBranch) Delete(child DataNode) error {
 // SetMeta() sets metadata key-value pairs.
 //   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
 func (branch *DataBranch) SetMeta(meta ...map[string]string) error {
-	sm := GetSchemaMeta(branch.schema)
-	if sm.Option == nil {
-		return fmt.Errorf("no metadata schema")
-	}
+	// sm := GetSchemaMeta(branch.schema)
+	// if sm.Option == nil {
+	// 	return fmt.Errorf("no metadata schema")
+	// }
 	// metaschema := sm.Option.ExtensionSchema
 	// for i := range meta {
 	// 	for name, value := range meta[i] {

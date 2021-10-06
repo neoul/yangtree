@@ -15,7 +15,7 @@ import (
 // By default, it is not used for the data node representation of the leaf-list nodes.
 // It will be only used when SchemaOption.SingleLeafList is enabled.
 type DataLeafList struct {
-	schema *yang.Entry
+	schema *SchemaNode
 	parent *DataBranch
 	value  []interface{}
 }
@@ -26,7 +26,7 @@ func (leaflist *DataLeafList) IsDataBranch() bool  { return false }
 func (leaflist *DataLeafList) IsDataLeaf() bool    { return true }
 func (leaflist *DataLeafList) IsLeaf() bool        { return leaflist.schema.IsLeaf() }
 func (leaflist *DataLeafList) IsLeafList() bool    { return leaflist.schema.IsLeafList() }
-func (leaflist *DataLeafList) Schema() *yang.Entry { return leaflist.schema }
+func (leaflist *DataLeafList) Schema() *SchemaNode { return leaflist.schema }
 func (leaflist *DataLeafList) Parent() DataNode {
 	if leaflist.parent == nil {
 		return nil

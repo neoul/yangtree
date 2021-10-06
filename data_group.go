@@ -19,7 +19,7 @@ type DataNodeGroup []DataNode
 //    for _, node := range groups {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
-func NewDataNodeGroup(schema *yang.Entry, value ...string) (DataNodeGroup, error) {
+func NewDataNodeGroup(schema *SchemaNode, value ...string) (DataNodeGroup, error) {
 	vv := make([]*string, len(value))
 	for i := range value {
 		vv[i] = &(value[i])
@@ -51,7 +51,7 @@ func ValidateDataNodeGroup(nodes []DataNode) bool {
 	return true
 }
 
-func newDataNodes(schema *yang.Entry, value ...*string) (*DataBranch, error) {
+func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
@@ -94,7 +94,7 @@ func (group DataNodeGroup) IsDataBranch() bool                { return false }
 func (group DataNodeGroup) IsDataLeaf() bool                  { return false }
 func (group DataNodeGroup) IsLeaf() bool                      { return false }
 func (group DataNodeGroup) IsLeafList() bool                  { return false }
-func (group DataNodeGroup) Schema() *yang.Entry               { return nil }
+func (group DataNodeGroup) Schema() *SchemaNode               { return nil }
 func (group DataNodeGroup) Parent() DataNode                  { return nil }
 func (group DataNodeGroup) Children() []DataNode              { return nil }
 func (group DataNodeGroup) String() string                    { return "" }

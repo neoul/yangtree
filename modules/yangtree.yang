@@ -12,4 +12,8 @@ module yangtree {
   anydata root {
     description "This node is used to the root schema node of the loaded yangtree";
   }
+
+  anydata collector {
+    description "This node is used to the collector schema node of the loaded yangtree";
+  }
 }
