@@ -488,7 +488,7 @@ func funcXPathResult(value interface{}) bool {
 	return false
 }
 
-func findByPredicates(current DataNodeGroup, predicates []string) (DataNodeGroup, error) {
+func findByPredicates(current []DataNode, predicates []string) ([]DataNode, error) {
 	var first, last, pos int
 	var e strings.Builder
 	env := map[string]interface{}{
@@ -511,7 +511,7 @@ func findByPredicates(current DataNodeGroup, predicates []string) (DataNodeGroup
 				if pos >= last {
 					return nil, nil
 				}
-				current = DataNodeGroup{current[pos]}
+				current = []DataNode{current[pos]}
 				continue
 			}
 		}
@@ -520,7 +520,7 @@ func findByPredicates(current DataNodeGroup, predicates []string) (DataNodeGroup
 			return nil, err
 		}
 		e.WriteString(")")
-		newchildren := make(DataNodeGroup, 0, last)
+		newchildren := make([]DataNode, 0, last)
 		for pos = first; pos < last; pos++ {
 			env["node"] = current[pos]
 			ok, err := gval.Evaluate(e.String(), env)

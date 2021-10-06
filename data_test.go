@@ -279,7 +279,7 @@ func TestDataNode(t *testing.T) {
 	for _, tt := range testfinds {
 		t.Run(fmt.Sprintf("Find(%s,%v)", tt.path, tt.findOption), func(t *testing.T) {
 			var err error
-			var node DataNodeGroup
+			var node []DataNode
 			node, err = Find(RootData, tt.path, tt.findOption)
 			if err != nil {
 				t.Errorf("Find() path %v error = %v", tt.path, err)
@@ -630,8 +630,8 @@ func TestEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var updated, deleted DataNodeGroup
-	callback := func(op EditOp, old, new DataNodeGroup) error {
+	var updated, deleted []DataNode
+	callback := func(op EditOp, old, new []DataNode) error {
 		for i := range new {
 			updated = append(updated, new[i])
 		}
@@ -720,7 +720,7 @@ func TestEdit(t *testing.T) {
 				t.Errorf("Edit(%s) error = %v, wantErr %v", name, err, tt.wantErr)
 				return
 			}
-			var got DataNodeGroup
+			var got []DataNode
 			switch tt.opt.GetOperation() {
 			case EditRemove, EditDelete:
 				got = deleted

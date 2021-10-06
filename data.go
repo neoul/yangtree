@@ -62,9 +62,9 @@ func (op EditOp) IsOption() {}
 
 // EditOption is used for yangtree set operation.
 type EditOption struct {
-	EditOp                                                        // EditOperation
-	InsertOption                                                  // Insert option for ordered-by yang option
-	Callback        func(op EditOp, old, new DataNodeGroup) error // Callback is invoked upon the node changes.
+	EditOp                                                     // EditOperation
+	InsertOption                                               // Insert option for ordered-by yang option
+	Callback        func(op EditOp, old, new []DataNode) error // Callback is invoked upon the node changes.
 	FailureRecovery bool
 }
 
@@ -99,7 +99,7 @@ func (edit *EditOption) GetFailureRecovery() bool {
 	return edit.FailureRecovery
 }
 
-func (edit *EditOption) GetCallback() func(EditOp, DataNodeGroup, DataNodeGroup) error {
+func (edit *EditOption) GetCallback() func(EditOp, []DataNode, []DataNode) error {
 	if edit == nil {
 		return nil
 	}
@@ -338,7 +338,7 @@ func newDataNode(schema *yang.Entry) (DataNode, error) {
 	default: // list, container, anydata
 		branch := &DataBranch{
 			schema:   schema,
-			children: DataNodeGroup{},
+			children: []DataNode{},
 		}
 		if soption.CreatedWithDefault {
 			for _, s := range schema.Dir {
@@ -360,13 +360,13 @@ func newDataNode(schema *yang.Entry) (DataNode, error) {
 }
 
 // merge and report changed child nodes.
-func mergeChildren(dest, src DataNode, edit *EditOption) (DataNodeGroup, DataNodeGroup, error) {
+func mergeChildren(dest, src DataNode, edit *EditOption) ([]DataNode, []DataNode, error) {
 	switch s := src.(type) {
 	case *DataBranch:
 		var err error
 		var n DataNode
-		var before DataNodeGroup
-		var after DataNodeGroup
+		var before []DataNode
+		var after []DataNode
 		d := dest.(*DataBranch)
 		for i := range s.children {
 			schema := s.children[i].Schema()
@@ -403,9 +403,9 @@ func mergeChildren(dest, src DataNode, edit *EditOption) (DataNodeGroup, DataNod
 	}
 }
 
-func setGroupValue(branch *DataBranch, cschema *yang.Entry, oldnodes DataNodeGroup, edit *EditOption, value ...*string) error {
+func setGroupValue(branch *DataBranch, cschema *yang.Entry, oldnodes []DataNode, edit *EditOption, value ...*string) error {
 	var err error
-	var newnodes DataNodeGroup
+	var newnodes []DataNode
 	op := edit.GetOperation()
 	iop := edit.GetInsertOption()
 	switch op {
@@ -421,11 +421,11 @@ func setGroupValue(branch *DataBranch, cschema *yang.Entry, oldnodes DataNodeGro
 		return nil
 	case EditReplace, EditCreate:
 		var new *DataBranch
-		new, err = newDataNodeGroup(cschema, value...)
+		new, err = newDataNodes(cschema, value...)
 		if err != nil {
 			return err
 		}
-		newnodes = copyDataNodeGroup(new.children)
+		newnodes = copyDataNodeList(new.children)
 		for i := range oldnodes {
 			branch.Delete(oldnodes[i])
 		}
@@ -444,7 +444,7 @@ func setGroupValue(branch *DataBranch, cschema *yang.Entry, oldnodes DataNodeGro
 		}
 	case EditMerge:
 		var new *DataBranch
-		new, err = newDataNodeGroup(cschema, value...)
+		new, err = newDataNodes(cschema, value...)
 		if err != nil {
 			return err
 		}
@@ -482,7 +482,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 			return Errorf(ETagDataExists, "data node %q already exists", root.ID())
 		case EditDelete, EditRemove:
 			if callback := eopt.GetCallback(); callback != nil {
-				if err := callback(op, DataNodeGroup{root}, nil); err != nil {
+				if err := callback(op, []DataNode{root}, nil); err != nil {
 					return err
 				}
 			}
@@ -498,7 +498,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 				backup := Clone(root)
 				err = root.Set(*(value[0]))
 				if err == nil {
-					err = callback(op, DataNodeGroup{backup}, DataNodeGroup{root})
+					err = callback(op, []DataNode{backup}, []DataNode{root})
 				}
 				if err != nil {
 					recover(root, backup)
@@ -608,7 +608,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 	}
 
 	if reachToEnd && nodeGroup {
-		return setGroupValue(branch, cschema, copyDataNodeGroup(children), eopt, value...)
+		return setGroupValue(branch, cschema, copyDataNodeList(children), eopt, value...)
 	}
 
 	switch len(children) {
@@ -630,7 +630,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 		}
 		if reachToEnd {
 			if callback := eopt.GetCallback(); callback != nil {
-				if err := callback(op, nil, DataNodeGroup{child}); err != nil {
+				if err := callback(op, nil, []DataNode{child}); err != nil {
 					return err
 				}
 			}
@@ -820,7 +820,7 @@ func Delete(root DataNode, path string) error {
 	return setValue(root, pathnode, &EditOption{EditOp: EditRemove})
 }
 
-func returnFound(node DataNode, option ...Option) DataNodeGroup {
+func returnFound(node DataNode, option ...Option) []DataNode {
 	for i := range option {
 		switch option[i].(type) {
 		case ConfigOnly:
@@ -828,31 +828,31 @@ func returnFound(node DataNode, option ...Option) DataNodeGroup {
 			if meta.IsState {
 				return nil
 			}
-			return DataNodeGroup{node}
+			return []DataNode{node}
 		case StateOnly:
 			meta := GetSchemaMeta(node.Schema())
 			if meta.IsState {
-				return DataNodeGroup{node}
+				return []DataNode{node}
 			}
 			return nil
 		case HasState:
 			meta := GetSchemaMeta(node.Schema())
 			if meta.IsState {
-				return DataNodeGroup{node}
+				return []DataNode{node}
 			} else if meta.HasState {
-				return DataNodeGroup{node}
+				return []DataNode{node}
 			}
 			return nil
 		}
 	}
-	return DataNodeGroup{node}
+	return []DataNode{node}
 }
 
-func findNode(root DataNode, pathnode []*PathNode, option ...Option) DataNodeGroup {
+func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode {
 	if len(pathnode) == 0 {
 		return returnFound(root, option...)
 	}
-	var node, children DataNodeGroup
+	var node, children []DataNode
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
 		return findNode(root, pathnode[1:], option...)
@@ -894,7 +894,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) DataNodeGro
 	if LeafListValueAsKey {
 		if root.IsDataLeaf() {
 			if pathnode[0].Name == root.ValueString() {
-				return DataNodeGroup{root}
+				return []DataNode{root}
 			}
 			return nil
 		}
@@ -928,7 +928,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) DataNodeGro
 }
 
 // Find() finds all data nodes in the path. xpath format is used for the path.
-func Find(root DataNode, path string, option ...Option) (DataNodeGroup, error) {
+func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
 	if !IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
 	}
@@ -1238,7 +1238,7 @@ func Merge(root DataNode, path string, src DataNode) error {
 }
 
 // Map converts the data node list to a map using the path.
-func Map(node DataNodeGroup) map[string]DataNode {
+func Map(node []DataNode) map[string]DataNode {
 	m := map[string]DataNode{}
 	for i := range node {
 		m[node[i].Path()] = node[i]
@@ -1248,7 +1248,7 @@ func Map(node DataNodeGroup) map[string]DataNode {
 
 // FindAllInRoute() find all parent nodes in the path.
 // The path must indicate an unique node. (not support wildcard and multiple node selection)
-func FindAllInRoute(path string) DataNodeGroup {
+func FindAllInRoute(path string) []DataNode {
 	return nil
 }
 
@@ -1294,7 +1294,7 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 			err = fmt.Errorf("schema %q not found from %q", pathnode[i].Name, branch.schema.Name)
 			break
 		}
-		var children DataNodeGroup
+		var children []DataNode
 		id, groupSearch := GenerateID(cschema, pmap)
 		children = branch.find(cschema, &id, groupSearch, pmap)
 		if IsDuplicatableList(cschema) {

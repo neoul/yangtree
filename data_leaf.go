@@ -30,7 +30,7 @@ func (leaf *DataLeaf) Parent() DataNode {
 	}
 	return leaf.parent
 }
-func (leaf *DataLeaf) Children() DataNodeGroup { return nil }
+func (leaf *DataLeaf) Children() []DataNode { return nil }
 func (leaf *DataLeaf) String() string {
 	if leaf.schema.IsLeaf() {
 		return leaf.schema.Name
@@ -173,7 +173,7 @@ func (leaf *DataLeaf) Get(id string) DataNode {
 	return nil
 }
 
-func (leaf *DataLeaf) GetAll(id string) DataNodeGroup {
+func (leaf *DataLeaf) GetAll(id string) []DataNode {
 	return nil
 }
 
@@ -185,7 +185,7 @@ func (leaf *DataLeaf) GetValueString(id string) string {
 	return ""
 }
 
-func (leaf *DataLeaf) Lookup(prefix string) DataNodeGroup {
+func (leaf *DataLeaf) Lookup(prefix string) []DataNode {
 	return nil
 }
 

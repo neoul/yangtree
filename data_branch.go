@@ -16,7 +16,7 @@ type DataBranch struct {
 	schema   *yang.Entry
 	parent   *DataBranch
 	id       string
-	children DataNodeGroup
+	children []DataNode
 	metadata map[string]DataNode
 }
 
@@ -33,8 +33,8 @@ func (branch *DataBranch) Parent() DataNode {
 	}
 	return branch.parent
 }
-func (branch *DataBranch) Children() DataNodeGroup { return branch.children }
-func (branch *DataBranch) Value() interface{}      { return nil }
+func (branch *DataBranch) Children() []DataNode { return branch.children }
+func (branch *DataBranch) Value() interface{}   { return nil }
 
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
@@ -83,10 +83,10 @@ func (branch *DataBranch) String() string {
 	return branch.ID()
 }
 
-// copyDataNodeGroup clones the src nodes.
-func copyDataNodeGroup(src DataNodeGroup) DataNodeGroup {
+// copyDataNodeList clones the src nodes.
+func copyDataNodeList(src []DataNode) []DataNode {
 	if len(src) > 0 {
-		result := make(DataNodeGroup, len(src))
+		result := make([]DataNode, len(src))
 		copy(result, src)
 		return result
 	}
@@ -94,7 +94,7 @@ func copyDataNodeGroup(src DataNodeGroup) DataNodeGroup {
 }
 
 // find() is used to find child data nodes using the id internally.
-func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool, pmap map[string]interface{}) DataNodeGroup {
+func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool, pmap map[string]interface{}) []DataNode {
 	i := indexFirst(branch, id)
 	if i >= len(branch.children) ||
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
@@ -138,7 +138,7 @@ func (branch *DataBranch) find(cschema *yang.Entry, id *string, groupSearch bool
 	}
 
 	if IsOrderedByUser(cschema) || IsDuplicatable(cschema) {
-		var node DataNodeGroup
+		var node []DataNode
 		for ; max < len(branch.children); max++ {
 			if cschema != branch.children[max].Schema() {
 				break
@@ -185,7 +185,7 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	if cschema == nil {
 		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-	var children DataNodeGroup
+	var children []DataNode
 	id, groupSearch := GenerateID(cschema, pmap)
 	children = branch.find(cschema, &id, groupSearch, pmap)
 	if IsDuplicatableList(cschema) {
@@ -472,12 +472,12 @@ func (branch *DataBranch) Get(id string) DataNode {
 	}
 }
 
-func (branch *DataBranch) GetAll(id string) DataNodeGroup {
+func (branch *DataBranch) GetAll(id string) []DataNode {
 	switch id {
 	case ".":
-		return DataNodeGroup{branch}
+		return []DataNode{branch}
 	case "..":
-		return DataNodeGroup{branch.parent}
+		return []DataNode{branch.parent}
 	case "*":
 		return branch.children
 	case "...":
@@ -485,7 +485,7 @@ func (branch *DataBranch) GetAll(id string) DataNodeGroup {
 			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
 		i := indexFirst(branch, &id)
-		node := make(DataNodeGroup, 0, len(branch.children)-i+1)
+		node := make([]DataNode, 0, len(branch.children)-i+1)
 		for max := i; max < len(branch.children); max++ {
 			if branch.children[i].Schema() != branch.children[max].Schema() {
 				break
@@ -528,12 +528,12 @@ func (branch *DataBranch) GetValueString(id string) string {
 	}
 }
 
-func (branch *DataBranch) Lookup(prefix string) DataNodeGroup {
+func (branch *DataBranch) Lookup(prefix string) []DataNode {
 	switch prefix {
 	case ".":
-		return DataNodeGroup{branch}
+		return []DataNode{branch}
 	case "..":
-		return DataNodeGroup{branch.parent}
+		return []DataNode{branch.parent}
 	case "*":
 		return branch.children
 	case "...":
@@ -541,7 +541,7 @@ func (branch *DataBranch) Lookup(prefix string) DataNodeGroup {
 			&PathNode{Name: "...", Select: NodeSelectAll}})
 	default:
 		i := indexFirst(branch, &prefix)
-		node := make(DataNodeGroup, 0, len(branch.children)-i+1)
+		node := make([]DataNode, 0, len(branch.children)-i+1)
 		for max := i; max < len(branch.children); max++ {
 			if strings.HasPrefix(branch.children[max].ID(), prefix) {
 				node = append(node, branch.children[max])

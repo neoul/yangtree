@@ -8,7 +8,7 @@ import (
 // It returns all created, replaced nodes in node2 (including itself) against node1.
 // The deleted nodes can be obtained by the reverse input.
 // if disDupCmp (disable duplicatable node comparison) is set, duplicatable nodes are not compared.
-func DiffUpdated(node1, node2 DataNode, disDupCmp bool) (DataNodeGroup, DataNodeGroup) {
+func DiffUpdated(node1, node2 DataNode, disDupCmp bool) ([]DataNode, []DataNode) {
 	if node1 == node2 {
 		return nil, nil
 	}
@@ -25,8 +25,8 @@ func DiffUpdated(node1, node2 DataNode, disDupCmp bool) (DataNodeGroup, DataNode
 	switch d1 := node1.(type) {
 	case *DataBranch:
 		d2 := node2.(*DataBranch)
-		created := DataNodeGroup{}
-		replaced := DataNodeGroup{}
+		created := []DataNode{}
+		replaced := []DataNode{}
 		// created, replaced
 		for first := 0; first < len(d2.children); first++ {
 			// duplicatable data nodes (non-key list and ro leaf-list node) must have the same position.
@@ -64,7 +64,7 @@ func DiffUpdated(node1, node2 DataNode, disDupCmp bool) (DataNodeGroup, DataNode
 		if cmp.Equal(d1.value, d2.value) {
 			return nil, nil
 		}
-		return nil, DataNodeGroup{d2}
+		return nil, []DataNode{d2}
 	}
 	return nil, nil
 }
@@ -72,7 +72,7 @@ func DiffUpdated(node1, node2 DataNode, disDupCmp bool) (DataNodeGroup, DataNode
 // DiffCreated() returns created nodes.
 // It returns all created nodes in node2 (including itself) against node1.
 // The deleted nodes can be obtained by the reverse input.
-func DiffCreated(node1, node2 DataNode, disDupCmp bool) DataNodeGroup {
+func DiffCreated(node1, node2 DataNode, disDupCmp bool) []DataNode {
 	if node1 == node2 {
 		return nil
 	}
@@ -89,7 +89,7 @@ func DiffCreated(node1, node2 DataNode, disDupCmp bool) DataNodeGroup {
 	switch d1 := node1.(type) {
 	case *DataBranch:
 		d2 := node2.(*DataBranch)
-		created := DataNodeGroup{}
+		created := []DataNode{}
 		// created
 		for first := 0; first < len(d2.children); first++ {
 			duplicatable := IsDuplicatable(d2.children[first].Schema())
@@ -125,14 +125,14 @@ func DiffCreated(node1, node2 DataNode, disDupCmp bool) DataNodeGroup {
 
 // Diff() returns differences between nodes.
 // It returns all created, replaced and deleted nodes in node2 (including itself) against node1.
-func Diff(node1, node2 DataNode) (DataNodeGroup, DataNodeGroup, DataNodeGroup) {
+func Diff(node1, node2 DataNode) ([]DataNode, []DataNode, []DataNode) {
 	c, r := DiffUpdated(node1, node2, false)
 	d := DiffCreated(node2, node1, false)
 	return c, r, d
 }
 
 // SetDiff() = Set() + Diff()
-func SetDiff(root DataNode, path string, value ...string) (DataNodeGroup, DataNodeGroup, error) {
+func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNode, error) {
 	if !IsValid(root) {
 		return nil, nil, Errorf(EAppTagDataNodeMissing, "invalid root node")
 	}
@@ -151,7 +151,7 @@ func SetDiff(root DataNode, path string, value ...string) (DataNodeGroup, DataNo
 }
 
 // MergeDiff() = Merge() + Diff()
-func MergeDiff(root DataNode, path string, node DataNode) (DataNodeGroup, DataNodeGroup, error) {
+func MergeDiff(root DataNode, path string, node DataNode) ([]DataNode, []DataNode, error) {
 	if !IsValid(root) {
 		return nil, nil, Errorf(EAppTagDataNodeMissing, "invalid root node")
 	}
