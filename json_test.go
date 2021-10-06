@@ -159,7 +159,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 		t.Error(err)
 	}
 
-	jbyte2, err := RootData.MarshalJSON_IETF()
+	jbyte2, err := RootData.MarshalJSON_RFC7951()
 	if err != nil {
 		t.Error(err)
 	}

@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -201,11 +202,11 @@ func (group DataNodeGroup) UnmarshalJSON(jbytes []byte) error {
 }
 
 func (group DataNodeGroup) MarshalJSON() ([]byte, error) {
-	return nil, nil
+	return group.marshalJSON()
 }
 
-func (group DataNodeGroup) MarshalJSON_IETF() ([]byte, error) {
-	return nil, nil
+func (group DataNodeGroup) MarshalJSON_RFC7951() ([]byte, error) {
+	return group.marshalJSON(RFC7951Format{})
 }
 
 // UnmarshalYAML updates the leaf data node using YAML-encoded data.
@@ -215,13 +216,13 @@ func (group DataNodeGroup) UnmarshalYAML(in []byte) error {
 
 // MarshalYAML encodes the leaf data node to a YAML document.
 func (group DataNodeGroup) MarshalYAML() ([]byte, error) {
-	return nil, nil
+	return group.marshalYAML()
 }
 
 // MarshalYAML_RFC7951 encodes the leaf data node to a YAML document using RFC7951 namespace-qualified name.
 // RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
 func (group DataNodeGroup) MarshalYAML_RFC7951() ([]byte, error) {
-	return nil, nil
+	return group.marshalYAML(RFC7951Format{})
 }
 
 // Replace() replaces itself to the src node.
@@ -234,91 +235,91 @@ func (group DataNodeGroup) Merge(src DataNode) error {
 	return nil
 }
 
-// // MarshalJSON() encodes the data node group to a YAML document with a number of options.
-// // The options available are [ConfigOnly, StateOnly, RFC7951Format].
-// //   // usage:
-// //   var node DataNodeGroup
-// //   jsonbytes, err := DataNodeGroup(got).MarshalYAML()
-// func (group DataNodeGroup) MarshalJSON(option ...Option) ([]byte, error) {
-// 	var comma bool
-// 	var buffer bytes.Buffer
-// 	buffer.WriteString("[")
-// 	configOnly := yang.TSUnset
-// 	rfc7951s := rfc7951Enabled
-// 	for i := range option {
-// 		switch option[i].(type) {
-// 		case HasState:
-// 			return nil, fmt.Errorf("%v is not allowed for marshaling", option[i])
-// 		case ConfigOnly:
-// 			configOnly = yang.TSTrue
-// 		case StateOnly:
-// 			configOnly = yang.TSFalse
-// 		case RFC7951Format:
-// 			rfc7951s = rfc7951Enabled
-// 		}
-// 	}
-// 	for _, n := range group {
-// 		if comma {
-// 			buffer.WriteString(",")
-// 		}
-// 		jnode := &jDataNode{DataNode: n, configOnly: configOnly, rfc7951s: rfc7951s}
-// 		err := jnode.marshalJSON(&buffer)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		comma = true
-// 	}
-// 	buffer.WriteString("]")
-// 	return buffer.Bytes(), nil
-// }
+// MarshalJSON() encodes the data node group to a YAML document with a number of options.
+// The options available are [ConfigOnly, StateOnly, RFC7951Format].
+//   // usage:
+//   var node DataNodeGroup
+//   jsonbytes, err := DataNodeGroup(got).MarshalYAML()
+func (group DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
+	var comma bool
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+	configOnly := yang.TSUnset
+	rfc7951s := rfc7951Enabled
+	for i := range option {
+		switch option[i].(type) {
+		case HasState:
+			return nil, fmt.Errorf("%v is not allowed for marshaling", option[i])
+		case ConfigOnly:
+			configOnly = yang.TSTrue
+		case StateOnly:
+			configOnly = yang.TSFalse
+		case RFC7951Format:
+			rfc7951s = rfc7951Enabled
+		}
+	}
+	for _, n := range group {
+		if comma {
+			buffer.WriteString(",")
+		}
+		jnode := &jDataNode{DataNode: n, configOnly: configOnly, rfc7951s: rfc7951s}
+		err := jnode.marshalJSON(&buffer)
+		if err != nil {
+			return nil, err
+		}
+		comma = true
+	}
+	buffer.WriteString("]")
+	return buffer.Bytes(), nil
+}
 
-// // MarshalYAML() encodes the data node group to a YAML document with a number of options.
-// // The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
-// //   // usage:
-// //   var node DataNodeGroup
-// //   yamlbytes, err := DataNodeGroup(got).MarshalYAML()
-// func (group DataNodeGroup) MarshalYAML(option ...Option) ([]byte, error) {
-// 	var buffer bytes.Buffer
-// 	configOnly := yang.TSUnset
-// 	rfc7951s := rfc7951Disabled
-// 	iformat := false
-// 	for i := range option {
-// 		switch option[i].(type) {
-// 		case HasState:
-// 			return nil, fmt.Errorf("%v option can be used to find nodes", option[i])
-// 		case ConfigOnly:
-// 			configOnly = yang.TSTrue
-// 		case StateOnly:
-// 			configOnly = yang.TSFalse
-// 		case RFC7951Format:
-// 			rfc7951s = rfc7951Enabled
-// 		case InternalFormat:
-// 			iformat = true
-// 		}
-// 	}
-// 	comma := false
-// 	for _, n := range group {
-// 		if comma {
-// 			buffer.WriteString(", ")
-// 		}
-// 		if n.IsDataBranch() {
-// 			buffer.WriteString("- ")
-// 		} else {
-// 			if !comma {
-// 				buffer.WriteString("[")
-// 			}
-// 		}
-// 		ynode := &yDataNode{DataNode: n, indentStr: " ",
-// 			configOnly: configOnly, rfc7951s: rfc7951s, iformat: iformat}
-// 		if err := ynode.marshalYAML(&buffer, 2, true); err != nil {
-// 			return nil, err
-// 		}
-// 		if n.IsDataLeaf() {
-// 			comma = true
-// 		}
-// 	}
-// 	if comma {
-// 		buffer.WriteString("]")
-// 	}
-// 	return buffer.Bytes(), nil
-// }
+// MarshalYAML() encodes the data node group to a YAML document with a number of options.
+// The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
+//   // usage:
+//   var node DataNodeGroup
+//   yamlbytes, err := DataNodeGroup(got).MarshalYAML()
+func (group DataNodeGroup) marshalYAML(option ...Option) ([]byte, error) {
+	var buffer bytes.Buffer
+	configOnly := yang.TSUnset
+	rfc7951s := rfc7951Disabled
+	iformat := false
+	for i := range option {
+		switch option[i].(type) {
+		case HasState:
+			return nil, fmt.Errorf("%v option can be used to find nodes", option[i])
+		case ConfigOnly:
+			configOnly = yang.TSTrue
+		case StateOnly:
+			configOnly = yang.TSFalse
+		case RFC7951Format:
+			rfc7951s = rfc7951Enabled
+		case InternalFormat:
+			iformat = true
+		}
+	}
+	comma := false
+	for _, n := range group {
+		if comma {
+			buffer.WriteString(", ")
+		}
+		if n.IsDataBranch() {
+			buffer.WriteString("- ")
+		} else {
+			if !comma {
+				buffer.WriteString("[")
+			}
+		}
+		ynode := &yDataNode{DataNode: n, indentStr: " ",
+			configOnly: configOnly, rfc7951s: rfc7951s, iformat: iformat}
+		if err := ynode.marshalYAML(&buffer, 2, true); err != nil {
+			return nil, err
+		}
+		if n.IsDataLeaf() {
+			comma = true
+		}
+	}
+	if comma {
+		buffer.WriteString("]")
+	}
+	return buffer.Bytes(), nil
+}

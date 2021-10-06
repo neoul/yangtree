@@ -91,7 +91,7 @@ func TestDataLeafList(t *testing.T) {
 	if err := Set(root, "sample", jcontainer); err != nil {
 		t.Fatalf("sample set failed: %v", err)
 	}
-	if j, err = root.MarshalJSON_IETF(); err != nil {
+	if j, err = root.MarshalJSON_RFC7951(); err != nil {
 		t.Fatalf("sample json marshalling failed: %v", err)
 	} else if string(j) != `{"sample:sample":{"container-val":{"leaf-list-val":["first","fourth","second","third"]}}}` {
 		t.Fatalf("json marshalling failed: %s", string(j))
@@ -110,7 +110,7 @@ func TestDataLeafList(t *testing.T) {
 	if string(y) != `[first,fourth,second,third]` {
 		t.Fatalf("leaflist json marshalling failed: %s", string(y))
 	}
-	j, err = found[0].MarshalJSON_IETF()
+	j, err = found[0].MarshalJSON_RFC7951()
 	if err != nil {
 		t.Fatalf("leaf-list-val yaml marshalling failed: %v", err)
 	}

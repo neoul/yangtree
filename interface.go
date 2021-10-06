@@ -54,9 +54,9 @@ type DataNode interface {
 	Value() interface{}                // Value() returns the raw data of the data node.
 	ValueString() string               // ValueString() returns the string value of the data node.
 
-	MarshalJSON() ([]byte, error)      // MarshalJSON() encodes the data node to JSON bytes.
-	MarshalJSON_IETF() ([]byte, error) // MarshalJSON_IETF() encodes the data node to JSON_IETF (RFC7951) bytes.
-	UnmarshalJSON([]byte) error        // UnmarshalJSON() assembles the data node using JSON or JSON_IETF (rfc7951) bytes.
+	MarshalJSON() ([]byte, error)         // MarshalJSON() encodes the data node to JSON bytes.
+	MarshalJSON_RFC7951() ([]byte, error) // MarshalJSON_RFC7951() encodes the data node to JSON_IETF (RFC7951) bytes.
+	UnmarshalJSON([]byte) error           // UnmarshalJSON() assembles the data node using JSON or JSON_IETF (rfc7951) bytes.
 
 	MarshalYAML() ([]byte, error)         // MarshalYAML() encodes the data node to a YAML bytes.
 	MarshalYAML_RFC7951() ([]byte, error) // MarshalYAML_RFC7951() encodes the data node to a YAML bytes.

@@ -644,7 +644,7 @@ func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (branch *DataBranch) MarshalJSON_IETF() ([]byte, error) {
+func (branch *DataBranch) MarshalJSON_RFC7951() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jDataNode{DataNode: branch}
 	jnode.rfc7951s = rfc7951Enabled

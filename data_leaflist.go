@@ -299,7 +299,7 @@ func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (leaflist *DataLeafList) MarshalJSON_IETF() ([]byte, error) {
+func (leaflist *DataLeafList) MarshalJSON_RFC7951() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jDataNode{DataNode: leaflist}
 	jnode.rfc7951s = rfc7951Enabled
