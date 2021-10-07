@@ -413,11 +413,6 @@ func getModule(e *yang.Entry, base *yang.Module, ms *yang.Modules) *yang.Module 
 		}
 	}
 	if m == nil {
-		if e.Prefix != nil && e.Prefix.Name != "" {
-			m, _ = ms.FindModuleByPrefix(e.Prefix.Name)
-		}
-	}
-	if m == nil {
 		if ns := e.Namespace(); ns.Name != "" {
 			m, _ = ms.FindModuleByNamespace(ns.Name)
 		}
