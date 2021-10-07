@@ -609,7 +609,9 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*SchemaNode, error)
 	return root, nil
 }
 
-// Load loads all yang files (file) from dir directories and build the schema tree.
+// Load() loads all yang files and then build the schema tree of the files.
+// dir is reference directories for imported or included yang files.
+// excluded is yang module names to be excluded.
 func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 	dir = sanitizeArrayFlagValue(dir)
 	file = sanitizeArrayFlagValue(file)
@@ -648,7 +650,7 @@ func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 	return generateSchemaTree(dir, file, excluded, option...)
 }
 
-// GetSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
+// GetSchema() returns a child of the schema node. The namespace-qualified name is used for the name.
 func (schema *SchemaNode) GetSchema(name string) *SchemaNode {
 	// if schema == nil {
 	// 	return nil
@@ -656,7 +658,7 @@ func (schema *SchemaNode) GetSchema(name string) *SchemaNode {
 	return schema.Directory[name]
 }
 
-// FindSchema() returns a descendant schema node. It provides the child name tagged its prefix or module name.
+// FindSchema() returns a descendant schema node in the path.
 func (schema *SchemaNode) FindSchema(path string) *SchemaNode {
 	var target *SchemaNode
 	pathnode, err := ParsePath(&path)
@@ -702,7 +704,7 @@ func extractSchemaName(keystr *string) (string, bool, error) {
 	return *keystr, false, nil
 }
 
-// extractKeyValues extracts the list key values from keystr
+// extractKeyValues extracts the list key values from the keystr.
 func extractKeyValues(keys []string, keystr *string) ([]string, error) {
 	length := len(*keystr)
 	if length <= 0 {
@@ -777,7 +779,7 @@ func extractKeyValues(keys []string, keystr *string) ([]string, error) {
 	return keyval, nil
 }
 
-// StringToValue converts string to the yangtree value
+// StringToValue() converts a string value to an yangtree value
 // It also check the range, length and pattern of the schema.
 func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interface{}, error) {
 	switch typ.Kind {
@@ -918,6 +920,7 @@ func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interf
 	return nil, fmt.Errorf("invalid value %q inserted for %q", value, schema.Name)
 }
 
+// ValueToString() converts a golang value to the string value.
 func ValueToString(value interface{}) string {
 	switch v := value.(type) {
 	case string:
@@ -955,6 +958,7 @@ func ValueToString(value interface{}) string {
 	return fmt.Sprint(value)
 }
 
+// ValueToJSONBytes() marshals a value based on its schema, type and representing format.
 func ValueToJSONBytes(schema *SchemaNode, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
 	switch typ.Kind {
 	case yang.Yunion:
@@ -1019,6 +1023,7 @@ func isIntegral(val float64) bool {
 	return val == float64(int(val))
 }
 
+// JSONValueToString() returns a string value from the json scalar value that is unmarshalled by json.Unmarshal()
 func JSONValueToString(jval interface{}) (string, error) {
 	switch jdata := jval.(type) {
 	case float64:
@@ -1043,7 +1048,7 @@ func JSONValueToString(jval interface{}) (string, error) {
 	return "", fmt.Errorf("unexpected json-value %v (%T)", jval, jval)
 }
 
-// GetMust returns the when XPath statement of e if able.
+// GetMust() returns the "must" statements of the schema node.
 func (schema *SchemaNode) GetMust() []*yang.Must {
 	switch n := schema.Node.(type) {
 	case *yang.Container:
@@ -1073,6 +1078,7 @@ func (schema *SchemaNode) GetMust() []*yang.Must {
 	return nil
 }
 
+// Unzip() is used to extracts the builtin schema.
 func Unzip(gzj []byte) ([]byte, error) {
 	gzr, err := gzip.NewReader(bytes.NewReader(gzj))
 	if err != nil {
