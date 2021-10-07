@@ -12,7 +12,7 @@ import (
 )
 
 func GetYangLibrary(schema *SchemaNode) DataNode {
-	schema = GetRootSchema(schema)
+	schema = schema.GetRootSchema()
 	n, ok := schema.Annotation["ietf-yang-libary"]
 	if ok {
 		return n.(DataNode)
@@ -185,7 +185,7 @@ func loadYanglibrary(rootschema *SchemaNode, module map[string]*yang.Module, exc
 		if rootschema.Option != nil && rootschema.Option.SchemaSetName != "" {
 			moduleSetName = rootschema.Option.SchemaSetName
 		}
-		top, err = NewDataNode(GetSchema(rootschema, "yang-library"))
+		top, err = NewDataNode(rootschema.GetSchema("yang-library"))
 		if err != nil {
 			return fmt.Errorf(`yanglib: "yang-library" not found`)
 		}
@@ -280,7 +280,7 @@ func loadYanglibrary(rootschema *SchemaNode, module map[string]*yang.Module, exc
 			return fmt.Errorf("yanglib: content-id generation error: %v", err)
 		}
 	case "2016-06-21":
-		top, err = NewDataNode(GetSchema(rootschema, "modules-state"))
+		top, err = NewDataNode(rootschema.GetSchema("modules-state"))
 		if err != nil {
 			return fmt.Errorf(`yanglib: "modules-state" not found`)
 		}

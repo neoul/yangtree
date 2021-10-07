@@ -78,7 +78,7 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *SchemaNod
 			// }
 		}
 		var child DataNode
-		if IsDuplicatableList(cschema) {
+		if cschema.IsDuplicatableList() {
 			if child, err = branch.NewDataNode(id.String()); err != nil {
 				return err
 			}
@@ -109,11 +109,11 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 		case map[interface{}]interface{}:
 			for k, v := range data {
 				keystr := ValueToString(k)
-				name, haskey, err := ExtractSchemaName(&keystr)
+				name, haskey, err := extractSchemaName(&keystr)
 				if err != nil {
 					return err
 				}
-				cschema := GetSchema(n.schema, name)
+				cschema := n.schema.GetSchema(name)
 				if cschema == nil {
 					return fmt.Errorf("schema %q not found from %q", k, n.schema.Name)
 				}
@@ -121,8 +121,8 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 				switch {
 				case cschema.IsList():
 					if haskey {
-						keyname := GetKeynames(cschema)
-						keyval, err := ExtractKeyValues(keyname, &keystr)
+						keyname := cschema.Keyname
+						keyval, err := extractKeyValues(keyname, &keystr)
 						if err != nil {
 							return err
 						}
@@ -148,14 +148,14 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						v = keymap
 					}
 					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if err := n.unmarshalYAMLListableNodeForRFC7951(cschema, GetKeynames(cschema), rfc7951StyleList); err != nil {
+						if err := n.unmarshalYAMLListableNodeForRFC7951(cschema, cschema.Keyname, rfc7951StyleList); err != nil {
 							return err
 						}
 					} else {
-						if IsDuplicatableList(cschema) {
+						if cschema.IsDuplicatableList() {
 							return fmt.Errorf("non-id list %q must have the array format", cschema.Name)
 						}
-						kname := GetKeynames(cschema)
+						kname := cschema.Keyname
 						kval := make([]interface{}, 0, len(kname))
 						if err := n.unmarshalYAMLListableNode(cschema, kname, kval, v); err != nil {
 							return err
@@ -240,7 +240,7 @@ type yDataNode struct {
 func (ynode *yDataNode) getQname() string {
 	switch ynode.rfc7951s {
 	case rfc7951InProgress, rfc7951Enabled:
-		if qname, boundary := GetQName(ynode.Schema()); boundary ||
+		if qname, boundary := ynode.Schema().GetQName(); boundary ||
 			ynode.rfc7951s == rfc7951Enabled {
 			ynode.rfc7951s = rfc7951InProgress
 			return qname
@@ -275,7 +275,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 			}
 		}
 	}
-	if ynode.rfc7951s != rfc7951Disabled || IsDuplicatableList(schema) || schema.IsLeafList() {
+	if ynode.rfc7951s != rfc7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
 		writeIndent(buffer, indent, ynode.indentStr)
 		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
@@ -351,7 +351,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 		node := datanode.children
 		for i := 0; i < len(datanode.children); {
 			schema := node[i].Schema()
-			if IsListable(schema) { // for list and multiple leaf-list
+			if schema.IsListable() { // for list and multiple leaf-list
 				var err error
 				i, err = marshalYAMLListableNode(buffer, node, i, indent, ynode)
 				if err != nil {

@@ -53,7 +53,7 @@ func TestNewDataGroup(t *testing.T) {
 		"str-val": "abc"
 	}
 	`
-	schema := FindSchema(RootSchema, "sample")
+	schema := RootSchema.FindSchema("sample")
 	jcontainernodes, err := NewDataNodeGroup(schema, jcontainer)
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestNewDataGroup(t *testing.T) {
 		}
 		]`
 
-	schema = FindSchema(RootSchema, "sample/container-val/leaf-list-val")
+	schema = RootSchema.FindSchema("sample/container-val/leaf-list-val")
 	jleaflistnodes, err := NewDataNodeGroup(schema, jleaflist)
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestNewDataGroup(t *testing.T) {
 		t.Log(string(y))
 	}
 
-	schema = FindSchema(RootSchema, "sample/single-key-list")
+	schema = RootSchema.FindSchema("sample/single-key-list")
 	jlistnodes, err := NewDataNodeGroup(schema, jlist)
 	if err != nil {
 		t.Fatal(err)

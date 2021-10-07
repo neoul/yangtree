@@ -17,9 +17,11 @@ import (
 	"github.com/openconfig/ygot/util"
 )
 
-// SchemaOption is used to store global schema options for the creation/deletion of the data tree.
+// SchemaOption is used to store global yangtree schema options.
 type SchemaOption struct {
-	SingleLeafList     bool   // A single leaf-list node has multiple values if set.
+	// If SingleLeafList is enabled, leaf-list data represents to a single leaf-list node that contains several values.
+	// If disabled, leaf-list data represents to multiple leaf-list nodes that contains each single value.
+	SingleLeafList     bool
 	CreatedWithDefault bool   // DataNode (data node) is created with the default value of the schema if set.
 	YANGLibrary2016    bool   // Load ietf-yang-library@2016-06-21
 	YANGLibrary2019    bool   // Load ietf-yang-library@2019-01-04
@@ -28,22 +30,23 @@ type SchemaOption struct {
 
 func (schemaoption SchemaOption) IsOption() {}
 
+// SchemaNode - The node structure of yangtree schema.
 type SchemaNode struct {
 	*yang.Entry
-	Parent        *SchemaNode
-	Module        *yang.Module // used to store the module of the schema entry
-	Children      []*SchemaNode
-	Directory     map[string]*SchemaNode // used to store the children of the schema entry with all schema entry's aliases
+	Parent        *SchemaNode            // The parent schema node of the schema node
+	Module        *yang.Module           // The module of the schema node
+	Children      []*SchemaNode          // The child schema nodes of the schema node
+	Directory     map[string]*SchemaNode // used to store the children of the schema node with all schema node's aliases
 	Enum          map[string]int64       // used to store all enumeration string
-	Identityref   map[string]string      // used to store all identity values of the schema entry
+	Identityref   map[string]string      // used to store all identity values of the schema node
 	Keyname       []string               // used to store key list
-	QName         string                 // namespace-qualified name of RFC 7951
-	Qboundary     bool                   // used to indicate the boundary of the namespace-qualified name of RFC 7951
+	QName         string                 // The namespace-qualified name of RFC7951
+	Qboundary     bool                   // used to indicate the boundary of the namespace-qualified name of RFC7951
 	IsRoot        bool                   // used to indicate the schema is the root of the schema tree.
-	IsKey         bool                   // used to indicate the schema entry is a key node of a list.
-	IsState       bool                   // used to indicate the schema entry is state node.
-	HasState      bool                   // used to indicate the schema entry has a state node at least.
-	OrderedByUser bool
+	IsKey         bool                   // used to indicate the schema node is a key node of a list.
+	IsState       bool                   // used to indicate the schema node is state node.
+	HasState      bool                   // used to indicate the schema node has a state node at least.
+	OrderedByUser bool                   // used to indicate the ordering of the list or the leaf-list nodes.
 	Option        *SchemaOption
 	Extension     map[string]*SchemaNode
 	Modules       *yang.Modules
@@ -340,13 +343,8 @@ func buildRootSchema(module *yang.Module, option *SchemaOption, ext map[string]*
 	return root
 }
 
-// IsRootSchema() returns true if the schema node is the root schema node.
-func IsRootSchema(schema *SchemaNode) bool {
-	return schema.IsRoot
-}
-
 // GetRootSchema() returns its root schema node.
-func GetRootSchema(schema *SchemaNode) *SchemaNode {
+func (schema *SchemaNode) GetRootSchema() *SchemaNode {
 	for schema != nil {
 		if schema.IsRoot {
 			return schema
@@ -356,32 +354,29 @@ func GetRootSchema(schema *SchemaNode) *SchemaNode {
 	return nil
 }
 
-// IsDuplicatableList() checks the data nodes can be inserted to the data tree several times.
-func IsDuplicatable(schema *SchemaNode) bool {
+// IsDuplicatable() checks the data nodes can be inserted duplicately several times.
+func (schema *SchemaNode) IsDuplicatable() bool {
 	if len(schema.Children) > 0 {
+		// Is it non-key list node?
 		return schema.ListAttr != nil && schema.Key == ""
 	}
+	// Is it read-only leaf-list node when single leaf-list option is enabled?
 	return (schema.IsLeafList() && schema.IsState && !schema.Option.SingleLeafList)
 }
 
-// IsDuplicatableList() checks the data nodes is a list node and it can be inserted to the data tree several times.
-func IsDuplicatableList(schema *SchemaNode) bool {
+// IsDuplicatableList() checks the data nodes is a list node and it can be inserted duplicately.
+func (schema *SchemaNode) IsDuplicatableList() bool {
 	return schema.IsList() && schema.Key == ""
 }
 
 // IsListHasKey() checks the list nodes has keys.
-func IsListHasKey(schema *SchemaNode) bool {
+func (schema *SchemaNode) IsListHasKey() bool {
 	return schema.IsList() && schema.Key != ""
 }
 
-// IsList() checks the data node is a list node.
-func IsList(schema *SchemaNode) bool {
-	return schema.IsList()
-}
-
-// IsListable() checks the data node is a list or a leaf-list node.
-// if SingleLeafList is set, a leaf-list node has several values and it is not listable.
-func IsListable(schema *SchemaNode) bool {
+// IsListable() checks if the data node is a list or a leaf-list node.
+// If SingleLeafList is set, a single leaf-list node has several values and it is not listable.
+func (schema *SchemaNode) IsListable() bool {
 	if schema.IsDir() {
 		return schema.ListAttr != nil
 	}
@@ -391,43 +386,18 @@ func IsListable(schema *SchemaNode) bool {
 	return false
 }
 
-// IsUpdatable() is used to check the schema is updatable.
-// Leaf-list and non-key list nodes are unable to be updated (not modified).
-func IsUpdatable(schema *SchemaNode) bool {
-	return !(schema.ListAttr != nil && schema.Key == "")
-}
-
 // IsOrderedByUser() is used to check the node is ordered by the user.
-func IsOrderedByUser(schema *SchemaNode) bool {
+func (schema *SchemaNode) IsOrderedByUser() bool {
 	return schema.OrderedByUser
 }
 
 // IsAnyData() returns true if the schema node is anydata.
-func IsAnyData(schema *SchemaNode) bool {
+func (schema *SchemaNode) IsAnyData() bool {
 	return schema.Kind == yang.AnyDataEntry
 }
 
-func GetSchemaOption(schema *SchemaNode) *SchemaOption {
-	return schema.Option
-}
-
-// // GetAllModules() returns a module map of the loaded yangtree.
-// func GetAllModules(schema *yang.Entry) map[string]*yang.Module {
-// 	if schema == nil {
-// 		return nil
-// 	}
-// 	for schema.Parent != nil {
-// 		schema = schema.Parent
-// 	}
-// 	if m, ok := schema.Annotation["modules"]; ok {
-// 		modules := m.(*yang.Modules)
-// 		return modules.Modules
-// 	}
-// 	return nil
-// }
-
 // GetQName() returns the qname (namespace-qualified name e.g. module-name:node-name) of the schema node.
-func GetQName(schema *SchemaNode) (string, bool) {
+func (schema *SchemaNode) GetQName() (string, bool) {
 	return schema.QName, schema.Qboundary
 }
 
@@ -678,39 +648,16 @@ func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 	return generateSchemaTree(dir, file, excluded, option...)
 }
 
-// GetAllChildSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
-func GetAllChildSchema(schema *SchemaNode) []*SchemaNode {
-	if schema == nil {
-		return nil
-	}
-	return schema.Children
-}
-
 // GetSchema() returns a child schema node. It provides the child name tagged its prefix or module name.
-func GetSchema(schema *SchemaNode, name string) *SchemaNode {
-	if schema == nil {
-		return nil
-	}
+func (schema *SchemaNode) GetSchema(name string) *SchemaNode {
+	// if schema == nil {
+	// 	return nil
+	// }
 	return schema.Directory[name]
 }
 
-// // GetPresentParentSchema() is used to get the non-choice and non-case parent schema entry.
-// func GetPresentParentSchema(schema *yang.Entry) *yang.Entry {
-// 	for p := schema.Parent; p != nil; p = p.Parent {
-// 		if !p.IsCase() && !p.IsChoice() {
-// 			return p
-// 		}
-// 	}
-// 	return nil
-// }
-
-// // IsEqualSchema() checks if they have the same schema.
-// func IsEqualSchema(a, b DataNode) bool {
-// 	return a.Schema() == b.Schema()
-// }
-
 // FindSchema() returns a descendant schema node. It provides the child name tagged its prefix or module name.
-func FindSchema(schema *SchemaNode, path string) *SchemaNode {
+func (schema *SchemaNode) FindSchema(path string) *SchemaNode {
 	var target *SchemaNode
 	pathnode, err := ParsePath(&path)
 	if err != nil {
@@ -729,7 +676,7 @@ func FindSchema(schema *SchemaNode, path string) *SchemaNode {
 		case NodeSelectParent:
 			target = target.Parent
 		case NodeSelectFromRoot:
-			target = GetRootSchema(target)
+			target = target.GetRootSchema()
 		case NodeSelectAllChildren, NodeSelectAll:
 			// not supported
 			return nil
@@ -741,41 +688,8 @@ func FindSchema(schema *SchemaNode, path string) *SchemaNode {
 	return target
 }
 
-func FindModule(schema *SchemaNode, path string) *yang.Module {
-	e := FindSchema(schema, path)
-	if e == nil {
-		return nil
-	}
-	return e.Module
-}
-
-func HasUniqueListParent(schema *SchemaNode) bool {
-	for n := schema; n != nil; n = n.Parent {
-		if IsListHasKey(n) {
-			return true
-		}
-	}
-	return false
-}
-
-func GetKeynames(schema *SchemaNode) []string {
-	return schema.Keyname
-}
-
-func IsKeyNode(schema *SchemaNode) bool {
-	return schema.IsKey
-}
-
-func IsConfig(schema *SchemaNode) bool {
-	return !schema.IsState
-}
-
-func IsState(schema *SchemaNode) bool {
-	return schema.IsState
-}
-
-// ExtractSchemaName extracts the schema name from the keystr.
-func ExtractSchemaName(keystr *string) (string, bool, error) {
+// extractSchemaName extracts the schema name from the keystr.
+func extractSchemaName(keystr *string) (string, bool, error) {
 	i := strings.IndexAny(*keystr, "[=]")
 	if i >= 0 {
 		switch (*keystr)[i] {
@@ -788,8 +702,8 @@ func ExtractSchemaName(keystr *string) (string, bool, error) {
 	return *keystr, false, nil
 }
 
-// ExtractKeyValues extracts the list key values from keystr
-func ExtractKeyValues(keys []string, keystr *string) ([]string, error) {
+// extractKeyValues extracts the list key values from keystr
+func extractKeyValues(keys []string, keystr *string) ([]string, error) {
 	length := len(*keystr)
 	if length <= 0 {
 		return nil, fmt.Errorf("empty key string inserted")
@@ -1130,7 +1044,7 @@ func JSONValueToString(jval interface{}) (string, error) {
 }
 
 // GetMust returns the when XPath statement of e if able.
-func GetMust(schema *SchemaNode) []*yang.Must {
+func (schema *SchemaNode) GetMust() []*yang.Must {
 	switch n := schema.Node.(type) {
 	case *yang.Container:
 		return n.Must

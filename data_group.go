@@ -63,16 +63,16 @@ func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 		}
 		switch jdata := jval.(type) {
 		case map[string]interface{}:
-			if IsDuplicatableList(schema) {
+			if schema.IsDuplicatableList() {
 				return nil, fmt.Errorf("non-key list %q must have the array format of RFC7951", schema.Name)
 			}
-			kname := GetKeynames(schema)
+			kname := schema.Keyname
 			kval := make([]string, 0, len(kname))
 			if err := c.unmarshalJSONList(schema, kname, kval, jdata); err != nil {
 				return nil, err
 			}
 		case []interface{}:
-			if err := c.unmarshalJSONListable(schema, GetKeynames(schema), jdata); err != nil {
+			if err := c.unmarshalJSONListable(schema, schema.Keyname, jdata); err != nil {
 				return nil, err
 			}
 		default:

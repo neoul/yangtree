@@ -214,15 +214,15 @@ func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (
 		child.Remove()
 	}
 	schema := child.Schema()
-	if !IsAnyData(branch.schema) {
+	if !branch.schema.IsAnyData() {
 		if branch.Schema() != schema.Parent {
 			return nil, fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
 		}
 	}
 
 	// duplicatable nodes: read-only leaf-list and non-key list nodes.
-	duplicatable := IsDuplicatable(schema)
-	orderedByUser := IsOrderedByUser(schema)
+	duplicatable := schema.IsDuplicatable()
+	orderedByUser := schema.IsOrderedByUser()
 
 	id := child.ID()
 	i := indexFirst(branch, &id)
@@ -263,7 +263,7 @@ func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (
 		i = sort.Search(len(branch.children),
 			func(j int) bool { return name <= branch.children[j].ID() })
 	case InsertToBefore:
-		if IsDuplicatableList(schema) {
+		if schema.IsDuplicatableList() {
 			return nil, Errorf(ETagOperationNotSupported,
 				"insert option (before) not supported for non-key list")
 		}
@@ -271,7 +271,7 @@ func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (
 		i = sort.Search(len(branch.children),
 			func(j int) bool { return target <= branch.children[j].ID() })
 	case InsertToAfter:
-		if IsDuplicatableList(schema) {
+		if schema.IsDuplicatableList() {
 			return nil, Errorf(ETagOperationNotSupported,
 				"insert option (after) not supported for non-key list")
 		}
@@ -377,7 +377,7 @@ func mergeChildren(dest, src DataNode, edit *EditOption) ([]DataNode, []DataNode
 		d := dest.(*DataBranch)
 		for i := range s.children {
 			schema := s.children[i].Schema()
-			if IsDuplicatableList(schema) {
+			if schema.IsDuplicatableList() {
 				n = Clone(s.children[i])
 				_, err = d.insert(n, edit.GetOperation(), edit.GetInsertOption())
 				if err != nil {
@@ -571,7 +571,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 	if !ok {
 		return fmt.Errorf("unable to find children from %q", root)
 	}
-	cschema := GetSchema(root.Schema(), pathnode[0].Name)
+	cschema := root.Schema().GetSchema(pathnode[0].Name)
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
@@ -733,7 +733,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return fmt.Errorf("unable to specify the node position replaced")
 	}
 
-	cschema := GetSchema(branch.schema, pathnode[0].Name)
+	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
@@ -908,7 +908,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	if !ok {
 		return nil
 	}
-	cschema := GetSchema(branch.schema, pathnode[0].Name)
+	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
 		return nil
 	}
@@ -1035,9 +1035,9 @@ func cloneUp(destChild DataNode, src DataNode) (DataNode, error) {
 		dnode := &DataBranch{
 			schema: node.schema,
 		}
-		if IsListHasKey(node.schema) {
+		if node.schema.IsListHasKey() {
 			for _, c := range node.children {
-				if IsKeyNode(c.Schema()) {
+				if c.Schema().IsKey {
 					if _, err := clone(dnode, c); err != nil {
 						return nil, err
 					}
@@ -1172,7 +1172,7 @@ func merge(dest, src DataNode) error {
 		d := dest.(*DataBranch)
 		for i := range s.children {
 			schema := s.children[i].Schema()
-			if IsDuplicatableList(schema) {
+			if schema.IsDuplicatableList() {
 				if _, err := clone(d, s.children[i]); err != nil {
 					return err
 				}
@@ -1259,7 +1259,7 @@ func FindAllInRoute(path string) []DataNode {
 
 // Get key-value pairs of the list data node.
 func GetKeyValues(node DataNode) ([]string, []string) {
-	keynames := GetKeynames(node.Schema())
+	keynames := node.Schema().Keyname
 	keyvals := make([]string, 0, len(keynames))
 	for i := range keynames {
 		keynode := node.Get(keynames[i])
@@ -1294,7 +1294,7 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 		if err != nil {
 			break
 		}
-		cschema := GetSchema(branch.schema, pathnode[i].Name)
+		cschema := branch.schema.GetSchema(pathnode[i].Name)
 		if cschema == nil {
 			err = fmt.Errorf("schema %q not found from %q", pathnode[i].Name, branch.schema.Name)
 			break
@@ -1302,7 +1302,7 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 		var children []DataNode
 		id, groupSearch := GenerateID(cschema, pmap)
 		children = branch.find(cschema, &id, groupSearch, pmap)
-		if IsDuplicatableList(cschema) {
+		if cschema.IsDuplicatableList() {
 			children = nil // clear found nodes to create a new one.
 		}
 
@@ -1348,7 +1348,7 @@ func replace(from, to DataNode) error {
 	if parent == nil {
 		return fmt.Errorf("no parent node")
 	}
-	keynames := GetKeynames(schema)
+	keynames := schema.Keyname
 	for i := range keynames {
 		keynode := from.Get(keynames[i])
 		if keynode != nil {

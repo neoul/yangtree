@@ -30,7 +30,7 @@ func DiffUpdated(node1, node2 DataNode, disDupCmp bool) ([]DataNode, []DataNode)
 		// created, replaced
 		for first := 0; first < len(d2.children); first++ {
 			// duplicatable data nodes (non-key list and ro leaf-list node) must have the same position.
-			duplicatable := IsDuplicatable(d2.children[first].Schema())
+			duplicatable := d2.children[first].Schema().IsDuplicatable()
 			if duplicatable && disDupCmp {
 				c, r := DiffUpdated(nil, d2.children[first], disDupCmp)
 				created = append(created, c...)
@@ -92,7 +92,7 @@ func DiffCreated(node1, node2 DataNode, disDupCmp bool) []DataNode {
 		created := []DataNode{}
 		// created
 		for first := 0; first < len(d2.children); first++ {
-			duplicatable := IsDuplicatable(d2.children[first].Schema())
+			duplicatable := d2.children[first].Schema().IsDuplicatable()
 			if duplicatable && disDupCmp {
 				c := DiffCreated(nil, d2.children[first], disDupCmp)
 				created = append(created, c...)

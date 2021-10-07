@@ -83,7 +83,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 		// if leaflist.IsLeafList() {
 		// 	return fmt.Errorf("leaflist-list %q must be inserted or deleted", leaflist)
 		// }
-		if IsKeyNode(leaflist.schema) {
+		if leaflist.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %q if used", leaflist)
 			return nil
@@ -97,7 +97,7 @@ func (leaflist *DataLeafList) Set(value ...string) error {
 			}
 		} else {
 			var index int
-			if IsConfig(leaflist.schema) {
+			if !leaflist.schema.IsState {
 				index = sort.Search(len(leaflist.value),
 					func(j int) bool {
 						return ValueToString(leaflist.value[j]) >= value[i]
@@ -126,7 +126,7 @@ func (leaflist *DataLeafList) SetSafe(value ...string) error {
 		// if leaflist.IsLeafList() {
 		// 	return fmt.Errorf("leaflist-list %q must be inserted or deleted", leaflist)
 		// }
-		if IsKeyNode(leaflist.schema) {
+		if leaflist.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %q if used", leaflist)
 			return nil
@@ -147,7 +147,7 @@ func (leaflist *DataLeafList) SetSafe(value ...string) error {
 			}
 		} else {
 			var index int
-			if IsConfig(leaflist.schema) {
+			if !leaflist.schema.IsState {
 				index = sort.Search(len(leaflist.value),
 					func(j int) bool {
 						return ValueToString(leaflist.value[j]) >= value[i]
@@ -173,7 +173,7 @@ func (leaflist *DataLeafList) SetSafe(value ...string) error {
 
 func (leaflist *DataLeafList) Unset(value ...string) error {
 	if leaflist.parent != nil {
-		if IsKeyNode(leaflist.schema) {
+		if leaflist.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %q if used", leaflist)
 			return nil

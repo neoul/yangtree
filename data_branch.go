@@ -50,7 +50,7 @@ func (branch *DataBranch) Path() string {
 	if branch.parent != nil {
 		return branch.parent.Path() + "/" + branch.ID()
 	}
-	if IsRootSchema(branch.schema) {
+	if branch.schema.IsRoot {
 		return ""
 	}
 	return "/" + branch.ID()
@@ -136,7 +136,7 @@ func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch bool
 		}
 	}
 
-	if IsOrderedByUser(cschema) || IsDuplicatable(cschema) {
+	if cschema.IsOrderedByUser() || cschema.IsDuplicatable() {
 		var node []DataNode
 		for ; max < len(branch.children); max++ {
 			if cschema != branch.children[max].Schema() {
@@ -180,14 +180,14 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	if err != nil {
 		return nil, false, err
 	}
-	cschema := GetSchema(branch.schema, pathnode[0].Name)
+	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
 		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 	var children []DataNode
 	id, groupSearch := GenerateID(cschema, pmap)
 	children = branch.find(cschema, &id, groupSearch, pmap)
-	if IsDuplicatableList(cschema) {
+	if cschema.IsDuplicatableList() {
 		switch iopt.(type) {
 		case InsertToAfter, InsertToBefore:
 			return nil, false, Errorf(ETagOperationNotSupported,
@@ -222,7 +222,7 @@ func (branch *DataBranch) NewDataNode(id string, value ...string) (DataNode, err
 	if len(pathnode) == 0 || len(pathnode) > 1 {
 		return nil, fmt.Errorf("invalid id %q inserted", id)
 	}
-	cschema := GetSchema(branch.schema, pathnode[0].Name)
+	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
 		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
@@ -254,7 +254,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	if len(pathnode) == 0 || len(pathnode) > 1 {
 		return nil, fmt.Errorf("invalid id %q inserted", id)
 	}
-	cschema := GetSchema(branch.schema, pathnode[0].Name)
+	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
 		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
@@ -388,7 +388,7 @@ func (branch *DataBranch) Delete(child DataNode) error {
 	// if child.Parent() == nil {
 	// 	return fmt.Errorf("'%s' is already removed from a branch", child)
 	// }
-	if IsKeyNode(child.Schema()) && branch.parent != nil {
+	if child.Schema().IsKey && branch.parent != nil {
 		// return fmt.Errorf("id node %q must not be deleted", child)
 		return nil
 	}
@@ -580,9 +580,9 @@ func (branch *DataBranch) ID() string {
 		return branch.id
 	}
 	switch {
-	case IsListHasKey(branch.schema):
+	case branch.schema.IsListHasKey():
 		var keybuffer strings.Builder
-		keyname := GetKeynames(branch.schema)
+		keyname := branch.schema.Keyname
 		keybuffer.WriteString(branch.schema.Name)
 		for i := range keyname {
 			j := indexFirst(branch, &keyname[i])
@@ -610,7 +610,7 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 				if k == "." {
 					continue
 				} else if found := branch.Get(k); found == nil {
-					newnode, err := NewDataNode(GetSchema(branch.Schema(), k), vstr)
+					newnode, err := NewDataNode(branch.Schema().GetSchema(k), vstr)
 					if err != nil {
 						return err
 					}

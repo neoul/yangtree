@@ -65,7 +65,7 @@ func TestDataLeafList(t *testing.T) {
 		}
 	}
 	`
-	singleLeafList, err := NewDataNode(FindSchema(schema, "/sample/container-val/leaf-list-val"), `["first","fourth","second","third"]`)
+	singleLeafList, err := NewDataNode(schema.FindSchema("/sample/container-val/leaf-list-val"), `["first","fourth","second","third"]`)
 	if err != nil {
 		t.Fatal(err)
 	}

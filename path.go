@@ -145,7 +145,7 @@ func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool) 
 		}
 		var id bytes.Buffer
 		id.WriteString(schema.Name)
-		keyname := GetKeynames(schema)
+		keyname := schema.Keyname
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
@@ -594,7 +594,7 @@ func FindAllPossiblePath(schema *SchemaNode, spath string) []string {
 		return nil
 	}
 	prefix := make([]string, 0, 12)
-	if IsRootSchema(schema) {
+	if schema.IsRoot {
 		prefix = append(prefix, "")
 	}
 	return findAllPossiblePath(schema, prefix, pathnode)
@@ -611,37 +611,35 @@ func findAllPossiblePath(schema *SchemaNode, prefix []string, pathnode []*PathNo
 		if schema.Parent == nil {
 			return nil
 		}
-		if IsRootSchema(schema.Parent) {
+		if schema.Parent.IsRoot {
 			return findAllPossiblePath(schema.Parent, append(prefix[:0], ""), pathnode[1:])
 		} else if len(prefix) > 0 {
 			return findAllPossiblePath(schema.Parent, prefix[:len(prefix)-1], pathnode[1:])
 		}
 		return findAllPossiblePath(schema.Parent, []string{".."}, pathnode[1:])
 	case NodeSelectFromRoot:
-		schema = GetRootSchema(schema)
+		schema = schema.GetRootSchema()
 	case NodeSelectAllChildren:
-		cschema := GetAllChildSchema(schema)
-		if len(cschema) == 0 {
+		if len(schema.Children) == 0 {
 			return nil
 		}
-		founds := make([]string, 0, len(cschema))
-		for i := range cschema {
+		founds := make([]string, 0, len(schema.Children))
+		for i := range schema.Children {
 			founds = append(founds,
-				findAllPossiblePath(cschema[i], append(prefix, cschema[i].Name), pathnode[1:])...)
+				findAllPossiblePath(schema.Children[i], append(prefix, schema.Children[i].Name), pathnode[1:])...)
 		}
 		return founds
 	case NodeSelectAll:
-		cschema := GetAllChildSchema(schema)
-		if len(cschema) == 0 {
+		if len(schema.Children) == 0 {
 			return nil
 		}
 		founds := make([]string, 0, 16)
-		for i := range cschema {
-			cprefix := append(prefix, cschema[i].Name)
+		for i := range schema.Children {
+			cprefix := append(prefix, schema.Children[i].Name)
 			founds = append(founds,
-				findAllPossiblePath(cschema[i], cprefix, pathnode[1:])...)
+				findAllPossiblePath(schema.Children[i], cprefix, pathnode[1:])...)
 			founds = append(founds,
-				findAllPossiblePath(cschema[i], cprefix, pathnode[0:])...)
+				findAllPossiblePath(schema.Children[i], cprefix, pathnode[0:])...)
 		}
 		return founds
 	}
@@ -649,7 +647,7 @@ func findAllPossiblePath(schema *SchemaNode, prefix []string, pathnode []*PathNo
 	if pathnode[0].Name == "" {
 		return []string{strings.Join(prefix, "/")}
 	}
-	schema = GetSchema(schema, pathnode[0].Name)
+	schema = schema.GetSchema(pathnode[0].Name)
 	if schema == nil {
 		return nil
 	}

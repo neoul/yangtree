@@ -46,7 +46,7 @@ type jDataNode struct {
 func (jnode *jDataNode) getQname() string {
 	switch jnode.rfc7951s {
 	case rfc7951InProgress, rfc7951Enabled:
-		if qname, boundary := GetQName(jnode.Schema()); boundary ||
+		if qname, boundary := jnode.Schema().GetQName(); boundary ||
 			jnode.rfc7951s == rfc7951Enabled {
 			jnode.rfc7951s = rfc7951InProgress
 			return qname
@@ -78,7 +78,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 		buffer.WriteString(`{`)
 		for i := 0; i < len(datanode.children); {
 			schema := node[i].Schema()
-			if IsListable(schema) {
+			if schema.IsListable() {
 				var err error
 				i, comma, err = marshalJSONListableNode(buffer, node, i, comma, jnode)
 				if err != nil {
@@ -170,7 +170,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 	buffer.WriteString(`"`)
 	buffer.WriteString(first.getQname())
 	buffer.WriteString(`":`)
-	if first.rfc7951s != rfc7951Disabled || IsDuplicatableList(schema) || schema.IsLeafList() {
+	if first.rfc7951s != rfc7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
 		ii := i
 		for ; i < len(node); i++ {
 			if schema != node[i].Schema() {
@@ -286,7 +286,7 @@ func (branch *DataBranch) unmarshalJSONList(cschema *SchemaNode, kname []string,
 
 	id, groupSearch := GenerateID(cschema, pmap)
 	children := branch.find(cschema, &id, groupSearch, nil)
-	if IsDuplicatable(cschema) {
+	if cschema.IsDuplicatable() {
 		children = nil // clear found nodes
 	}
 	var created bool
@@ -344,7 +344,7 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *SchemaNode, kname []str
 
 		id, groupSearch := GenerateID(cschema, pmap)
 		children := branch.find(cschema, &id, groupSearch, nil)
-		if IsDuplicatable(cschema) {
+		if cschema.IsDuplicatable() {
 			children = nil // clear found nodes
 		}
 		var created bool
@@ -366,7 +366,7 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *SchemaNode, kname []str
 		}
 
 		// Update DataNode if it is a list node.
-		if IsList(cschema) {
+		if cschema.IsList() {
 			if err := unmarshalJSON(child, listentry[i]); err != nil {
 				if created {
 					branch.Delete(child)
@@ -384,21 +384,21 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 		switch jdata := jval.(type) {
 		case map[string]interface{}:
 			for k, v := range jdata {
-				cschema := GetSchema(n.schema, k)
+				cschema := n.schema.GetSchema(k)
 				if cschema == nil {
 					return fmt.Errorf("schema %q not found from %q", k, n.schema.Name)
 				}
 				switch {
-				case IsListable(cschema):
+				case cschema.IsListable():
 					if list, ok := v.([]interface{}); ok {
-						if err := n.unmarshalJSONListable(cschema, GetKeynames(cschema), list); err != nil {
+						if err := n.unmarshalJSONListable(cschema, cschema.Keyname, list); err != nil {
 							return err
 						}
 					} else {
-						if IsDuplicatableList(cschema) {
+						if cschema.IsDuplicatableList() {
 							return fmt.Errorf("non-key list %q must have the array format of RFC7951", cschema.Name)
 						}
-						kname := GetKeynames(cschema)
+						kname := cschema.Keyname
 						kval := make([]string, 0, len(kname))
 						if err := n.unmarshalJSONList(cschema, kname, kval, v); err != nil {
 							return err

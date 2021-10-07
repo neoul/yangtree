@@ -25,7 +25,7 @@ func TestDiffUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := FindSchema(rootschema, "interfaces/interface")
+	schema := rootschema.FindSchema("interfaces/interface")
 	for i := 1; i < 5; i++ {
 		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
 		new, err := NewDataNode(schema, v)

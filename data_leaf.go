@@ -79,7 +79,7 @@ func (leaf *DataLeaf) Set(value ...string) error {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
 		}
-		if IsKeyNode(leaf.schema) {
+		if leaf.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %q if used", leaf)
 			return nil
@@ -100,7 +100,7 @@ func (leaf *DataLeaf) SetSafe(value ...string) error {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
 		}
-		if IsKeyNode(leaf.schema) {
+		if leaf.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %q if used", leaf)
 			return nil
@@ -123,7 +123,7 @@ func (leaf *DataLeaf) Unset(value ...string) error {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
 		}
-		if IsKeyNode(leaf.schema) {
+		if leaf.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %q if used", leaf)
 			return nil
