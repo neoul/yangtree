@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -40,14 +41,25 @@ func TestYANGLibrary(t *testing.T) {
 		"testdata/modules/openconfig-simple-target.yang",
 		"testdata/modules/openconfig-simple-augment.yang",
 		"testdata/modules/openconfig-simple-deviation.yang",
-		"modules/ietf-yang-library@2019-01-04.yang",
+		// "modules/ietf-yang-library@2019-01-04.yang",
 	}
 	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
-	_, err := Load(file, dir, excluded)
+	schema, err := Load(file, dir, excluded, SchemaOption{YANGLibrary2019: true})
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}
+	yanglib := schema.GetYangLibrary()
+	y, err := MarshalYAML(yanglib, RFC7951Format{})
+	if err != nil {
+		t.Fatalf("error in marshalling: %v", err)
+	}
+	fmt.Println(string(y))
+	// y, err := MarshalJSONIndent(yanglib, "", " ")
+	// if err != nil {
+	// 	t.Fatalf("error in marshalling: %v", err)
+	// }
+	// fmt.Println(string(y))
 }
 func TestYANGMetaData(t *testing.T) {
 	yangfiles := []string{

@@ -19,13 +19,18 @@ func main() {
 		"../testdata/modules/openconfig-simple-target.yang",
 		"../testdata/modules/openconfig-simple-augment.yang",
 		"../testdata/modules/openconfig-simple-deviation.yang",
-		"../modules/ietf-yang-library@2019-01-04.yang",
 	}
 	dir := []string{"../../../openconfig/public/", "../../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
 	schema, err := yangtree.Load(file, dir, excluded, yangtree.SchemaOption{YANGLibrary2019: true})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error in loading: %v", err)
+		if merr, ok := err.(yangtree.MultipleError); ok {
+			for i := range merr {
+				fmt.Fprintf(os.Stderr, "error in loading: %v", merr[i])
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "error in loading: %v", err)
+		}
 		os.Exit(1)
 	}
 	allschema := yangtree.CollectSchemaEntries(schema, true)

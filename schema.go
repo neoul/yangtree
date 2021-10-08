@@ -532,19 +532,34 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*SchemaNode, error)
 			return nil, err
 		}
 	}
-	if schemaOption.YANGLibrary2016 {
-		if yfile, err := Unzip(builtInYanglib2016); err == nil {
-			if err := ms.Parse(string(yfile),
-				"ietf-yang-library@2016-06-21.yang"); err != nil {
-				return nil, err
+	if schemaOption.YANGLibrary2019 {
+		userYangLibFile := false
+		for i := range f {
+			if strings.Contains(f[i], "ietf-yang-library") {
+				userYangLibFile = true
 			}
 		}
-	}
-	if schemaOption.YANGLibrary2019 {
-		if yfile, err := Unzip(builtInYanglib2019); err == nil {
-			if err := ms.Parse(string(yfile),
-				"ietf-yang-library@2019-01-04.yang"); err != nil {
-				return nil, err
+		if !userYangLibFile {
+			if yfile, err := Unzip(builtInYanglib2019); err == nil {
+				if err := ms.Parse(string(yfile),
+					"ietf-yang-library@2019-01-04.yang"); err != nil {
+					return nil, err
+				}
+			}
+		}
+	} else if schemaOption.YANGLibrary2016 {
+		userYangLibFile := false
+		for i := range f {
+			if strings.Contains(f[i], "ietf-yang-library") {
+				userYangLibFile = true
+			}
+		}
+		if !userYangLibFile {
+			if yfile, err := Unzip(builtInYanglib2016); err == nil {
+				if err := ms.Parse(string(yfile),
+					"ietf-yang-library@2016-06-21.yang"); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -597,10 +612,11 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*SchemaNode, error)
 			}
 		}
 	}
-	// err := loadYanglibrary(root, ms.Modules, e)
-	// if err != nil {
-	// 	return nil, err
-	// }
+
+	err := loadYanglibrary(root, e)
+	if err != nil {
+		return nil, err
+	}
 	return root, nil
 }
 

@@ -1,6 +1,6 @@
 module yangtree {
   prefix "yangtree";
-  namespace "https://github.com/neoul/yangtree/modules/yangtree.yang";
+  namespace "https://github.com/neoul/yangtree";
   organization "yangtree";
   contact "neoul@ymail.com";
   description "This YANG module defines a fake schema node 

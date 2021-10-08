@@ -253,7 +253,7 @@ func (ynode *yDataNode) getQname() string {
 	return ynode.Schema().Name
 }
 
-func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode) (int, error) {
+func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, indent int, parent *yDataNode, disableFirstIndent bool) (int, error) {
 	schema := node[i].Schema()
 	ynode := *parent         // copy options
 	ynode.DataNode = node[i] // update the marshalling target
@@ -276,7 +276,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 		}
 	}
 	if ynode.rfc7951s != rfc7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
-		writeIndent(buffer, indent, ynode.indentStr)
+		writeIndent(buffer, indent, ynode.indentStr, disableFirstIndent)
 		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
 		indent++
@@ -285,9 +285,9 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 			if schema != ynode.Schema() {
 				break
 			}
-			writeIndent(buffer, indent, ynode.indentStr)
+			writeIndent(buffer, indent, ynode.indentStr, false)
 			buffer.WriteString("-")
-			writeIndent(buffer, 1, ynode.indentStr)
+			writeIndent(buffer, 1, ynode.indentStr, false)
 			err := ynode.marshalYAML(buffer, indent+2, true)
 			if err != nil {
 				return i, err
@@ -300,7 +300,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 	}
 	var lastKeyval []string
 	if !ynode.iformat {
-		writeIndent(buffer, indent, ynode.indentStr)
+		disableFirstIndent = writeIndent(buffer, indent, ynode.indentStr, disableFirstIndent)
 		buffer.WriteString(ynode.getQname())
 		buffer.WriteString(":\n")
 		indent++
@@ -311,7 +311,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 			break
 		}
 		if ynode.iformat {
-			writeIndent(buffer, indent, ynode.indentStr)
+			disableFirstIndent = writeIndent(buffer, indent, ynode.indentStr, disableFirstIndent)
 			buffer.WriteString(ynode.getQname())
 			buffer.WriteString(":\n")
 			err := ynode.marshalYAML(buffer, indent+1, false)
@@ -327,7 +327,7 @@ func marshalYAMLListableNode(buffer *bytes.Buffer, node []DataNode, i int, inden
 				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
 					continue
 				}
-				writeIndent(buffer, indent+j, ynode.indentStr)
+				writeIndent(buffer, indent+j, ynode.indentStr, false)
 				buffer.WriteString(keyval[j])
 				buffer.WriteString(":\n")
 			}
@@ -353,10 +353,11 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			schema := node[i].Schema()
 			if schema.IsListable() { // for list and multiple leaf-list
 				var err error
-				i, err = marshalYAMLListableNode(buffer, node, i, indent, ynode)
+				i, err = marshalYAMLListableNode(buffer, node, i, indent, ynode, disableFirstIndent)
 				if err != nil {
 					return err
 				}
+				disableFirstIndent = false
 				continue
 			}
 			// container, leaf, single leaf-list node
@@ -368,11 +369,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			}
 			cynode.DataNode = node[i]
 			cynode.rfc7951s = ynode.rfc7951s
-			if disableFirstIndent {
-				disableFirstIndent = false
-			} else {
-				writeIndent(buffer, indent, cynode.indentStr)
-			}
+			disableFirstIndent = writeIndent(buffer, indent, cynode.indentStr, disableFirstIndent)
 			buffer.WriteString(cynode.getQname())
 			buffer.WriteString(":")
 			if cynode.IsLeaf() {
@@ -427,7 +424,7 @@ func (ynode *yDataNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFir
 			buffer.WriteString("]")
 		} else {
 			for i := range datanode.value {
-				writeIndent(buffer, indent, ynode.indentStr)
+				writeIndent(buffer, indent, ynode.indentStr, false)
 				buffer.WriteString("- ")
 				valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
 				if err != nil {
@@ -471,10 +468,14 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func writeIndent(buffer *bytes.Buffer, indent int, indentStr string) {
+func writeIndent(buffer *bytes.Buffer, indent int, indentStr string, disableIndent bool) bool {
+	if disableIndent {
+		return false
+	}
 	for i := 0; i < indent; i++ {
 		buffer.WriteString(indentStr)
 	}
+	return disableIndent
 }
 
 // ValueToYAMLBytes encodes the value to a YAML-encoded data. the schema and the type of the value must be set.
