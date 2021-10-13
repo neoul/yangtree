@@ -9,7 +9,10 @@ import (
 )
 
 // A set of data nodes that have the same schema.
-type DataNodeGroup []DataNode
+type DataNodeGroup struct {
+	schema *SchemaNode
+	Nodes  []DataNode
+}
 
 // NewDataNodeGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
 // To create a set of data nodes, the value must be encoded to a JSON object or a JSON array of the data.
@@ -19,7 +22,7 @@ type DataNodeGroup []DataNode
 //    for _, node := range groups {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
-func NewDataNodeGroup(schema *SchemaNode, value ...string) (DataNodeGroup, error) {
+func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, error) {
 	vv := make([]*string, len(value))
 	for i := range value {
 		vv[i] = &(value[i])
@@ -28,28 +31,48 @@ func NewDataNodeGroup(schema *SchemaNode, value ...string) (DataNodeGroup, error
 	if err != nil {
 		return nil, err
 	}
-	return copyDataNodeList(collector.children), nil
+	group := &DataNodeGroup{
+		schema: schema,
+		Nodes:  copyDataNodeList(collector.children),
+	}
+	return group, nil
 }
 
-func ValidateDataNodeGroup(nodes []DataNode) bool {
-	if len(nodes) == 0 {
-		return false
+// ConvertToDataNodeGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
+// To create a set of data nodes, the value must be encoded to a JSON object or a JSON array of the data.
+// It is useful to create multiple list or leaf-list nodes.
+//    // e.g.
+//    groups, err := NewDataNodeGroup(schema, `["leaf-list-value1", "leaf-list-value2"]`)
+//    for _, node := range groups {
+//         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
+//    }
+func ConvertToDataNodeGroup(schema *SchemaNode, node []DataNode) (*DataNodeGroup, error) {
+	group := &DataNodeGroup{
+		schema: schema,
+		Nodes:  copyDataNodeList(node),
 	}
-	parent := nodes[0].Parent()
-	schema := nodes[0].Schema()
-	if parent == nil {
-		return false
-	}
-	for i := 1; i < len(nodes); i++ {
-		if schema != nodes[i].Schema() {
-			return false
-		}
-		if parent != nodes[i].Parent() {
-			return false
-		}
-	}
-	return true
+	return group, nil
 }
+
+// func ValidateDataNodeGroup(nodes []DataNode) bool {
+// 	if len(nodes) == 0 {
+// 		return false
+// 	}
+// 	parent := nodes[0].Parent()
+// 	schema := nodes[0].Schema()
+// 	if parent == nil {
+// 		return false
+// 	}
+// 	for i := 1; i < len(nodes); i++ {
+// 		if schema != nodes[i].Schema() {
+// 			return false
+// 		}
+// 		if parent != nodes[i].Parent() {
+// 			return false
+// 		}
+// 	}
+// 	return true
+// }
 
 func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 	if schema == nil {
@@ -88,150 +111,151 @@ func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 	return c, nil
 }
 
-func (group DataNodeGroup) IsYangDataNode()                   {}
-func (group DataNodeGroup) IsNil() bool                       { return len(group) == 0 }
-func (group DataNodeGroup) IsDataBranch() bool                { return false }
-func (group DataNodeGroup) IsDataLeaf() bool                  { return false }
-func (group DataNodeGroup) IsLeaf() bool                      { return false }
-func (group DataNodeGroup) IsLeafList() bool                  { return false }
-func (group DataNodeGroup) Schema() *SchemaNode               { return nil }
-func (group DataNodeGroup) Parent() DataNode                  { return nil }
-func (group DataNodeGroup) Children() []DataNode              { return nil }
-func (group DataNodeGroup) String() string                    { return "" }
-func (group DataNodeGroup) Path() string                      { return "" }
-func (group DataNodeGroup) PathTo(descendant DataNode) string { return "" }
-func (group DataNodeGroup) Value() interface{}                { return nil }
-func (group DataNodeGroup) ValueString() string               { return "" }
+func (group *DataNodeGroup) IsYangDataNode()                   {}
+func (group *DataNodeGroup) IsNil() bool                       { return len(group.Nodes) == 0 }
+func (group *DataNodeGroup) IsDataBranch() bool                { return false }
+func (group *DataNodeGroup) IsDataLeaf() bool                  { return false }
+func (group *DataNodeGroup) IsLeaf() bool                      { return false }
+func (group *DataNodeGroup) IsLeafList() bool                  { return false }
+func (group *DataNodeGroup) Schema() *SchemaNode               { return group.schema }
+func (group *DataNodeGroup) Parent() DataNode                  { return nil }
+func (group *DataNodeGroup) Children() []DataNode              { return nil }
+func (group *DataNodeGroup) String() string                    { return "" }
+func (group *DataNodeGroup) Path() string                      { return "" }
+func (group *DataNodeGroup) PathTo(descendant DataNode) string { return "" }
+func (group *DataNodeGroup) Value() interface{}                { return nil }
+func (group *DataNodeGroup) ValueString() string               { return "" }
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
-func (group DataNodeGroup) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
+func (group *DataNodeGroup) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
 	return nil, false, fmt.Errorf("data node group doesn't support GetOrNew")
 }
 
-func (group DataNodeGroup) NewDataNode(id string, value ...string) (DataNode, error) {
+func (group *DataNodeGroup) NewDataNode(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("data node group doesn't support NewDataNode")
 }
 
-func (group DataNodeGroup) Update(id string, value ...string) (DataNode, error) {
+func (group *DataNodeGroup) Update(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("data node group doesn't support Update")
 }
 
-func (group DataNodeGroup) Set(value ...string) error {
+func (group *DataNodeGroup) Set(value ...string) error {
 	return fmt.Errorf("data node group doesn't support Set")
 }
 
-func (group DataNodeGroup) SetSafe(value ...string) error {
+func (group *DataNodeGroup) SetSafe(value ...string) error {
 	return fmt.Errorf("data node group doesn't support SetSafe")
 }
 
-func (group DataNodeGroup) Unset(value ...string) error {
+func (group *DataNodeGroup) Unset(value ...string) error {
 	return fmt.Errorf("data node group doesn't support Unset")
 }
 
-func (group DataNodeGroup) Remove() error {
+func (group *DataNodeGroup) Remove() error {
 	return fmt.Errorf("data node group doesn't support Remove")
 }
 
-func (group DataNodeGroup) Insert(child DataNode, edit *EditOption) (DataNode, error) {
+func (group *DataNodeGroup) Insert(child DataNode, edit *EditOption) (DataNode, error) {
 	return nil, fmt.Errorf("data node group doesn't support Insert")
 }
 
-func (group DataNodeGroup) Delete(child DataNode) error {
+func (group *DataNodeGroup) Delete(child DataNode) error {
 	return fmt.Errorf("data node group doesn't support Delete")
 }
 
 // [FIXME] - metadata
 // SetMeta() sets metadata key-value pairs.
 //   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
-func (group DataNodeGroup) SetMeta(meta ...map[string]string) error {
+func (group *DataNodeGroup) SetMeta(meta ...map[string]string) error {
 	return nil
 }
 
-func (group DataNodeGroup) Exist(id string) bool {
+func (group *DataNodeGroup) Exist(id string) bool {
 	return false
 }
 
-func (group DataNodeGroup) Get(id string) DataNode {
+func (group *DataNodeGroup) Get(id string) DataNode {
+	// FIXME - search the data node having the id.
 	return nil
 }
 
-func (group DataNodeGroup) GetAll(id string) []DataNode {
-	return group
+func (group *DataNodeGroup) GetAll(id string) []DataNode {
+	return group.Nodes
 }
 
-func (group DataNodeGroup) GetValue(id string) interface{} {
+func (group *DataNodeGroup) GetValue(id string) interface{} {
 	return nil
 }
 
-func (group DataNodeGroup) GetValueString(id string) string {
+func (group *DataNodeGroup) GetValueString(id string) string {
 	return ""
 }
 
-func (group DataNodeGroup) Lookup(prefix string) []DataNode {
+func (group *DataNodeGroup) Lookup(prefix string) []DataNode {
 	return nil
 }
 
-func (group DataNodeGroup) Child(index int) DataNode {
+func (group *DataNodeGroup) Child(index int) DataNode {
 	return nil
 }
 
-func (group DataNodeGroup) Index(id string) int {
+func (group *DataNodeGroup) Index(id string) int {
 	return 0
 }
 
-func (group DataNodeGroup) Len() int {
-	return len(group)
+func (group *DataNodeGroup) Len() int {
+	return len(group.Nodes)
 }
 
-func (group DataNodeGroup) Name() string {
-	return ""
+func (group *DataNodeGroup) Name() string {
+	return group.schema.Name
 }
 
-func (group DataNodeGroup) ID() string {
-	return ""
+func (group *DataNodeGroup) ID() string {
+	return group.schema.Name
 }
 
 // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
-func (group DataNodeGroup) UpdateByMap(pmap map[string]interface{}) error {
+func (group *DataNodeGroup) UpdateByMap(pmap map[string]interface{}) error {
 	return fmt.Errorf("data node group doesn't support UpdateByMap")
 }
 
-func (group DataNodeGroup) UnmarshalJSON(jbytes []byte) error {
+func (group *DataNodeGroup) UnmarshalJSON(jbytes []byte) error {
 	return nil
 }
 
-func (group DataNodeGroup) MarshalJSON() ([]byte, error) {
+func (group *DataNodeGroup) MarshalJSON() ([]byte, error) {
 	return group.marshalJSON()
 }
 
-func (group DataNodeGroup) MarshalJSON_RFC7951() ([]byte, error) {
+func (group *DataNodeGroup) MarshalJSON_RFC7951() ([]byte, error) {
 	return group.marshalJSON(RFC7951Format{})
 }
 
 // UnmarshalYAML updates the leaf data node using YAML-encoded data.
-func (group DataNodeGroup) UnmarshalYAML(in []byte) error {
+func (group *DataNodeGroup) UnmarshalYAML(in []byte) error {
 	return nil
 }
 
 // MarshalYAML encodes the leaf data node to a YAML document.
-func (group DataNodeGroup) MarshalYAML() ([]byte, error) {
+func (group *DataNodeGroup) MarshalYAML() ([]byte, error) {
 	return group.marshalYAML()
 }
 
 // MarshalYAML_RFC7951 encodes the leaf data node to a YAML document using RFC7951 namespace-qualified name.
 // RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (group DataNodeGroup) MarshalYAML_RFC7951() ([]byte, error) {
+func (group *DataNodeGroup) MarshalYAML_RFC7951() ([]byte, error) {
 	return group.marshalYAML(RFC7951Format{})
 }
 
 // Replace() replaces itself to the src node.
-func (group DataNodeGroup) Replace(src DataNode) error {
+func (group *DataNodeGroup) Replace(src DataNode) error {
 	return nil
 }
 
 // Merge() merges the src data node to the leaf data node.
-func (group DataNodeGroup) Merge(src DataNode) error {
+func (group *DataNodeGroup) Merge(src DataNode) error {
 	return nil
 }
 
@@ -240,7 +264,7 @@ func (group DataNodeGroup) Merge(src DataNode) error {
 //   // usage:
 //   var node DataNodeGroup
 //   jsonbytes, err := DataNodeGroup(got).MarshalYAML()
-func (group DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
+func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 	var comma bool
 	var buffer bytes.Buffer
 	buffer.WriteString("[")
@@ -258,7 +282,7 @@ func (group DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 			rfc7951s = rfc7951Enabled
 		}
 	}
-	for _, n := range group {
+	for _, n := range group.Nodes {
 		if comma {
 			buffer.WriteString(",")
 		}
@@ -278,7 +302,7 @@ func (group DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 //   // usage:
 //   var node DataNodeGroup
 //   yamlbytes, err := DataNodeGroup(got).MarshalYAML()
-func (group DataNodeGroup) marshalYAML(option ...Option) ([]byte, error) {
+func (group *DataNodeGroup) marshalYAML(option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
 	configOnly := yang.TSUnset
 	rfc7951s := rfc7951Disabled
@@ -298,7 +322,7 @@ func (group DataNodeGroup) marshalYAML(option ...Option) ([]byte, error) {
 		}
 	}
 	comma := false
-	for _, n := range group {
+	for _, n := range group.Nodes {
 		if comma {
 			buffer.WriteString(", ")
 		}

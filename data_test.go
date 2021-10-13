@@ -768,7 +768,12 @@ func TestEdit(t *testing.T) {
 				}
 				switch {
 				case got[0].IsLeafList():
-					b, err := DataNodeGroup(got).MarshalJSON()
+					group, err := ConvertToDataNodeGroup(nil, got)
+					if err != nil {
+						t.Errorf("Edit() error: %v", fmt.Errorf("converting to data node group failed: %v", err))
+						return
+					}
+					b, err := group.MarshalJSON()
 					if err != nil {
 						t.Errorf("Edit() error: %v", fmt.Errorf("marshalling json for %q failed: %v", tt.path, err))
 						return
