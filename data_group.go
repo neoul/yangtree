@@ -46,10 +46,24 @@ func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, erro
 //    for _, node := range groups {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
-func ConvertToDataNodeGroup(schema *SchemaNode, node []DataNode) (*DataNodeGroup, error) {
+func ConvertToDataNodeGroup(schema *SchemaNode, nodes []DataNode) (*DataNodeGroup, error) {
+	if len(nodes) == 0 {
+		if schema == nil {
+			return nil, fmt.Errorf("nil schema")
+		}
+	} else {
+		if schema == nil {
+			schema = nodes[0].Schema()
+		}
+		for i := range nodes {
+			if schema != nodes[i].Schema() {
+				return nil, fmt.Errorf("converted data nodes doesn't have the same schema")
+			}
+		}
+	}
 	group := &DataNodeGroup{
 		schema: schema,
-		Nodes:  copyDataNodeList(node),
+		Nodes:  copyDataNodeList(nodes),
 	}
 	return group, nil
 }
@@ -240,13 +254,13 @@ func (group *DataNodeGroup) UnmarshalYAML(in []byte) error {
 
 // MarshalYAML encodes the leaf data node to a YAML document.
 func (group *DataNodeGroup) MarshalYAML() ([]byte, error) {
-	return group.marshalYAML()
+	return group.marshalYAML(0, " ")
 }
 
 // MarshalYAML_RFC7951 encodes the leaf data node to a YAML document using RFC7951 namespace-qualified name.
 // RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
 func (group *DataNodeGroup) MarshalYAML_RFC7951() ([]byte, error) {
-	return group.marshalYAML(RFC7951Format{})
+	return group.marshalYAML(0, " ", RFC7951Format{})
 }
 
 // Replace() replaces itself to the src node.
@@ -265,9 +279,7 @@ func (group *DataNodeGroup) Merge(src DataNode) error {
 //   var node DataNodeGroup
 //   jsonbytes, err := DataNodeGroup(got).MarshalYAML()
 func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
-	var comma bool
 	var buffer bytes.Buffer
-	buffer.WriteString("[")
 	configOnly := yang.TSUnset
 	rfc7951s := rfc7951Enabled
 	for i := range option {
@@ -282,18 +294,63 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 			rfc7951s = rfc7951Enabled
 		}
 	}
-	for _, n := range group.Nodes {
-		if comma {
-			buffer.WriteString(",")
+	switch configOnly {
+	case yang.TSTrue:
+		if group.schema.IsState {
+			if rfc7951s != rfc7951Disabled {
+				buffer.WriteString("[]")
+			} else {
+				buffer.WriteString("{}")
+			}
+			return buffer.Bytes(), nil
 		}
-		jnode := &jDataNode{DataNode: n, configOnly: configOnly, rfc7951s: rfc7951s}
-		err := jnode.marshalJSON(&buffer)
-		if err != nil {
+	case yang.TSFalse: // stateOnly
+		if !group.schema.IsState && !group.schema.HasState {
+			if rfc7951s != rfc7951Disabled {
+				buffer.WriteString("[]")
+			} else {
+				buffer.WriteString("{}")
+			}
+			return buffer.Bytes(), nil
+		}
+	}
+	if rfc7951s != rfc7951Disabled || group.schema.IsDuplicatableList() || group.schema.IsLeafList() {
+		nodelist := make([]interface{}, 0, len(group.Nodes))
+		for _, n := range group.Nodes {
+			jnode := &jDataNode{DataNode: n, configOnly: configOnly, rfc7951s: rfc7951s}
+			nodelist = append(nodelist, jnode)
+		}
+		if err := marshalJNodeTree(&buffer, nodelist); err != nil {
 			return nil, err
 		}
-		comma = true
+		return buffer.Bytes(), nil
 	}
-	buffer.WriteString("]")
+	nodemap := map[string]interface{}{}
+	for i := range group.Nodes {
+		jnode := &jDataNode{DataNode: group.Nodes[i],
+			configOnly: configOnly, rfc7951s: rfc7951s}
+		keyname, keyval := GetKeyValues(jnode.DataNode)
+		if len(keyname) != len(keyval) {
+			return nil, fmt.Errorf("list %q doesn't have key value pairs", group.schema.Name)
+		}
+		m := nodemap
+		for x := range keyval {
+			if x < len(keyname)-1 {
+				if n := m[keyval[x]]; n == nil {
+					n := map[string]interface{}{}
+					m[keyval[x]] = n
+					m = n
+				} else {
+					m = n.(map[string]interface{})
+				}
+			} else {
+				m[keyval[x]] = jnode
+			}
+		}
+	}
+	if err := marshalJNodeTree(&buffer, nodemap); err != nil {
+		return nil, err
+	}
 	return buffer.Bytes(), nil
 }
 
@@ -302,48 +359,84 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 //   // usage:
 //   var node DataNodeGroup
 //   yamlbytes, err := DataNodeGroup(got).MarshalYAML()
-func (group *DataNodeGroup) marshalYAML(option ...Option) ([]byte, error) {
+func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
-	configOnly := yang.TSUnset
-	rfc7951s := rfc7951Disabled
-	iformat := false
+	schema := group.schema
+	ynode := &yDataNode{indentStr: indentStr}
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
 			return nil, fmt.Errorf("%v option can be used to find nodes", option[i])
 		case ConfigOnly:
-			configOnly = yang.TSTrue
+			ynode.configOnly = yang.TSTrue
 		case StateOnly:
-			configOnly = yang.TSFalse
+			ynode.configOnly = yang.TSFalse
 		case RFC7951Format:
-			rfc7951s = rfc7951Enabled
+			ynode.rfc7951s = rfc7951Enabled
 		case InternalFormat:
-			iformat = true
+			ynode.iformat = true
 		}
 	}
-	comma := false
-	for _, n := range group.Nodes {
-		if comma {
-			buffer.WriteString(", ")
+	switch ynode.configOnly {
+	case yang.TSTrue:
+		if group.schema.IsState {
+			return buffer.Bytes(), nil
 		}
-		if n.IsDataBranch() {
-			buffer.WriteString("- ")
-		} else {
-			if !comma {
-				buffer.WriteString("[")
+	case yang.TSFalse: // stateOnly
+		if !group.schema.IsState && !group.schema.HasState {
+			return buffer.Bytes(), nil
+		}
+	}
+	if ynode.rfc7951s != rfc7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
+		// writeIndent(&buffer, indent, indentStr, disableFirstIndent)
+		// buffer.WriteString(ynode.getQname())
+		// buffer.WriteString(":\n")
+		// indent++
+		for i := range group.Nodes {
+			ynode.DataNode = group.Nodes[i]
+			writeIndent(&buffer, indent, ynode.indentStr, false)
+			buffer.WriteString("-")
+			writeIndent(&buffer, 1, ynode.indentStr, false)
+			err := ynode.marshalYAML(&buffer, indent+2, true)
+			if err != nil {
+				return nil, err
+			}
+			if ynode.IsLeafList() {
+				buffer.WriteString("\n")
 			}
 		}
-		ynode := &yDataNode{DataNode: n, indentStr: " ",
-			configOnly: configOnly, rfc7951s: rfc7951s, iformat: iformat}
-		if err := ynode.marshalYAML(&buffer, 2, true); err != nil {
-			return nil, err
-		}
-		if n.IsDataLeaf() {
-			comma = true
-		}
+		return buffer.Bytes(), nil
 	}
-	if comma {
-		buffer.WriteString("]")
+	var lastKeyval []string
+	for i := range group.Nodes {
+		ynode.DataNode = group.Nodes[i]
+		if ynode.iformat {
+			writeIndent(&buffer, indent, ynode.indentStr, false)
+			buffer.WriteString(ynode.getQname())
+			buffer.WriteString(":\n")
+			err := ynode.marshalYAML(&buffer, indent+1, false)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			keyname, keyval := GetKeyValues(ynode.DataNode)
+			if len(keyname) != len(keyval) {
+				return nil, fmt.Errorf("list %q doesn't have a id value", schema.Name)
+			}
+			for j := range keyval {
+				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
+					continue
+				}
+				writeIndent(&buffer, indent+j, ynode.indentStr, false)
+				buffer.WriteString(keyval[j])
+				buffer.WriteString(":\n")
+			}
+			err := ynode.marshalYAML(&buffer, indent+len(keyval), false)
+			if err != nil {
+				return nil, err
+			}
+			lastKeyval = keyval
+		}
 	}
 	return buffer.Bytes(), nil
 }
