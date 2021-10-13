@@ -5,6 +5,7 @@ import (
 )
 
 func TestYANGLibrary(t *testing.T) {
+	moduleSetNum = 0
 	file := []string{
 		"../../YangModels/yang/standard/ietf/RFC/iana-if-type@2017-01-19.yang",
 		"../../openconfig/public/release/models/interfaces/openconfig-interfaces.yang",

@@ -3,6 +3,7 @@ package yangtree
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 
 	"github.com/openconfig/goyang/pkg/yang"
@@ -310,4 +311,29 @@ func (leaf *DataLeaf) Merge(src DataNode) error {
 		return fmt.Errorf("invalid src data node")
 	}
 	return merge(leaf, src)
+}
+
+func (leaf *DataLeaf) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	boundary := false
+	if start.Name.Local != leaf.schema.Name {
+		boundary = true
+	} else if leaf.schema.Qboundary {
+		boundary = true
+	}
+	if boundary {
+		ns := leaf.schema.Module.Namespace
+		if ns != nil {
+			start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: ns.Name})
+			start.Name.Local = leaf.schema.Name
+		}
+	} else {
+		start = xml.StartElement{Name: xml.Name{Local: leaf.schema.Name}}
+	}
+	// if err := e.EncodeToken(xml.Comment(leaf.ID())); err != nil {
+	// 	return err
+	// }
+	if err := e.EncodeElement(ValueToString(leaf.value), start); err != nil {
+		return err
+	}
+	return nil
 }

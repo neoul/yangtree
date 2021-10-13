@@ -3,6 +3,7 @@ package yangtree
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"sort"
 	"strings"
@@ -700,4 +701,36 @@ func (branch *DataBranch) Merge(src DataNode) error {
 		return fmt.Errorf("invalid src data node")
 	}
 	return merge(branch, src)
+}
+
+type _xmlnode struct {
+	DataNode
+}
+
+func (branch *DataBranch) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	// fmt.Println(branch.Name(), branch.schema.Module.Namespace)
+	boundary := false
+	if start.Name.Local != branch.schema.Name {
+		boundary = true
+	} else if branch.schema.Qboundary {
+		boundary = true
+	}
+	if boundary {
+		ns := branch.schema.Module.Namespace
+		if ns != nil {
+			start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: ns.Name})
+			start.Name.Local = branch.schema.Name
+		}
+	} else {
+		start = xml.StartElement{Name: xml.Name{Local: branch.schema.Name}}
+	}
+	if err := e.EncodeToken(xml.Token(start)); err != nil {
+		return err
+	}
+	for _, child := range branch.children {
+		if err := e.EncodeElement(child, xml.StartElement{Name: xml.Name{Local: child.Name()}}); err != nil {
+			return err
+		}
+	}
+	return e.EncodeToken(xml.Token(xml.EndElement{Name: xml.Name{Local: branch.schema.Name}}))
 }

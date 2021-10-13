@@ -63,7 +63,6 @@ func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode,
 	}
 	n.Directory["."] = n
 	n.Module = getModule(e, baseModule, ms)
-
 	orderedByUser := false
 	if e.ListAttr != nil {
 		if e.ListAttr.OrderedBy != nil {

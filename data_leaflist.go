@@ -3,6 +3,7 @@ package yangtree
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"sort"
 	"strings"
@@ -355,4 +356,31 @@ func (leaflist *DataLeafList) Merge(src DataNode) error {
 		return fmt.Errorf("invalid src data node")
 	}
 	return merge(leaflist, src)
+}
+
+func (leaflist *DataLeafList) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	boundary := false
+	if start.Name.Local != leaflist.schema.Name {
+		boundary = true
+	} else if leaflist.schema.Qboundary {
+		boundary = true
+	}
+	if boundary {
+		ns := leaflist.schema.Module.Namespace
+		if ns != nil {
+			start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: ns.Name})
+			start.Name.Local = leaflist.schema.Name
+		}
+	} else {
+		start = xml.StartElement{Name: xml.Name{Local: leaflist.schema.Name}}
+	}
+	// if err := e.EncodeToken(xml.Comment(leaflist.ID())); err != nil {
+	// 	return err
+	// }
+	for i := range leaflist.value {
+		if err := e.EncodeElement(ValueToString(leaflist.value[i]), start); err != nil {
+			return err
+		}
+	}
+	return nil
 }

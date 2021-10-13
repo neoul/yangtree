@@ -169,6 +169,9 @@ func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool) 
 		if !ok {
 			return schema.Name, true
 		}
+		if schema.Option.SingleLeafList {
+			return schema.Name, false
+		}
 		var id bytes.Buffer
 		id.WriteString(schema.Name)
 		id.WriteString("[.=")

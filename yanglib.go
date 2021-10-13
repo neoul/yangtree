@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
@@ -196,6 +197,18 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 		if err != nil {
 			return fmt.Errorf(`yanglib: %q not found`, "yang-library")
 		}
+		var mods []*yang.Module
+		for _, m := range modulemap {
+			mods = append(mods, m)
+		}
+		sort.Slice(mods, func(i, j int) bool {
+			if mods[i].Name < mods[j].Name {
+				return true
+			} else if mods[i].Name == mods[j].Name {
+				return mods[i].Current() < mods[j].Current()
+			}
+			return true
+		})
 		for _, m := range modulemap {
 			if m.BelongsTo != nil {
 				continue
@@ -250,8 +263,8 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 							return fmt.Errorf("yanglib: deviation schema %q not found", m.Deviation[i].Name)
 						}
 					}
-					p := fmt.Sprintf("module-set[name=%s]/%s[name=%s]/deviation[.=%s]",
-						moduleSetName, listname, target.Name, name)
+					p := fmt.Sprintf("module-set[name=%s]/%s[name=%s][revision=%s]/deviation[.=%s]",
+						moduleSetName, listname, target.Name, target.Current(), name)
 					if n, err := Find(top, p); err == nil && len(n) == 0 {
 						err = Set(top, p, name)
 						if err != nil {
