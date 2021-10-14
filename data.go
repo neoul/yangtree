@@ -602,8 +602,8 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 		}
 	}
 	reachToEnd := len(pathnode) == 1
-	id, nodeGroup := GenerateID(cschema, pmap)
-	children := branch.find(cschema, &id, nodeGroup, pmap)
+	id, nodeGroup, valueSearch := GenerateID(cschema, pmap)
+	children := branch.find(cschema, &id, nodeGroup, valueSearch, pmap)
 	if len(children) == 0 {
 		switch op {
 		case EditDelete:
@@ -765,8 +765,8 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return nil
 	}
 
-	id, groupSearch := GenerateID(cschema, pmap)
-	children := branch.find(cschema, &id, groupSearch, pmap)
+	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+	children := branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	if len(children) == 0 { // create
 		child, err := NewDataNode(cschema)
 		if err != nil {
@@ -919,7 +919,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	if err != nil {
 		return nil
 	}
-	id, groupSearch := GenerateID(cschema, pmap)
+	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
 	if _, ok := pmap["@evaluate-xpath"]; ok {
 		first, last := indexRangeBySchema(branch, &id)
 		node, err = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
@@ -927,7 +927,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 			return nil
 		}
 	} else {
-		node = branch.find(cschema, &id, groupSearch, pmap)
+		node = branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	}
 	for i := range node {
 		children = append(children, findNode(node[i], pathnode[1:], option...)...)
@@ -1303,8 +1303,8 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 			break
 		}
 		var children []DataNode
-		id, groupSearch := GenerateID(cschema, pmap)
-		children = branch.find(cschema, &id, groupSearch, pmap)
+		id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+		children = branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 		if cschema.IsDuplicatableList() {
 			children = nil // clear found nodes to create a new one.
 		}

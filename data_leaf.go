@@ -61,6 +61,11 @@ func (leaf *DataLeaf) ValueString() string {
 	return ValueToString(leaf.value)
 }
 
+func (leaf *DataLeaf) HasValue(value string) bool {
+	v := ValueToString(leaf.value)
+	return v == value
+}
+
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
 func (leaf *DataLeaf) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {

@@ -51,6 +51,7 @@ type DataNode interface {
 	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
 	Value() interface{}                // Value() returns the raw data of the data node.
 	ValueString() string               // ValueString() returns the string value of the data node.
+	HasValue(value string) bool        // HasValue() returns true if the data node value has the value.
 
 	MarshalJSON() ([]byte, error)         // MarshalJSON() encodes the data node to JSON bytes.
 	MarshalJSON_RFC7951() ([]byte, error) // MarshalJSON_RFC7951() encodes the data node to JSON_IETF (RFC7951) bytes.

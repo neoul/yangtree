@@ -44,6 +44,10 @@ func (branch *DataBranch) ValueString() string {
 	return string(b)
 }
 
+func (branch *DataBranch) HasValue(value string) bool {
+	return false
+}
+
 func (branch *DataBranch) Path() string {
 	if branch == nil {
 		return ""
@@ -94,7 +98,7 @@ func copyDataNodeList(src []DataNode) []DataNode {
 }
 
 // find() is used to find child data nodes using the id internally.
-func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch bool, pmap map[string]interface{}) []DataNode {
+func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch, valueSearch bool, pmap map[string]interface{}) []DataNode {
 	i := indexFirst(branch, id)
 	if i >= len(branch.children) ||
 		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
@@ -126,6 +130,14 @@ func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch bool
 	case cschema.IsList() && cschema.Key == "":
 		matched = func() bool {
 			return true
+		}
+	case valueSearch:
+		v, ok := pmap["."]
+		if !ok {
+			return nil
+		}
+		matched = func() bool {
+			return branch.children[max].HasValue(v.(string))
 		}
 	case groupSearch:
 		matched = func() bool {
@@ -186,8 +198,8 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 	var children []DataNode
-	id, groupSearch := GenerateID(cschema, pmap)
-	children = branch.find(cschema, &id, groupSearch, pmap)
+	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+	children = branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	if cschema.IsDuplicatableList() {
 		switch iopt.(type) {
 		case InsertToAfter, InsertToBefore:

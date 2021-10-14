@@ -64,6 +64,15 @@ func (leaflist *DataLeafList) ValueString() string {
 	return ValueToString(leaflist.value)
 }
 
+func (leaflist *DataLeafList) HasValue(value string) bool {
+	for i := range leaflist.value {
+		if v := ValueToString(leaflist.value[i]); v == value {
+			return true
+		}
+	}
+	return false
+}
+
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
 func (leaflist *DataLeafList) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {

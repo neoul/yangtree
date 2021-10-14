@@ -284,8 +284,8 @@ func (branch *DataBranch) unmarshalJSONList(cschema *SchemaNode, kname []string,
 		pmap[kname[i]] = kval[i]
 	}
 
-	id, groupSearch := GenerateID(cschema, pmap)
-	children := branch.find(cschema, &id, groupSearch, nil)
+	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+	children := branch.find(cschema, &id, groupSearch, valueSearch, nil)
 	if cschema.IsDuplicatable() {
 		children = nil // clear found nodes
 	}
@@ -342,8 +342,8 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *SchemaNode, kname []str
 			pmap["."] = valstr
 		}
 
-		id, groupSearch := GenerateID(cschema, pmap)
-		children := branch.find(cschema, &id, groupSearch, nil)
+		id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+		children := branch.find(cschema, &id, groupSearch, valueSearch, nil)
 		if cschema.IsDuplicatable() {
 			children = nil // clear found nodes
 		}

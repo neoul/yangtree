@@ -131,17 +131,17 @@ LOOP:
 
 // GenerateID generates the node ID of the schema using the value in the pmap.
 // It also returns a boolean value to true if the ID is used for the access of multiple data nodes.
-func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool) {
+func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool, bool) {
 	if _, ok := pmap["@index"]; ok {
-		return schema.Name, false
+		return schema.Name, false, false
 	}
 	if _, ok := pmap["@last"]; ok {
-		return schema.Name, false
+		return schema.Name, false, false
 	}
 	switch {
 	case schema.IsList():
 		if schema.Key == "" {
-			return schema.Name, true
+			return schema.Name, true, false
 		}
 		var id bytes.Buffer
 		id.WriteString(schema.Name)
@@ -149,12 +149,12 @@ func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool) 
 		for i := range keyname {
 			v, ok := pmap[keyname[i]]
 			if !ok {
-				return id.String(), true
+				return id.String(), true, false
 			}
 			value := v.(string)
 			switch value {
 			case "*":
-				return id.String(), true
+				return id.String(), true, false
 			default:
 				id.WriteString("[")
 				id.WriteString(keyname[i])
@@ -163,23 +163,26 @@ func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool) 
 				id.WriteString("]")
 			}
 		}
-		return id.String(), false
+		return id.String(), false, false
 	case schema.IsLeafList():
 		if schema.Option.SingleLeafList {
-			return schema.Name, false
+			if _, ok := pmap["."]; ok {
+				return schema.Name, false, true
+			}
+			return schema.Name, false, false
 		}
 		v, ok := pmap["."]
 		if !ok {
-			return schema.Name, true
+			return schema.Name, true, false
 		}
 		var id bytes.Buffer
 		id.WriteString(schema.Name)
 		id.WriteString("[.=")
 		id.WriteString(v.(string))
 		id.WriteString("]")
-		return id.String(), false
+		return id.String(), false, false
 	}
-	return schema.Name, false // container, leaf
+	return schema.Name, false, false // container, leaf
 }
 
 func updateNodeSelect(pathnode *PathNode) *PathNode {
