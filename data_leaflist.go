@@ -393,3 +393,14 @@ func (leaflist *DataLeafList) MarshalXML(e *xml.Encoder, start xml.StartElement)
 	}
 	return nil
 }
+
+func (leaflist *DataLeafList) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	_, name := SplitQName(&(start.Name.Local))
+	// FIXME - prefix (namesapce) must be checked.
+	if name != leaflist.schema.Name {
+		return fmt.Errorf("invalid element %q inserted for %q", name, leaflist.ID())
+	}
+	var value string
+	d.DecodeElement(&value, &start)
+	return leaflist.Set(value)
+}

@@ -346,3 +346,14 @@ func (leaf *DataLeaf) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	}
 	return nil
 }
+
+func (leaf *DataLeaf) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	_, name := SplitQName(&(start.Name.Local))
+	// FIXME - prefix (namesapce) must be checked.
+	if name != leaf.schema.Name {
+		return fmt.Errorf("invalid element %q inserted for %q", name, leaf.ID())
+	}
+	var value string
+	d.DecodeElement(&value, &start)
+	return leaf.Set(value)
+}

@@ -746,3 +746,50 @@ func (branch *DataBranch) MarshalXML(e *xml.Encoder, start xml.StartElement) err
 	}
 	return e.EncodeToken(xml.Token(xml.EndElement{Name: xml.Name{Local: branch.schema.Name}}))
 }
+
+func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	_, name := SplitQName(&(start.Name.Local))
+	// FIXME - prefix (namesapce) must be checked.
+	if name != branch.schema.Name {
+		return fmt.Errorf("invalid element %q inserted for %q", name, branch.ID())
+	}
+
+	schema := branch.schema
+	for {
+		tok, err := d.Token()
+		if err != nil {
+			return err
+		}
+		if tok == nil {
+			break
+		}
+		switch e := tok.(type) {
+		case xml.StartElement:
+			_, name := SplitQName(&(e.Name.Local))
+			cschema := schema.GetSchema(name)
+			if cschema == nil {
+				return fmt.Errorf("schema %q not found", e.Name.Local)
+			}
+			child, err := newDataNode(cschema)
+			if err != nil {
+				return err
+			}
+			if err := d.DecodeElement(child, &e); err != nil {
+				return err
+			}
+			curchild := branch.Get(child.ID())
+			if curchild == nil {
+				if _, err := branch.insert(child, EditMerge, nil); err != nil {
+					return err
+				}
+			} else {
+				if err := curchild.Merge(child); err != nil {
+					return err
+				}
+			}
+		case xml.EndElement:
+			return nil
+		}
+	}
+	return nil
+}

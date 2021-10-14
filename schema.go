@@ -1088,6 +1088,13 @@ func (schema *SchemaNode) GetMust() []*yang.Must {
 	return nil
 }
 
+func SplitQName(qname *string) (string, string) {
+	if i := strings.Index(*qname, ":"); i >= 0 {
+		return (*qname)[:i], (*qname)[i+1:]
+	}
+	return "", *qname
+}
+
 // Unzip() is used to extracts the builtin schema.
 func Unzip(gzj []byte) ([]byte, error) {
 	gzr, err := gzip.NewReader(bytes.NewReader(gzj))
