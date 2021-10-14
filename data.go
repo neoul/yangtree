@@ -582,6 +582,9 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 
 	switch {
 	case cschema.IsLeafList():
+		if cschema.Option.SingleLeafList {
+			delete(pmap, ".")
+		}
 		if LeafListValueAsKey && len(pathnode) == 2 {
 			value = nil
 			pmap["."] = pathnode[1].Name
@@ -595,7 +598,6 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 					return fmt.Errorf(`value %q must be equal with the xpath predicate of %s[.=%s]`,
 						*value[0], cschema.Name, pmap["."].(string))
 				}
-				value = nil
 			}
 		}
 	}

@@ -165,12 +165,12 @@ func GenerateID(schema *SchemaNode, pmap map[string]interface{}) (string, bool) 
 		}
 		return id.String(), false
 	case schema.IsLeafList():
+		if schema.Option.SingleLeafList {
+			return schema.Name, false
+		}
 		v, ok := pmap["."]
 		if !ok {
 			return schema.Name, true
-		}
-		if schema.Option.SingleLeafList {
-			return schema.Name, false
 		}
 		var id bytes.Buffer
 		id.WriteString(schema.Name)

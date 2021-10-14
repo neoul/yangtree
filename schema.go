@@ -33,20 +33,20 @@ func (schemaoption SchemaOption) IsOption() {}
 // SchemaNode - The node structure of yangtree schema.
 type SchemaNode struct {
 	*yang.Entry
-	Parent        *SchemaNode            // The parent schema node of the schema node
-	Module        *yang.Module           // The module of the schema node
-	Children      []*SchemaNode          // The child schema nodes of the schema node
-	Directory     map[string]*SchemaNode // used to store the children of the schema node with all schema node's aliases
-	Enum          map[string]int64       // used to store all enumeration string
-	Identityref   map[string]string      // used to store all identity values of the schema node
-	Keyname       []string               // used to store key list
-	QName         string                 // The namespace-qualified name of RFC7951
-	Qboundary     bool                   // used to indicate the boundary of the namespace-qualified name of RFC7951
-	IsRoot        bool                   // used to indicate the schema is the root of the schema tree.
-	IsKey         bool                   // used to indicate the schema node is a key node of a list.
-	IsState       bool                   // used to indicate the schema node is state node.
-	HasState      bool                   // used to indicate the schema node has a state node at least.
-	OrderedByUser bool                   // used to indicate the ordering of the list or the leaf-list nodes.
+	Parent        *SchemaNode             // The parent schema node of the schema node
+	Module        *yang.Module            // The module of the schema node
+	Children      []*SchemaNode           // The child schema nodes of the schema node
+	Directory     map[string]*SchemaNode  // used to store the children of the schema node with all schema node's aliases
+	Enum          map[string]int64        // used to store all enumeration string
+	Identityref   map[string]*yang.Module // used to store all identity values of the schema node
+	Keyname       []string                // used to store key list
+	QName         string                  // The namespace-qualified name of RFC7951
+	Qboundary     bool                    // used to indicate the boundary of the namespace-qualified name of RFC7951
+	IsRoot        bool                    // used to indicate the schema is the root of the schema tree.
+	IsKey         bool                    // used to indicate the schema node is a key node of a list.
+	IsState       bool                    // used to indicate the schema node is state node.
+	HasState      bool                    // used to indicate the schema node has a state node at least.
+	OrderedByUser bool                    // used to indicate the ordering of the list or the leaf-list nodes.
 	Option        *SchemaOption
 	Extension     map[string]*SchemaNode
 	Modules       *yang.Modules
@@ -299,14 +299,14 @@ func updatType(schema *SchemaNode, typ *yang.YangType) error {
 		}
 	case yang.Yidentityref:
 		if schema.Identityref == nil {
-			schema.Identityref = map[string]string{}
+			schema.Identityref = make(map[string]*yang.Module)
 		}
 		for i := range typ.IdentityBase.Values {
-			QValue := fmt.Sprintf("%s:%s",
-				yang.RootNode(typ.IdentityBase.Values[i]).Name, typ.IdentityBase.Values[i].NName())
-			schema.Identityref[typ.IdentityBase.Values[i].NName()] = QValue
-			// identityref[typ.IdentityBase.Values[i].NName()] = typ.IdentityBase.Values[i].PrefixedName()
-			// identityref[typ.IdentityBase.Values[i].PrefixedName()] = typ.IdentityBase.Values[i].NName()
+			name := typ.IdentityBase.Values[i].NName()
+			m := yang.RootNode(typ.IdentityBase.Values[i])
+			schema.Identityref[name] = m
+			// identityref[name] = typ.IdentityBase.Values[i].PrefixedName()
+			// identityref[typ.IdentityBase.Values[i].PrefixedName()] = name
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
@@ -886,12 +886,12 @@ func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interf
 	case yang.Yidentityref:
 		if i := strings.Index(value, ":"); i >= 0 {
 			iref := value[i+1:]
-			if _, ok := schema.Identityref[iref]; ok {
-				return iref, nil
+			if m, ok := schema.Identityref[iref]; ok {
+				return m.Name + ":" + iref, nil
 			}
 		} else {
-			if _, ok := schema.Identityref[value]; ok {
-				return value, nil
+			if m, ok := schema.Identityref[value]; ok {
+				return m.Name + ":" + value, nil
 			}
 		}
 	case yang.Yleafref:
@@ -1002,11 +1002,11 @@ func ValueToJSONBytes(schema *SchemaNode, typ *yang.YangType, value interface{},
 			return []byte("[null]"), nil
 		case yang.Yidentityref:
 			if s, ok := value.(string); ok {
-				qvalue, ok := schema.Identityref[s]
+				m, ok := schema.Identityref[s]
 				if !ok {
 					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
 				}
-				return json.Marshal(qvalue)
+				return json.Marshal(m.Name + ":" + s)
 			}
 		case yang.Yint64:
 			if v, ok := value.(int64); ok {

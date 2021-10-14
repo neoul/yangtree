@@ -243,9 +243,11 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 					p := fmt.Sprintf(
 						"module-set[name=%s]/%s[name=%s][revision=%s]/feature[.=%s]",
 						moduleSetName, listname, name, revision, m.Feature[i].Name)
-					err = Set(top, p, m.Feature[i].Name)
-					if err != nil {
-						return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
+					if n, err := Find(top, p); err == nil && len(n) == 0 {
+						err = Set(top, p, m.Feature[i].Name)
+						if err != nil {
+							return fmt.Errorf("yanglib: unable to add feature %q: %v", m.Feature[i].Name, err)
+						}
 					}
 				}
 				// deviation

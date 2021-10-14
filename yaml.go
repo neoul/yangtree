@@ -514,11 +514,11 @@ func ValueToYAMLBytes(schema *SchemaNode, typ *yang.YangType, value interface{},
 		// 	return []byte(""), nil
 		case yang.Yidentityref:
 			if s, ok := value.(string); ok {
-				qvalue, ok := schema.Identityref[s]
+				m, ok := schema.Identityref[s]
 				if !ok {
 					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
 				}
-				value = qvalue
+				value = m.Name + ":" + s
 			}
 		case yang.Yint64:
 			if v, ok := value.(int64); ok {

@@ -332,7 +332,11 @@ func (leaf *DataLeaf) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	// if err := e.EncodeToken(xml.Comment(leaf.ID())); err != nil {
 	// 	return err
 	// }
-	if err := e.EncodeElement(ValueToString(leaf.value), start); err != nil {
+	vstr, err := value2String(leaf.schema, leaf.schema.Type, leaf.value)
+	if err != nil {
+		return err
+	}
+	if err := e.EncodeElement(vstr, start); err != nil {
 		return err
 	}
 	return nil
