@@ -886,14 +886,15 @@ func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interf
 	case yang.Yidentityref:
 		if i := strings.Index(value, ":"); i >= 0 {
 			iref := value[i+1:]
-			if m, ok := schema.Identityref[iref]; ok {
-				return m.Name + ":" + iref, nil
+			if _, ok := schema.Identityref[iref]; ok {
+				return iref, nil
 			}
 		} else {
-			if m, ok := schema.Identityref[value]; ok {
-				return m.Name + ":" + value, nil
+			if _, ok := schema.Identityref[value]; ok {
+				return value, nil
 			}
 		}
+		return nil, fmt.Errorf("identityref %q not found", value)
 	case yang.Yleafref:
 		// [FIXME] Check the schema ? or data ?
 		// [FIXME] check the path refered
