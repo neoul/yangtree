@@ -338,27 +338,6 @@ func (leaflist *DataLeafList) UnmarshalYAML(in []byte) error {
 	return unmarshalYAML(leaflist, ydata)
 }
 
-// MarshalYAML encodes the leaflist data node to a YAML document.
-func (leaflist *DataLeafList) MMarshalYAML() ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	ynode := &yDataNode{DataNode: leaflist, indentStr: " "}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-// MarshalYAML_RFC7951 encodes the leaflist data node to a YAML document using RFC7951 namespace-qualified name.
-// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (leaflist *DataLeafList) MMarshalYAML_RFC7951() ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	ynode := &yDataNode{DataNode: leaflist, indentStr: " ", rfc7951s: rfc7951Enabled}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
 // Replace() replaces itself to the src node.
 func (leaflist *DataLeafList) Replace(src DataNode) error {
 	if !IsValid(src) {

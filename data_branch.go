@@ -688,28 +688,6 @@ func (branch *DataBranch) UnmarshalYAML(in []byte) error {
 	return unmarshalYAML(branch, ydata)
 }
 
-// MarshalYAML encodes the branch data node to a YAML document.
-func (branch *DataBranch) MMarshalYAML() ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	ynode := &yDataNode{DataNode: branch, indentStr: " ", iformat: true}
-	// ynode := &yDataNode{DataNode: branch, indentStr: " "}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-// MarshalYAML_RFC7951 encodes the branch data node to a YAML document using RFC7951 namespace-qualified name.
-// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (branch *DataBranch) MMarshalYAML_RFC7951() ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	ynode := &yDataNode{DataNode: branch, indentStr: " ", rfc7951s: rfc7951Enabled}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
 // Replace() replaces itself to the src node.
 func (branch *DataBranch) Replace(src DataNode) error {
 	if !IsValid(src) {

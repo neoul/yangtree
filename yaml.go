@@ -668,27 +668,25 @@ func (ynode *YAMLNode) MarshalYAML() (interface{}, error) {
 			}
 			switch at {
 			case TrvsCalledAtEnter:
-				if n.IsDataBranch() {
-					key := n.ID()
-					if n.IsDuplicatable() {
-						dir, ok := parent[key]
-						if !ok {
-							dir = []interface{}{}
-						}
-						list := dir.([]interface{})
-						dir = make(map[interface{}]interface{})
-						parent[key] = append(list, dir)
-						curkeys = append(curkeys, key, len(list))
-						parent = dir.(map[interface{}]interface{})
-					} else {
-						dir := make(map[interface{}]interface{})
-						parent[key] = dir
-						curkeys = append(curkeys, key)
-						parent = dir
+				key := n.ID()
+				if n.IsDuplicatable() {
+					dir, ok := parent[key]
+					if !ok {
+						dir = []interface{}{}
 					}
+					list := dir.([]interface{})
+					dir = make(map[interface{}]interface{})
+					parent[key] = append(list, dir)
+					curkeys = append(curkeys, key, len(list))
+					parent = dir.(map[interface{}]interface{})
 				} else {
-					return ynode.marshalYAMLValue(n, parent)
+					dir := make(map[interface{}]interface{})
+					parent[key] = dir
+					curkeys = append(curkeys, key)
+					parent = dir
 				}
+			case TrvsCalledAtEnterAndExit:
+				return ynode.marshalYAMLValue(n, parent)
 			case TrvsCalledAtExit:
 				if n == ynode.DataNode {
 					targetkeys = curkeys
@@ -719,31 +717,29 @@ func (ynode *YAMLNode) MarshalYAML() (interface{}, error) {
 			}
 			switch at {
 			case TrvsCalledAtEnter:
-				if n.IsDataBranch() {
-					key := n.Name()
-					qname, boundary := n.QName(true)
-					if boundary || ynode.DataNode == n {
-						key = qname
-					}
-					if n.IsList() {
-						dir, ok := parent[key]
-						if !ok {
-							dir = []interface{}{}
-						}
-						list := dir.([]interface{})
-						dir = make(map[interface{}]interface{})
-						parent[key] = append(list, dir)
-						curkeys = append(curkeys, key, len(list))
-						parent = dir.(map[interface{}]interface{})
-					} else {
-						dir := make(map[interface{}]interface{})
-						parent[key] = dir
-						curkeys = append(curkeys, key)
-						parent = dir
-					}
-				} else {
-					return ynode.marshalYAMLValue(n, parent)
+				key := n.Name()
+				qname, boundary := n.QName(true)
+				if boundary || ynode.DataNode == n {
+					key = qname
 				}
+				if n.IsList() {
+					dir, ok := parent[key]
+					if !ok {
+						dir = []interface{}{}
+					}
+					list := dir.([]interface{})
+					dir = make(map[interface{}]interface{})
+					parent[key] = append(list, dir)
+					curkeys = append(curkeys, key, len(list))
+					parent = dir.(map[interface{}]interface{})
+				} else {
+					dir := make(map[interface{}]interface{})
+					parent[key] = dir
+					curkeys = append(curkeys, key)
+					parent = dir
+				}
+			case TrvsCalledAtEnterAndExit:
+				return ynode.marshalYAMLValue(n, parent)
 			case TrvsCalledAtExit:
 				if n == ynode.DataNode {
 					targetkeys = curkeys
@@ -774,36 +770,34 @@ func (ynode *YAMLNode) MarshalYAML() (interface{}, error) {
 			}
 			switch at {
 			case TrvsCalledAtEnter:
-				if n.IsDataBranch() {
-					if n.IsDuplicatable() {
-						key := n.ID()
-						dir, ok := parent[key]
-						if !ok {
-							dir = []interface{}{}
-						}
-						list := dir.([]interface{})
-						dir = make(map[interface{}]interface{})
-						parent[key] = append(list, dir)
-						curkeys = append(curkeys, key, len(list))
-						parent = dir.(map[interface{}]interface{})
-					} else {
-						keys, err := yamlkeys(n, false)
-						if err != nil {
-							return err
-						}
-						for i := range keys {
-							dir, ok := parent[keys[i]]
-							if !ok {
-								dir = make(map[interface{}]interface{})
-								parent[keys[i]] = dir
-							}
-							curkeys = append(curkeys, keys[i])
-							parent = dir.(map[interface{}]interface{})
-						}
+				if n.IsDuplicatable() {
+					key := n.ID()
+					dir, ok := parent[key]
+					if !ok {
+						dir = []interface{}{}
 					}
+					list := dir.([]interface{})
+					dir = make(map[interface{}]interface{})
+					parent[key] = append(list, dir)
+					curkeys = append(curkeys, key, len(list))
+					parent = dir.(map[interface{}]interface{})
 				} else {
-					return ynode.marshalYAMLValue(n, parent)
+					keys, err := yamlkeys(n, false)
+					if err != nil {
+						return err
+					}
+					for i := range keys {
+						dir, ok := parent[keys[i]]
+						if !ok {
+							dir = make(map[interface{}]interface{})
+							parent[keys[i]] = dir
+						}
+						curkeys = append(curkeys, keys[i])
+						parent = dir.(map[interface{}]interface{})
+					}
 				}
+			case TrvsCalledAtEnterAndExit:
+				return ynode.marshalYAMLValue(n, parent)
 			case TrvsCalledAtExit:
 				if n == ynode.DataNode {
 					targetkeys = curkeys
@@ -830,7 +824,7 @@ func (ynode *YAMLNode) MarshalYAML() (interface{}, error) {
 		}
 	}
 
-	if err := Traverse(ynode.DataNode, traverser, TrvsCalledAtBoth, -1, false); err != nil {
+	if err := Traverse(ynode.DataNode, traverser, TrvsCalledAtEnterAndExit, -1, false); err != nil {
 		return nil, err
 	}
 

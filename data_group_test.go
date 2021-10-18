@@ -1,6 +1,10 @@
 package yangtree
 
-import "testing"
+import (
+	"testing"
+
+	"gopkg.in/yaml.v2"
+)
 
 func TestNewDataGroup(t *testing.T) {
 	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
@@ -58,7 +62,7 @@ func TestNewDataGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if y, err := jcontainernodes.MMarshalYAML(); err == nil {
+	if y, err := MarshalYAML(jcontainernodes); err == nil {
 		t.Log("\n", string(y))
 	}
 
@@ -93,7 +97,7 @@ func TestNewDataGroup(t *testing.T) {
 	if j, err := jleaflistnodes.MarshalJSON(); err == nil {
 		t.Log(string(j))
 	}
-	if y, err := jleaflistnodes.MMarshalYAML(); err == nil {
+	if y, err := yaml.Marshal(jleaflistnodes); err == nil {
 		t.Log(string(y))
 	}
 
@@ -105,7 +109,7 @@ func TestNewDataGroup(t *testing.T) {
 	if j, err := jlistnodes.MarshalJSON_RFC7951(); err == nil {
 		t.Log(string(j))
 	}
-	if y, err := jlistnodes.MMarshalYAML_RFC7951(); err == nil {
+	if y, err := MarshalYAML(jlistnodes, RFC7951Format{}); err == nil {
 		t.Log(string(y))
 	}
 }

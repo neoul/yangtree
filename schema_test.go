@@ -54,7 +54,7 @@ func TestYANGMetaData(t *testing.T) {
 		t.Errorf("file read error: %v\n", err)
 	}
 	file.Close()
-	if err := RootData.UnmarshalYAML(b); err != nil {
+	if err := UnmarshalYAML(RootData, b); err != nil {
 		t.Errorf("unmarshalling error: %v\n", err)
 	}
 

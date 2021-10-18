@@ -3,13 +3,13 @@ package yangtree
 // TrvsCallOption is an argument of Traverse() to decide where user-defined traverser() is called.
 //  - TrvsCalledAtEnter TrvsCallOption // call user-defined traverser() at the entrance of of child nodes.
 //  - TrvsCalledAtExit                     // call user-defined traverser() at the exit of of child nodes.
-//  - TrvsCalledAtBoth                     // call user-defined traverser() at the entrance and exit of child nodes.
+//  - TrvsCalledAtEnterAndExit                     // call user-defined traverser() at the entrance and exit of child nodes.
 type TrvsCallOption int
 
 const (
-	TrvsCalledAtEnter TrvsCallOption = 0 // call user-defined traverser() at the entrance of of child nodes.
-	TrvsCalledAtExit  TrvsCallOption = 2 // call user-defined traverser() at the exit of of child nodes.
-	TrvsCalledAtBoth  TrvsCallOption = 1 // call user-defined traverser() at the entrance and exit of child nodes.
+	TrvsCalledAtEnter        TrvsCallOption = 0 // call user-defined traverser() at the entrance of of child nodes.
+	TrvsCalledAtExit         TrvsCallOption = 2 // call user-defined traverser() at the exit of of child nodes.
+	TrvsCalledAtEnterAndExit TrvsCallOption = 1 // call user-defined traverser() at the entrance and exit of child nodes.
 )
 
 // Traverse() loops the node's all children, descendants and itself to execute traverser() at each node.
@@ -48,7 +48,7 @@ func traverse(node DataNode, arg *traverseArg) error {
 		if arg.depth > 0 {
 			arg.depth--
 		}
-		if !arg.leafOnly && (arg.calledAt <= TrvsCalledAtBoth) {
+		if !arg.leafOnly && (arg.calledAt <= TrvsCalledAtEnterAndExit) {
 			if err := arg.traverser(n, TrvsCalledAtEnter); err != nil {
 				return err
 			}
@@ -58,17 +58,17 @@ func traverse(node DataNode, arg *traverseArg) error {
 				return err
 			}
 		}
-		if !arg.leafOnly && (arg.calledAt >= TrvsCalledAtBoth) {
+		if !arg.leafOnly && (arg.calledAt >= TrvsCalledAtEnterAndExit) {
 			if err := arg.traverser(n, TrvsCalledAtExit); err != nil {
 				return err
 			}
 		}
 	case *DataLeafList:
-		if err := arg.traverser(n, TrvsCalledAtEnter); err != nil {
+		if err := arg.traverser(n, TrvsCalledAtEnterAndExit); err != nil {
 			return err
 		}
 	case *DataLeaf:
-		if err := arg.traverser(n, TrvsCalledAtEnter); err != nil {
+		if err := arg.traverser(n, TrvsCalledAtEnterAndExit); err != nil {
 			return err
 		}
 	}

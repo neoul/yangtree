@@ -143,7 +143,10 @@ func (group *DataNodeGroup) String() string                    { return "" }
 func (group *DataNodeGroup) Path() string                      { return "" }
 func (group *DataNodeGroup) PathTo(descendant DataNode) string { return "" }
 func (group *DataNodeGroup) Value() interface{}                { return nil }
+func (group *DataNodeGroup) Values() []interface{}             { return nil }
 func (group *DataNodeGroup) ValueString() string               { return "" }
+
+func (group *DataNodeGroup) HasValue(value string) bool { return false }
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
@@ -231,6 +234,10 @@ func (group *DataNodeGroup) Name() string {
 	return group.schema.Name
 }
 
+func (group *DataNodeGroup) QName(rfc7951 bool) (string, bool) {
+	return group.schema.GetQName(rfc7951)
+}
+
 func (group *DataNodeGroup) ID() string {
 	return group.schema.Name
 }
@@ -255,17 +262,6 @@ func (group *DataNodeGroup) MarshalJSON_RFC7951() ([]byte, error) {
 // UnmarshalYAML updates the leaf data node using YAML-encoded data.
 func (group *DataNodeGroup) UnmarshalYAML(in []byte) error {
 	return nil
-}
-
-// MarshalYAML encodes the leaf data node to a YAML document.
-func (group *DataNodeGroup) MMarshalYAML() ([]byte, error) {
-	return group.marshalYAML(0, " ")
-}
-
-// MarshalYAML_RFC7951 encodes the leaf data node to a YAML document using RFC7951 namespace-qualified name.
-// RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (group *DataNodeGroup) MMarshalYAML_RFC7951() ([]byte, error) {
-	return group.marshalYAML(0, " ", RFC7951Format{})
 }
 
 // Replace() replaces itself to the src node.

@@ -62,10 +62,6 @@ type DataNode interface {
 	MarshalJSON() ([]byte, error)         // MarshalJSON() encodes the data node to JSON bytes.
 	MarshalJSON_RFC7951() ([]byte, error) // MarshalJSON_RFC7951() encodes the data node to JSON_IETF (RFC7951) bytes.
 	UnmarshalJSON([]byte) error           // UnmarshalJSON() assembles the data node using JSON or JSON_IETF (rfc7951) bytes.
-
-	MMarshalYAML() ([]byte, error)         // MarshalYAML() encodes the data node to a YAML bytes.
-	MMarshalYAML_RFC7951() ([]byte, error) // MarshalYAML_RFC7951() encodes the data node to a YAML bytes.
-	UnmarshalYAML([]byte) error            // UnmarshalYAML() assembles the data node using a YAML bytes
 }
 
 // yangtree Option
