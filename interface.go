@@ -6,15 +6,16 @@ type DataNode interface {
 	IsNil() bool        // IsNil() is used to check the data node is null.
 	IsDataBranch() bool // IsDataBranch() returns true if the data node is a DataBranch.
 	IsDataLeaf() bool   // IsDataLeaf() returns true if the data node is a DataLeaf.
-	IsLeaf() bool       // IsLeaf() returns true if the data node is a leaf.
-	IsLeafList() bool   // IsLeafList() returns true if the data node is a leaf-list.
-	IsDuplicatable() bool
-	IsList() bool
-	IsContainer() bool
+
+	IsLeaf() bool         // IsLeaf() returns true if the data node is an yang leaf.
+	IsLeafList() bool     // IsLeafList() returns true if the data node is an yang leaf-list.
+	IsDuplicatable() bool // IsDuplicatable() returns true if multiple nodes having the same ID can exist in the tree.
+	IsList() bool         // IsList() returns true if the data node is an yang list.
+	IsContainer() bool    // IsContainer returns true if the data node is an yang container node.
 
 	Name() string                      // Name() returns the name of the data node.
-	QName(rfc7951 bool) (string, bool) // QName (namespace-qualified name e.g. module-name:node-name or module-prefix:node-name)
-	ID() string                        // ID() returns the ID of the data node. The ID is an XPath element combined with XPath predicates to identify the node instance.
+	QName(rfc7951 bool) (string, bool) // QName() returns the namespace-qualified name e.g. module-name:node-name or module-prefix:node-name.
+	ID() string                        // ID() returns the data node ID. The ID is an XPath element combined with XPath predicates to identify the node instance.
 
 	Schema() *SchemaNode  // Schema() returns the schema of the data node.
 	Parent() DataNode     // Parent() returns the parent if it is present.
