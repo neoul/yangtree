@@ -43,32 +43,28 @@ func traverse(node DataNode, arg *traverseArg) error {
 	if arg.depth == 0 {
 		return nil
 	}
-	switch n := node.(type) {
-	case *DataBranch:
+	if node.IsDataBranch() {
 		if arg.depth > 0 {
 			arg.depth--
 		}
 		if !arg.leafOnly && (arg.calledAt <= TrvsCalledAtEnterAndExit) {
-			if err := arg.traverser(n, TrvsCalledAtEnter); err != nil {
+			if err := arg.traverser(node, TrvsCalledAtEnter); err != nil {
 				return err
 			}
 		}
-		for i := 0; i < len(n.children); i++ {
-			if err := traverse(n.children[i], arg); err != nil {
+		children := node.Children()
+		for i := 0; i < len(children); i++ {
+			if err := traverse(children[i], arg); err != nil {
 				return err
 			}
 		}
 		if !arg.leafOnly && (arg.calledAt >= TrvsCalledAtEnterAndExit) {
-			if err := arg.traverser(n, TrvsCalledAtExit); err != nil {
+			if err := arg.traverser(node, TrvsCalledAtExit); err != nil {
 				return err
 			}
 		}
-	case *DataLeafList:
-		if err := arg.traverser(n, TrvsCalledAtEnterAndExit); err != nil {
-			return err
-		}
-	case *DataLeaf:
-		if err := arg.traverser(n, TrvsCalledAtEnterAndExit); err != nil {
+	} else {
+		if err := arg.traverser(node, TrvsCalledAtEnterAndExit); err != nil {
 			return err
 		}
 	}
