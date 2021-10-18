@@ -784,7 +784,7 @@ func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 }
 
 func (branch *DataBranch) MarshalYAML() (interface{}, error) {
-	ynode := &YAMLNode{
+	ynode := &yamlNode{
 		DataNode: branch,
 	}
 	return ynode.MarshalYAML()

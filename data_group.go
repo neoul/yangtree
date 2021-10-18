@@ -363,7 +363,7 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
 	schema := group.schema
-	ynode := &YAMLNode{IndentStr: indentStr}
+	ynode := &yamlNode{IndentStr: indentStr}
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
