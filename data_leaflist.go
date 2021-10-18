@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/openconfig/goyang/pkg/yang"
 )
 
 // DataLeafList - The node structure of yangtree for leaf-list nodes.
@@ -20,20 +18,20 @@ type DataLeafList struct {
 	value  []interface{}
 }
 
-func (leaflist *DataLeafList) IsDataNode()        {}
-func (leaflist *DataLeafList) IsNil() bool        { return leaflist == nil }
-func (leaflist *DataLeafList) IsBranchNode() bool { return false }
-func (leaflist *DataLeafList) IsLeafNode() bool   { return true }
-func (leaflist *DataLeafList) IsLeaf() bool       { return leaflist.schema.IsLeaf() }
-func (leaflist *DataLeafList) IsLeafList() bool   { return leaflist.schema.IsLeafList() }
-func (leaflist *DataLeafList) IsList() bool       { return leaflist.schema.IsList() }
-func (leaflist *DataLeafList) IsContainer() bool  { return leaflist.schema.IsContainer() }
-func (leaflist *DataLeafList) IsDuplicatableNode() bool {
-	return leaflist.schema.IsDuplicatable()
-}
-func (leaflist *DataLeafList) IsListableNode() bool {
-	return leaflist.schema.IsListable()
-}
+func (leaflist *DataLeafList) IsDataNode()              {}
+func (leaflist *DataLeafList) IsNil() bool              { return leaflist == nil }
+func (leaflist *DataLeafList) IsBranchNode() bool       { return false }
+func (leaflist *DataLeafList) IsLeafNode() bool         { return true }
+func (leaflist *DataLeafList) IsLeaf() bool             { return leaflist.schema.IsLeaf() }
+func (leaflist *DataLeafList) IsLeafList() bool         { return leaflist.schema.IsLeafList() }
+func (leaflist *DataLeafList) IsList() bool             { return leaflist.schema.IsList() }
+func (leaflist *DataLeafList) IsContainer() bool        { return leaflist.schema.IsContainer() }
+func (leaflist *DataLeafList) IsDuplicatableNode() bool { return leaflist.schema.IsDuplicatable() }
+func (leaflist *DataLeafList) IsListableNode() bool     { return leaflist.schema.IsListable() }
+func (leaflist *DataLeafList) IsStateNode() bool        { return leaflist.schema.IsState }
+func (leaflist *DataLeafList) HasStateNode() bool       { return leaflist.schema.HasState }
+func (leaflist *DataLeafList) HasMultipleValues() bool  { return true }
+
 func (leaflist *DataLeafList) Schema() *SchemaNode { return leaflist.schema }
 func (leaflist *DataLeafList) Parent() DataNode {
 	if leaflist.parent == nil {
@@ -266,13 +264,7 @@ func (leaflist *DataLeafList) Index(id string) int {
 }
 
 func (leaflist *DataLeafList) Len() int {
-	if leaflist.schema.Type.Kind == yang.Yempty {
-		return 1
-	}
-	if leaflist.value == nil {
-		return 0
-	}
-	return 1
+	return len(leaflist.value)
 }
 
 func (leaflist *DataLeafList) Name() string {

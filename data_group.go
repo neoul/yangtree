@@ -135,8 +135,12 @@ func (group *DataNodeGroup) IsList() bool             { return group.schema.IsLi
 func (group *DataNodeGroup) IsContainer() bool        { return group.schema.IsContainer() }
 func (group *DataNodeGroup) IsDuplicatableNode() bool { return group.schema.IsDuplicatable() }
 func (group *DataNodeGroup) IsListableNode() bool     { return group.schema.IsListable() }
-func (group *DataNodeGroup) Schema() *SchemaNode      { return group.schema }
-func (group *DataNodeGroup) Parent() DataNode         { return nil }
+func (group *DataNodeGroup) IsStateNode() bool        { return group.schema.IsState }
+func (group *DataNodeGroup) HasStateNode() bool       { return group.schema.HasState }
+func (group *DataNodeGroup) HasMultipleValues() bool  { return false }
+
+func (group *DataNodeGroup) Schema() *SchemaNode { return group.schema }
+func (group *DataNodeGroup) Parent() DataNode    { return nil }
 func (group *DataNodeGroup) Children() []DataNode {
 	if group.schema.IsDir() {
 		return group.Nodes

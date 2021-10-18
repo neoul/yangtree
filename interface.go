@@ -8,6 +8,9 @@ type DataNode interface {
 	IsLeafNode() bool         // IsLeafNode() returns true if the data node is a DataLeaf.
 	IsDuplicatableNode() bool // IsDuplicatable() returns true if multiple nodes having the same ID can exist in the tree.
 	IsListableNode() bool     // IsListable() returns true if the nodes that has the same schema are listed in the tree.
+	IsStateNode() bool        // IsStateNode() returns true if the node is a config=false node.
+	HasStateNode() bool       // HasStateNode() returns true if the node has a config=false child node.
+	HasMultipleValues() bool  // HasMultipleValues() returns true if the node has a set of values.
 
 	IsLeaf() bool      // IsLeaf() returns true if the data node is an yang leaf.
 	IsLeafList() bool  // IsLeafList() returns true if the data node is an yang leaf-list.
@@ -49,7 +52,7 @@ type DataNode interface {
 	GetAll(id string) []DataNode       // GetAll() is used to get all children that have the id.
 	Lookup(idPrefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix string of the node ID.
 
-	Len() int                 // Len() returns the length of children.
+	Len() int                 // Len() returns the number of children or the number of values.
 	Index(id string) int      // Index() finds all children by the node id and returns the position.
 	Child(index int) DataNode // Child() gets the child of the index.
 

@@ -17,20 +17,19 @@ type DataLeaf struct {
 	id     string
 }
 
-func (leaf *DataLeaf) IsDataNode()        {}
-func (leaf *DataLeaf) IsNil() bool        { return leaf == nil }
-func (leaf *DataLeaf) IsBranchNode() bool { return false }
-func (leaf *DataLeaf) IsLeafNode() bool   { return true }
-func (leaf *DataLeaf) IsLeaf() bool       { return leaf.schema.IsLeaf() }
-func (leaf *DataLeaf) IsLeafList() bool   { return leaf.schema.IsLeafList() }
-func (leaf *DataLeaf) IsList() bool       { return leaf.schema.IsList() }
-func (leaf *DataLeaf) IsContainer() bool  { return leaf.schema.IsContainer() }
-func (leaf *DataLeaf) IsDuplicatableNode() bool {
-	return leaf.schema.IsDuplicatable()
-}
-func (leaf *DataLeaf) IsListableNode() bool {
-	return leaf.schema.IsListable()
-}
+func (leaf *DataLeaf) IsDataNode()              {}
+func (leaf *DataLeaf) IsNil() bool              { return leaf == nil }
+func (leaf *DataLeaf) IsBranchNode() bool       { return false }
+func (leaf *DataLeaf) IsLeafNode() bool         { return true }
+func (leaf *DataLeaf) IsLeaf() bool             { return leaf.schema.IsLeaf() }
+func (leaf *DataLeaf) IsLeafList() bool         { return leaf.schema.IsLeafList() }
+func (leaf *DataLeaf) IsList() bool             { return leaf.schema.IsList() }
+func (leaf *DataLeaf) IsContainer() bool        { return leaf.schema.IsContainer() }
+func (leaf *DataLeaf) IsDuplicatableNode() bool { return leaf.schema.IsDuplicatable() }
+func (leaf *DataLeaf) IsListableNode() bool     { return leaf.schema.IsListable() }
+func (leaf *DataLeaf) IsStateNode() bool        { return leaf.schema.IsState }
+func (leaf *DataLeaf) HasStateNode() bool       { return leaf.schema.HasState }
+func (leaf *DataLeaf) HasMultipleValues() bool  { return false }
 
 func (leaf *DataLeaf) Schema() *SchemaNode { return leaf.schema }
 func (leaf *DataLeaf) Parent() DataNode {

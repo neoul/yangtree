@@ -344,14 +344,13 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 
 func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirstIndent bool) error {
 	cynode := *ynode
-	switch datanode := ynode.DataNode.(type) {
-	case *DataBranch:
-		node := datanode.children
-		for i := 0; i < len(datanode.children); {
-			schema := node[i].Schema()
-			if schema.IsListable() { // for list and multiple leaf-list
+	switch {
+	case ynode.IsBranchNode():
+		children := ynode.Children()
+		for i := 0; i < len(children); {
+			if children[i].IsListableNode() { // for list and multiple leaf-list nodes
 				var err error
-				i, err = ynode.marshalYAMChildListableNodes(buffer, node, i, indent, disableFirstIndent)
+				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent, disableFirstIndent)
 				if err != nil {
 					return err
 				}
@@ -359,33 +358,28 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 				continue
 			}
 			// container, leaf, single leaf-list node
-			if (ynode.ConfigOnly == yang.TSTrue && schema.IsState) ||
-				(ynode.ConfigOnly == yang.TSFalse && !schema.IsState && !schema.HasState) {
+			if (ynode.ConfigOnly == yang.TSTrue && children[i].IsStateNode()) ||
+				(ynode.ConfigOnly == yang.TSFalse && !children[i].IsStateNode() && !children[i].HasStateNode()) {
 				// skip the node according to the retrieval option
 				i++
 				continue
 			}
-			cynode.DataNode = node[i]
+			cynode.DataNode = children[i]
 			cynode.RFC7951S = ynode.RFC7951S
 			disableFirstIndent = writeIndent(buffer, indent, cynode.IndentStr, disableFirstIndent)
 			buffer.WriteString(cynode.getQname())
 			buffer.WriteString(":")
 			if cynode.IsLeaf() {
-				buffer.WriteString(" ")
-				if err := cynode.marshalYAML(buffer, indent+1, false); err != nil {
-					return err
-				}
-				buffer.WriteString("\n")
-			} else if leaflist, ok := cynode.DataNode.(*DataLeafList); ok {
-				if len(leaflist.value) <= 8 {
-					buffer.WriteString(" ")
-				} else {
+				newline := ynode.HasMultipleValues() && ynode.Len() > 8
+				if newline {
 					buffer.WriteString("\n")
+				} else {
+					buffer.WriteString(" ")
 				}
 				if err := cynode.marshalYAML(buffer, indent+1, false); err != nil {
 					return err
 				}
-				if len(leaflist.value) <= 8 {
+				if !newline {
 					buffer.WriteString("\n")
 				}
 			} else {
@@ -396,42 +390,48 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 			}
 			i++
 		}
-	case *DataLeaf:
+	case ynode.IsLeafNode():
+		// write the data to the buffer without the data node name
+		if ynode.HasMultipleValues() {
+			schema := ynode.Schema()
+			value := ynode.Values()
+			rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
+			if len(value) <= 8 {
+				comma := false
+				buffer.WriteString("[")
+				for i := range value {
+					if comma {
+						buffer.WriteString(",")
+					}
+					valbyte, err := ValueToYAMLBytes(schema, schema.Type, value[i], rfc7951enabled)
+					if err != nil {
+						return err
+					}
+					buffer.Write(valbyte)
+					comma = true
+				}
+				buffer.WriteString("]")
+			} else {
+				for i := range value {
+					writeIndent(buffer, indent, ynode.IndentStr, false)
+					buffer.WriteString("- ")
+					valbyte, err := ValueToYAMLBytes(schema, schema.Type, value[i], rfc7951enabled)
+					if err != nil {
+						return err
+					}
+					buffer.Write(valbyte)
+					buffer.WriteString("\n")
+				}
+			}
+			return nil
+		}
+		schema := ynode.Schema()
 		rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
-		valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
+		valbyte, err := ValueToYAMLBytes(schema, schema.Type, ynode.Value(), rfc7951enabled)
 		if err != nil {
 			return err
 		}
 		buffer.Write(valbyte)
-	case *DataLeafList:
-		rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
-		if len(datanode.value) <= 8 {
-			comma := false
-			buffer.WriteString("[")
-			for i := range datanode.value {
-				if comma {
-					buffer.WriteString(",")
-				}
-				valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
-				if err != nil {
-					return err
-				}
-				buffer.Write(valbyte)
-				comma = true
-			}
-			buffer.WriteString("]")
-		} else {
-			for i := range datanode.value {
-				writeIndent(buffer, indent, ynode.IndentStr, false)
-				buffer.WriteString("- ")
-				valbyte, err := ValueToYAMLBytes(datanode.schema, datanode.schema.Type, datanode.value[i], rfc7951enabled)
-				if err != nil {
-					return err
-				}
-				buffer.Write(valbyte)
-				buffer.WriteString("\n")
-			}
-		}
 	}
 	return nil
 }
