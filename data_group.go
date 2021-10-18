@@ -125,26 +125,41 @@ func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 	return c, nil
 }
 
-func (group *DataNodeGroup) IsYangDataNode()    {}
-func (group *DataNodeGroup) IsNil() bool        { return len(group.Nodes) == 0 }
-func (group *DataNodeGroup) IsDataBranch() bool { return false }
-func (group *DataNodeGroup) IsDataLeaf() bool   { return false }
-func (group *DataNodeGroup) IsLeaf() bool       { return false }
-func (group *DataNodeGroup) IsLeafList() bool   { return false }
-func (group *DataNodeGroup) IsList() bool       { return group.schema.IsList() }
-func (group *DataNodeGroup) IsContainer() bool  { return group.schema.IsContainer() }
-func (group *DataNodeGroup) IsDuplicatable() bool {
-	return group.schema.IsDuplicatable()
+func (group *DataNodeGroup) IsDataNode()          {}
+func (group *DataNodeGroup) IsNil() bool          { return group == nil }
+func (group *DataNodeGroup) IsDataBranch() bool   { return group.schema.IsDir() }
+func (group *DataNodeGroup) IsDataLeaf() bool     { return !group.schema.IsDir() }
+func (group *DataNodeGroup) IsLeaf() bool         { return group.schema.IsLeaf() }
+func (group *DataNodeGroup) IsLeafList() bool     { return group.schema.IsLeafList() }
+func (group *DataNodeGroup) IsList() bool         { return group.schema.IsList() }
+func (group *DataNodeGroup) IsContainer() bool    { return group.schema.IsContainer() }
+func (group *DataNodeGroup) IsDuplicatable() bool { return group.schema.IsDuplicatable() }
+func (group *DataNodeGroup) IsListable() bool     { return group.schema.IsListable() }
+func (group *DataNodeGroup) Schema() *SchemaNode  { return group.schema }
+func (group *DataNodeGroup) Parent() DataNode     { return nil }
+func (group *DataNodeGroup) Children() []DataNode {
+	if group.schema.IsDir() {
+		return group.Nodes
+	}
+	return nil
 }
-func (group *DataNodeGroup) Schema() *SchemaNode               { return group.schema }
-func (group *DataNodeGroup) Parent() DataNode                  { return nil }
-func (group *DataNodeGroup) Children() []DataNode              { return nil }
-func (group *DataNodeGroup) String() string                    { return "" }
+func (group *DataNodeGroup) String() string                    { return "group" + group.schema.Name }
 func (group *DataNodeGroup) Path() string                      { return "" }
 func (group *DataNodeGroup) PathTo(descendant DataNode) string { return "" }
 func (group *DataNodeGroup) Value() interface{}                { return nil }
-func (group *DataNodeGroup) Values() []interface{}             { return nil }
-func (group *DataNodeGroup) ValueString() string               { return "" }
+func (group *DataNodeGroup) Values() []interface{} {
+	if !group.schema.IsDir() {
+		if len(group.Nodes) > 0 {
+			values := make([]interface{}, 0, len(group.Nodes))
+			for i := range group.Nodes {
+				values = append(values, group.Nodes[i].Values()...)
+			}
+			return values
+		}
+	}
+	return nil
+}
+func (group *DataNodeGroup) ValueString() string { return "" }
 
 func (group *DataNodeGroup) HasValue(value string) bool { return false }
 
@@ -440,4 +455,11 @@ func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...
 		}
 	}
 	return buffer.Bytes(), nil
+}
+
+func (group *DataNodeGroup) MarshalYAML() (interface{}, error) {
+	ynode := &yamlNode{
+		DataNode: group,
+	}
+	return ynode.MarshalYAML()
 }

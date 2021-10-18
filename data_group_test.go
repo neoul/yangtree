@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"fmt"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -98,7 +99,9 @@ func TestNewDataGroup(t *testing.T) {
 		t.Log(string(j))
 	}
 	if y, err := yaml.Marshal(jleaflistnodes); err == nil {
-		t.Log(string(y))
+		fmt.Println(string(y))
+	} else {
+		t.Fatal(err)
 	}
 
 	schema = RootSchema.FindSchema("sample/single-key-list")

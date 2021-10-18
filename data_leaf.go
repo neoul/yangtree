@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/openconfig/goyang/pkg/yang"
-	"gopkg.in/yaml.v2"
 )
 
 // DataLeaf - The node structure of yangtree for list or leaf-list nodes.
@@ -18,7 +17,7 @@ type DataLeaf struct {
 	id     string
 }
 
-func (leaf *DataLeaf) IsYangDataNode()    {}
+func (leaf *DataLeaf) IsDataNode()        {}
 func (leaf *DataLeaf) IsNil() bool        { return leaf == nil }
 func (leaf *DataLeaf) IsDataBranch() bool { return false }
 func (leaf *DataLeaf) IsDataLeaf() bool   { return true }
@@ -29,6 +28,10 @@ func (leaf *DataLeaf) IsContainer() bool  { return leaf.schema.IsContainer() }
 func (leaf *DataLeaf) IsDuplicatable() bool {
 	return leaf.schema.IsDuplicatable()
 }
+func (leaf *DataLeaf) IsListable() bool {
+	return leaf.schema.IsListable()
+}
+
 func (leaf *DataLeaf) Schema() *SchemaNode { return leaf.schema }
 func (leaf *DataLeaf) Parent() DataNode {
 	if leaf.parent == nil {
@@ -282,16 +285,6 @@ func (leaf *DataLeaf) MarshalJSON_RFC7951() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// UnmarshalYAML updates the leaf data node using YAML-encoded data.
-func (leaf *DataLeaf) UnmarshalYAML(in []byte) error {
-	var ydata interface{}
-	err := yaml.Unmarshal(in, &ydata)
-	if err != nil {
-		return err
-	}
-	return unmarshalYAML(leaf, ydata)
-}
-
 // Replace() replaces itself to the src node.
 func (leaf *DataLeaf) Replace(src DataNode) error {
 	if !IsValid(src) {
@@ -350,4 +343,13 @@ func (leaf *DataLeaf) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 
 func (leaf *DataLeaf) MarshalYAML() (interface{}, error) {
 	return ValueToString(leaf.value), nil
+}
+
+func (leaf *DataLeaf) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ydata interface{}
+	err := unmarshal(&ydata)
+	if err != nil {
+		return err
+	}
+	return unmarshalYAML(leaf, ydata)
 }

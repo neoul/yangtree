@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
-	"gopkg.in/yaml.v2"
 )
 
 // DataLeafList - The node structure of yangtree for leaf-list nodes.
@@ -21,7 +20,7 @@ type DataLeafList struct {
 	value  []interface{}
 }
 
-func (leaflist *DataLeafList) IsYangDataNode()    {}
+func (leaflist *DataLeafList) IsDataNode()        {}
 func (leaflist *DataLeafList) IsNil() bool        { return leaflist == nil }
 func (leaflist *DataLeafList) IsDataBranch() bool { return false }
 func (leaflist *DataLeafList) IsDataLeaf() bool   { return true }
@@ -31,6 +30,9 @@ func (leaflist *DataLeafList) IsList() bool       { return leaflist.schema.IsLis
 func (leaflist *DataLeafList) IsContainer() bool  { return leaflist.schema.IsContainer() }
 func (leaflist *DataLeafList) IsDuplicatable() bool {
 	return leaflist.schema.IsDuplicatable()
+}
+func (leaflist *DataLeafList) IsListable() bool {
+	return leaflist.schema.IsListable()
 }
 func (leaflist *DataLeafList) Schema() *SchemaNode { return leaflist.schema }
 func (leaflist *DataLeafList) Parent() DataNode {
@@ -328,16 +330,6 @@ func (leaflist *DataLeafList) MarshalJSON_RFC7951() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// UnmarshalYAML updates the leaflist data node using YAML-encoded data.
-func (leaflist *DataLeafList) UnmarshalYAML(in []byte) error {
-	var ydata interface{}
-	err := yaml.Unmarshal(in, &ydata)
-	if err != nil {
-		return err
-	}
-	return unmarshalYAML(leaflist, ydata)
-}
-
 // Replace() replaces itself to the src node.
 func (leaflist *DataLeafList) Replace(src DataNode) error {
 	if !IsValid(src) {
@@ -390,4 +382,17 @@ func (leaflist *DataLeafList) UnmarshalXML(d *xml.Decoder, start xml.StartElemen
 	var value string
 	d.DecodeElement(&value, &start)
 	return leaflist.Set(value)
+}
+
+func (leaflist *DataLeafList) MarshalYAML() (interface{}, error) {
+	return ValueToString(leaflist.value), nil
+}
+
+func (leaflist *DataLeafList) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ydata interface{}
+	err := unmarshal(&ydata)
+	if err != nil {
+		return err
+	}
+	return unmarshalYAML(leaflist, ydata)
 }

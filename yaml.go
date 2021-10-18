@@ -602,7 +602,7 @@ func yamlkeys(node DataNode, rfc7951s RFC7951S) ([]interface{}, error) {
 	return keyvals, nil
 }
 
-func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]interface{}) error {
+func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]interface{}) (string, error) {
 	schema := node.Schema()
 	key := node.Name()
 	if ynode.RFC7951S != RFC7951Disabled {
@@ -611,7 +611,7 @@ func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]in
 			key = qname
 		}
 	}
-	if node.IsLeafList() {
+	if node.IsListable() {
 		var rvalues []interface{}
 		if values := parent[key]; values != nil {
 			rvalues = parent[key].([]interface{})
@@ -620,19 +620,19 @@ func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]in
 		for i := range values {
 			v, err := ValueToYAMLValue(schema, schema.Type, values[i], ynode.RFC7951S)
 			if err != nil {
-				return err
+				return "", err
 			}
 			rvalues = append(rvalues, v)
 		}
 		parent[key] = rvalues
-		return nil
+		return key, nil
 	}
 	v, err := ValueToYAMLValue(schema, schema.Type, node.Value(), ynode.RFC7951S)
 	if err != nil {
-		return err
+		return "", err
 	}
 	parent[key] = v
-	return nil
+	return key, nil
 }
 
 func (ynode *yamlNode) skip(node DataNode) bool {
@@ -677,7 +677,11 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 					parent = dir
 				}
 			case TrvsCalledAtEnterAndExit:
-				return ynode.marshalYAMLValue(n, parent)
+				key, err := ynode.marshalYAMLValue(n, parent)
+				if n == ynode.DataNode {
+					targetkeys = append(curkeys, key)
+				}
+				return err
 			case TrvsCalledAtExit:
 				if n == ynode.DataNode {
 					targetkeys = curkeys
@@ -730,7 +734,11 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 					parent = dir
 				}
 			case TrvsCalledAtEnterAndExit:
-				return ynode.marshalYAMLValue(n, parent)
+				key, err := ynode.marshalYAMLValue(n, parent)
+				if n == ynode.DataNode {
+					targetkeys = append(curkeys, key)
+				}
+				return err
 			case TrvsCalledAtExit:
 				if n == ynode.DataNode {
 					targetkeys = curkeys
@@ -788,7 +796,11 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 					}
 				}
 			case TrvsCalledAtEnterAndExit:
-				return ynode.marshalYAMLValue(n, parent)
+				key, err := ynode.marshalYAMLValue(n, parent)
+				if n == ynode.DataNode {
+					targetkeys = append(curkeys, key)
+				}
+				return err
 			case TrvsCalledAtExit:
 				if n == ynode.DataNode {
 					targetkeys = curkeys

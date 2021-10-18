@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v2"
 )
 
 // The node structure of yangtree for container and list data nodes.
@@ -20,7 +18,7 @@ type DataBranch struct {
 	metadata map[string]DataNode
 }
 
-func (branch *DataBranch) IsYangDataNode()    {}
+func (branch *DataBranch) IsDataNode()        {}
 func (branch *DataBranch) IsNil() bool        { return branch == nil }
 func (branch *DataBranch) IsDataBranch() bool { return true }
 func (branch *DataBranch) IsDataLeaf() bool   { return false }
@@ -32,6 +30,11 @@ func (branch *DataBranch) IsContainer() bool  { return branch.schema.IsContainer
 func (branch *DataBranch) IsDuplicatable() bool {
 	return branch.schema.IsDuplicatable()
 }
+
+func (branch *DataBranch) IsListable() bool {
+	return branch.schema.IsListable()
+}
+
 func (branch *DataBranch) Schema() *SchemaNode { return branch.schema }
 func (branch *DataBranch) Parent() DataNode {
 	if branch.parent == nil {
@@ -678,16 +681,6 @@ func (branch *DataBranch) MarshalJSON_RFC7951() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// UnmarshalYAML updates the branch data node using YAML-encoded data.
-func (branch *DataBranch) UnmarshalYAML(in []byte) error {
-	var ydata interface{}
-	err := yaml.Unmarshal(in, &ydata)
-	if err != nil {
-		return err
-	}
-	return unmarshalYAML(branch, ydata)
-}
-
 // Replace() replaces itself to the src node.
 func (branch *DataBranch) Replace(src DataNode) error {
 	if !IsValid(src) {
@@ -788,4 +781,13 @@ func (branch *DataBranch) MarshalYAML() (interface{}, error) {
 		DataNode: branch,
 	}
 	return ynode.MarshalYAML()
+}
+
+func (branch *DataBranch) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ydata interface{}
+	err := unmarshal(&ydata)
+	if err != nil {
+		return err
+	}
+	return unmarshalYAML(branch, ydata)
 }

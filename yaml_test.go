@@ -30,7 +30,10 @@ func TestYAML(t *testing.T) {
 			t.Errorf("file read error: %v\n", err)
 		}
 		file.Close()
-		if err := UnmarshalYAML(root[i], b); err != nil {
+		// if err := UnmarshalYAML(root[i], b); err != nil {
+		// 	t.Errorf("unmarshalling error: %v\n", err)
+		// }
+		if err := yaml.Unmarshal(b, root[i]); err != nil {
 			t.Errorf("unmarshalling error: %v\n", err)
 		}
 

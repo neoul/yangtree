@@ -2,16 +2,17 @@ package yangtree
 
 // yangtree consists of the data node.
 type DataNode interface {
-	IsYangDataNode()
-	IsNil() bool        // IsNil() is used to check the data node is null.
-	IsDataBranch() bool // IsDataBranch() returns true if the data node is a DataBranch.
-	IsDataLeaf() bool   // IsDataLeaf() returns true if the data node is a DataLeaf.
-
-	IsLeaf() bool         // IsLeaf() returns true if the data node is an yang leaf.
-	IsLeafList() bool     // IsLeafList() returns true if the data node is an yang leaf-list.
+	IsDataNode()
+	IsNil() bool          // IsNil() is used to check the data node is null.
+	IsDataBranch() bool   // IsDataBranch() returns true if the data node is a DataBranch.
+	IsDataLeaf() bool     // IsDataLeaf() returns true if the data node is a DataLeaf.
 	IsDuplicatable() bool // IsDuplicatable() returns true if multiple nodes having the same ID can exist in the tree.
-	IsList() bool         // IsList() returns true if the data node is an yang list.
-	IsContainer() bool    // IsContainer returns true if the data node is an yang container node.
+	IsListable() bool     // IsListable() returns true if the nodes that has the same schema are listed in the tree.
+
+	IsLeaf() bool      // IsLeaf() returns true if the data node is an yang leaf.
+	IsLeafList() bool  // IsLeafList() returns true if the data node is an yang leaf-list.
+	IsList() bool      // IsList() returns true if the data node is an yang list.
+	IsContainer() bool // IsContainer returns true if the data node is an yang container node.
 
 	Name() string                      // Name() returns the name of the data node.
 	QName(rfc7951 bool) (string, bool) // QName() returns the namespace-qualified name e.g. module-name:node-name or module-prefix:node-name.
