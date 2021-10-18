@@ -274,11 +274,6 @@ func (group *DataNodeGroup) MarshalJSON_RFC7951() ([]byte, error) {
 	return group.marshalJSON(RFC7951Format{})
 }
 
-// UnmarshalYAML updates the leaf data node using YAML-encoded data.
-func (group *DataNodeGroup) UnmarshalYAML(in []byte) error {
-	return nil
-}
-
 // Replace() replaces itself to the src node.
 func (group *DataNodeGroup) Replace(src DataNode) error {
 	return nil
@@ -462,4 +457,13 @@ func (group *DataNodeGroup) MarshalYAML() (interface{}, error) {
 		DataNode: group,
 	}
 	return ynode.MarshalYAML()
+}
+
+func (group *DataNodeGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var ydata interface{}
+	err := unmarshal(&ydata)
+	if err != nil {
+		return err
+	}
+	return unmarshalYAML(group, ydata)
 }

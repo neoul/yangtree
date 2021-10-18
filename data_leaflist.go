@@ -385,7 +385,10 @@ func (leaflist *DataLeafList) UnmarshalXML(d *xml.Decoder, start xml.StartElemen
 }
 
 func (leaflist *DataLeafList) MarshalYAML() (interface{}, error) {
-	return ValueToString(leaflist.value), nil
+	ynode := &yamlNode{
+		DataNode: leaflist,
+	}
+	return ynode.MarshalYAML()
 }
 
 func (leaflist *DataLeafList) UnmarshalYAML(unmarshal func(interface{}) error) error {
