@@ -69,7 +69,7 @@ func TestDataLeafList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	y, err := singleLeafList.MarshalYAML()
+	y, err := singleLeafList.MMarshalYAML()
 	if err != nil {
 		t.Fatalf("leaflist marshalling to YAML: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestDataLeafList(t *testing.T) {
 	if len(found) != 1 {
 		t.Fatalf("leaf-list-val finding failed: single leaf-list node")
 	}
-	y, err = found[0].MarshalYAML()
+	y, err = found[0].MMarshalYAML()
 	if err != nil {
 		t.Fatalf("leaf-list-val yaml marshalling failed: %v", err)
 	}

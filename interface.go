@@ -8,8 +8,13 @@ type DataNode interface {
 	IsDataLeaf() bool   // IsDataLeaf() returns true if the data node is a DataLeaf.
 	IsLeaf() bool       // IsLeaf() returns true if the data node is a leaf.
 	IsLeafList() bool   // IsLeafList() returns true if the data node is a leaf-list.
-	Name() string       // Name() returns the name of the data node.
-	ID() string         // ID() returns the ID of the data node. The ID is an XPath element combined with XPath predicates to identify the node instance.
+	IsDuplicatable() bool
+	IsList() bool
+	IsContainer() bool
+
+	Name() string                      // Name() returns the name of the data node.
+	QName(rfc7951 bool) (string, bool) // QName (namespace-qualified name e.g. module-name:node-name or module-prefix:node-name)
+	ID() string                        // ID() returns the ID of the data node. The ID is an XPath element combined with XPath predicates to identify the node instance.
 
 	Schema() *SchemaNode  // Schema() returns the schema of the data node.
 	Parent() DataNode     // Parent() returns the parent if it is present.
@@ -50,6 +55,7 @@ type DataNode interface {
 	Path() string                      // Path() returns the path from the root to the current data node.
 	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
 	Value() interface{}                // Value() returns the raw data of the data node.
+	Values() []interface{}             // Values() returns its values using []interface{} slice
 	ValueString() string               // ValueString() returns the string value of the data node.
 	HasValue(value string) bool        // HasValue() returns true if the data node value has the value.
 
@@ -57,9 +63,9 @@ type DataNode interface {
 	MarshalJSON_RFC7951() ([]byte, error) // MarshalJSON_RFC7951() encodes the data node to JSON_IETF (RFC7951) bytes.
 	UnmarshalJSON([]byte) error           // UnmarshalJSON() assembles the data node using JSON or JSON_IETF (rfc7951) bytes.
 
-	MarshalYAML() ([]byte, error)         // MarshalYAML() encodes the data node to a YAML bytes.
-	MarshalYAML_RFC7951() ([]byte, error) // MarshalYAML_RFC7951() encodes the data node to a YAML bytes.
-	UnmarshalYAML([]byte) error           // UnmarshalYAML() assembles the data node using a YAML bytes
+	MMarshalYAML() ([]byte, error)         // MarshalYAML() encodes the data node to a YAML bytes.
+	MMarshalYAML_RFC7951() ([]byte, error) // MarshalYAML_RFC7951() encodes the data node to a YAML bytes.
+	UnmarshalYAML([]byte) error            // UnmarshalYAML() assembles the data node using a YAML bytes
 }
 
 // yangtree Option

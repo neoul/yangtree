@@ -63,6 +63,10 @@ func traverse(node DataNode, arg *traverseArg) error {
 				return err
 			}
 		}
+	case *DataLeafList:
+		if err := arg.traverser(n, TrvsCalledAtEnter); err != nil {
+			return err
+		}
 	case *DataLeaf:
 		if err := arg.traverser(n, TrvsCalledAtEnter); err != nil {
 			return err

@@ -20,12 +20,18 @@ type DataBranch struct {
 	metadata map[string]DataNode
 }
 
-func (branch *DataBranch) IsYangDataNode()     {}
-func (branch *DataBranch) IsNil() bool         { return branch == nil }
-func (branch *DataBranch) IsDataBranch() bool  { return true }
-func (branch *DataBranch) IsDataLeaf() bool    { return false }
-func (branch *DataBranch) IsLeaf() bool        { return false }
-func (branch *DataBranch) IsLeafList() bool    { return false }
+func (branch *DataBranch) IsYangDataNode()    {}
+func (branch *DataBranch) IsNil() bool        { return branch == nil }
+func (branch *DataBranch) IsDataBranch() bool { return true }
+func (branch *DataBranch) IsDataLeaf() bool   { return false }
+func (branch *DataBranch) IsLeaf() bool       { return false }
+func (branch *DataBranch) IsLeafList() bool   { return false }
+func (branch *DataBranch) IsList() bool       { return branch.schema.IsList() }
+func (branch *DataBranch) IsContainer() bool  { return branch.schema.IsContainer() }
+
+func (branch *DataBranch) IsDuplicatable() bool {
+	return branch.schema.IsDuplicatable()
+}
 func (branch *DataBranch) Schema() *SchemaNode { return branch.schema }
 func (branch *DataBranch) Parent() DataNode {
 	if branch.parent == nil {
@@ -33,8 +39,9 @@ func (branch *DataBranch) Parent() DataNode {
 	}
 	return branch.parent
 }
-func (branch *DataBranch) Children() []DataNode { return branch.children }
-func (branch *DataBranch) Value() interface{}   { return nil }
+func (branch *DataBranch) Children() []DataNode  { return branch.children }
+func (branch *DataBranch) Value() interface{}    { return nil }
+func (branch *DataBranch) Values() []interface{} { return nil }
 
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
@@ -585,6 +592,10 @@ func (branch *DataBranch) Name() string {
 	return branch.schema.Name
 }
 
+func (branch *DataBranch) QName(rfc7951 bool) (string, bool) {
+	return branch.schema.GetQName(rfc7951)
+}
+
 func (branch *DataBranch) ID() string {
 	if branch.parent != nil {
 		if branch.id == "" {
@@ -678,7 +689,7 @@ func (branch *DataBranch) UnmarshalYAML(in []byte) error {
 }
 
 // MarshalYAML encodes the branch data node to a YAML document.
-func (branch *DataBranch) MarshalYAML() ([]byte, error) {
+func (branch *DataBranch) MMarshalYAML() ([]byte, error) {
 	buffer := bytes.NewBufferString("")
 	ynode := &yDataNode{DataNode: branch, indentStr: " ", iformat: true}
 	// ynode := &yDataNode{DataNode: branch, indentStr: " "}
@@ -690,7 +701,7 @@ func (branch *DataBranch) MarshalYAML() ([]byte, error) {
 
 // MarshalYAML_RFC7951 encodes the branch data node to a YAML document using RFC7951 namespace-qualified name.
 // RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (branch *DataBranch) MarshalYAML_RFC7951() ([]byte, error) {
+func (branch *DataBranch) MMarshalYAML_RFC7951() ([]byte, error) {
 	buffer := bytes.NewBufferString("")
 	ynode := &yDataNode{DataNode: branch, indentStr: " ", rfc7951s: rfc7951Enabled}
 	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
@@ -792,4 +803,11 @@ func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 		}
 	}
 	return nil
+}
+
+func (branch *DataBranch) MarshalYAML() (interface{}, error) {
+	ynode := &YAMLNode{
+		DataNode: branch,
+	}
+	return ynode.MarshalYAML()
 }

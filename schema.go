@@ -33,20 +33,20 @@ func (schemaoption SchemaOption) IsOption() {}
 // SchemaNode - The node structure of yangtree schema.
 type SchemaNode struct {
 	*yang.Entry
-	Parent        *SchemaNode             // The parent schema node of the schema node
-	Module        *yang.Module            // The module of the schema node
-	Children      []*SchemaNode           // The child schema nodes of the schema node
-	Directory     map[string]*SchemaNode  // used to store the children of the schema node with all schema node's aliases
-	Enum          map[string]int64        // used to store all enumeration string
-	Identityref   map[string]*yang.Module // used to store all identity values of the schema node
-	Keyname       []string                // used to store key list
-	QName         string                  // The namespace-qualified name of RFC7951
-	Qboundary     bool                    // used to indicate the boundary of the namespace-qualified name of RFC7951
-	IsRoot        bool                    // used to indicate the schema is the root of the schema tree.
-	IsKey         bool                    // used to indicate the schema node is a key node of a list.
-	IsState       bool                    // used to indicate the schema node is state node.
-	HasState      bool                    // used to indicate the schema node has a state node at least.
-	OrderedByUser bool                    // used to indicate the ordering of the list or the leaf-list nodes.
+	Parent      *SchemaNode             // The parent schema node of the schema node
+	Module      *yang.Module            // The module of the schema node
+	Children    []*SchemaNode           // The child schema nodes of the schema node
+	Directory   map[string]*SchemaNode  // used to store the children of the schema node with all schema node's aliases
+	Enum        map[string]int64        // used to store all enumeration string
+	Identityref map[string]*yang.Module // used to store all identity values of the schema node
+	Keyname     []string                // used to store key list
+	// QName         string                  // The namespace-qualified name of RFC7951
+	Qboundary     bool // used to indicate the boundary of the namespace-qualified name of RFC7951
+	IsRoot        bool // used to indicate the schema is the root of the schema tree.
+	IsKey         bool // used to indicate the schema node is a key node of a list.
+	IsState       bool // used to indicate the schema node is state node.
+	HasState      bool // used to indicate the schema node has a state node at least.
+	OrderedByUser bool // used to indicate the ordering of the list or the leaf-list nodes.
 	Option        *SchemaOption
 	Extension     map[string]*SchemaNode
 	Modules       *yang.Modules
@@ -74,8 +74,8 @@ func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode,
 	}
 
 	// namespace-qualified name of RFC 7951
-	qname := strings.Join([]string{n.Module.Name, ":", e.Name}, "")
-	n.QName = qname
+	// qname := strings.Join([]string{n.Module.Name, ":", e.Name}, "")
+	// n.QName = qname
 	n.Qboundary = true
 
 	// set keyname
@@ -396,8 +396,17 @@ func (schema *SchemaNode) IsAnyData() bool {
 }
 
 // GetQName() returns the qname (namespace-qualified name e.g. module-name:node-name) of the schema node.
-func (schema *SchemaNode) GetQName() (string, bool) {
-	return schema.QName, schema.Qboundary
+func (schema *SchemaNode) GetQName(rfc7951 bool) (string, bool) {
+	if schema.Module == nil {
+		return schema.Name, schema.Qboundary
+	}
+	if rfc7951 {
+		return schema.Module.Name + ":" + schema.Name, schema.Qboundary
+	}
+	if schema.Module.Prefix != nil {
+		return schema.Module.Prefix.Name + ":" + schema.Name, schema.Qboundary
+	}
+	return schema.Name, schema.Qboundary
 }
 
 // getModule() returns the module strcture of the schema node.

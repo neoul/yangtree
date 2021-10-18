@@ -21,12 +21,17 @@ type DataLeafList struct {
 	value  []interface{}
 }
 
-func (leaflist *DataLeafList) IsYangDataNode()     {}
-func (leaflist *DataLeafList) IsNil() bool         { return leaflist == nil }
-func (leaflist *DataLeafList) IsDataBranch() bool  { return false }
-func (leaflist *DataLeafList) IsDataLeaf() bool    { return true }
-func (leaflist *DataLeafList) IsLeaf() bool        { return leaflist.schema.IsLeaf() }
-func (leaflist *DataLeafList) IsLeafList() bool    { return leaflist.schema.IsLeafList() }
+func (leaflist *DataLeafList) IsYangDataNode()    {}
+func (leaflist *DataLeafList) IsNil() bool        { return leaflist == nil }
+func (leaflist *DataLeafList) IsDataBranch() bool { return false }
+func (leaflist *DataLeafList) IsDataLeaf() bool   { return true }
+func (leaflist *DataLeafList) IsLeaf() bool       { return leaflist.schema.IsLeaf() }
+func (leaflist *DataLeafList) IsLeafList() bool   { return leaflist.schema.IsLeafList() }
+func (leaflist *DataLeafList) IsList() bool       { return leaflist.schema.IsList() }
+func (leaflist *DataLeafList) IsContainer() bool  { return leaflist.schema.IsContainer() }
+func (leaflist *DataLeafList) IsDuplicatable() bool {
+	return leaflist.schema.IsDuplicatable()
+}
 func (leaflist *DataLeafList) Schema() *SchemaNode { return leaflist.schema }
 func (leaflist *DataLeafList) Parent() DataNode {
 	if leaflist.parent == nil {
@@ -56,9 +61,8 @@ func (leaflist *DataLeafList) PathTo(descendant DataNode) string {
 	return ""
 }
 
-func (leaflist *DataLeafList) Value() interface{} {
-	return leaflist.value
-}
+func (leaflist *DataLeafList) Value() interface{}    { return leaflist.value }
+func (leaflist *DataLeafList) Values() []interface{} { return leaflist.value }
 
 func (leaflist *DataLeafList) ValueString() string {
 	return ValueToString(leaflist.value)
@@ -273,6 +277,10 @@ func (leaflist *DataLeafList) Name() string {
 	return leaflist.schema.Name
 }
 
+func (leaflist *DataLeafList) QName(rfc7951 bool) (string, bool) {
+	return leaflist.schema.GetQName(rfc7951)
+}
+
 func (leaflist *DataLeafList) ID() string {
 	return leaflist.schema.Name
 }
@@ -331,7 +339,7 @@ func (leaflist *DataLeafList) UnmarshalYAML(in []byte) error {
 }
 
 // MarshalYAML encodes the leaflist data node to a YAML document.
-func (leaflist *DataLeafList) MarshalYAML() ([]byte, error) {
+func (leaflist *DataLeafList) MMarshalYAML() ([]byte, error) {
 	buffer := bytes.NewBufferString("")
 	ynode := &yDataNode{DataNode: leaflist, indentStr: " "}
 	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
@@ -342,7 +350,7 @@ func (leaflist *DataLeafList) MarshalYAML() ([]byte, error) {
 
 // MarshalYAML_RFC7951 encodes the leaflist data node to a YAML document using RFC7951 namespace-qualified name.
 // RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (leaflist *DataLeafList) MarshalYAML_RFC7951() ([]byte, error) {
+func (leaflist *DataLeafList) MMarshalYAML_RFC7951() ([]byte, error) {
 	buffer := bytes.NewBufferString("")
 	ynode := &yDataNode{DataNode: leaflist, indentStr: " ", rfc7951s: rfc7951Enabled}
 	if err := ynode.marshalYAML(buffer, 0, false); err != nil {

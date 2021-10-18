@@ -125,12 +125,17 @@ func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 	return c, nil
 }
 
-func (group *DataNodeGroup) IsYangDataNode()                   {}
-func (group *DataNodeGroup) IsNil() bool                       { return len(group.Nodes) == 0 }
-func (group *DataNodeGroup) IsDataBranch() bool                { return false }
-func (group *DataNodeGroup) IsDataLeaf() bool                  { return false }
-func (group *DataNodeGroup) IsLeaf() bool                      { return false }
-func (group *DataNodeGroup) IsLeafList() bool                  { return false }
+func (group *DataNodeGroup) IsYangDataNode()    {}
+func (group *DataNodeGroup) IsNil() bool        { return len(group.Nodes) == 0 }
+func (group *DataNodeGroup) IsDataBranch() bool { return false }
+func (group *DataNodeGroup) IsDataLeaf() bool   { return false }
+func (group *DataNodeGroup) IsLeaf() bool       { return false }
+func (group *DataNodeGroup) IsLeafList() bool   { return false }
+func (group *DataNodeGroup) IsList() bool       { return group.schema.IsList() }
+func (group *DataNodeGroup) IsContainer() bool  { return group.schema.IsContainer() }
+func (group *DataNodeGroup) IsDuplicatable() bool {
+	return group.schema.IsDuplicatable()
+}
 func (group *DataNodeGroup) Schema() *SchemaNode               { return group.schema }
 func (group *DataNodeGroup) Parent() DataNode                  { return nil }
 func (group *DataNodeGroup) Children() []DataNode              { return nil }
@@ -253,13 +258,13 @@ func (group *DataNodeGroup) UnmarshalYAML(in []byte) error {
 }
 
 // MarshalYAML encodes the leaf data node to a YAML document.
-func (group *DataNodeGroup) MarshalYAML() ([]byte, error) {
+func (group *DataNodeGroup) MMarshalYAML() ([]byte, error) {
 	return group.marshalYAML(0, " ")
 }
 
 // MarshalYAML_RFC7951 encodes the leaf data node to a YAML document using RFC7951 namespace-qualified name.
 // RFC7951 is the encoding specification for JSON. So, MarshalYAML_RFC7951 only utilizes the RFC7951 namespace-qualified name for YAML encoding.
-func (group *DataNodeGroup) MarshalYAML_RFC7951() ([]byte, error) {
+func (group *DataNodeGroup) MMarshalYAML_RFC7951() ([]byte, error) {
 	return group.marshalYAML(0, " ", RFC7951Format{})
 }
 

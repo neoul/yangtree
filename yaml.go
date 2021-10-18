@@ -240,7 +240,7 @@ type yDataNode struct {
 func (ynode *yDataNode) getQname() string {
 	switch ynode.rfc7951s {
 	case rfc7951InProgress, rfc7951Enabled:
-		if qname, boundary := ynode.Schema().GetQName(); boundary ||
+		if qname, boundary := ynode.Schema().GetQName(true); boundary ||
 			ynode.rfc7951s == rfc7951Enabled {
 			ynode.rfc7951s = rfc7951InProgress
 			return qname
@@ -546,4 +546,303 @@ func ValueToYAMLBytes(schema *SchemaNode, typ *yang.YangType, value interface{},
 		return out[:len(out)-1], nil
 	}
 	return out, err
+}
+
+type YAMLNode struct {
+	DataNode            // Target data node to encode the data node
+	RFC7951Format  bool // Modified RFC7951 format for YAML
+	InternalFormat bool // Interval YAML format
+	ConfigOnly     yang.TriState
+}
+
+// ValueToYAMLValue encodes the value to a YAML-encoded data. the schema and the type of the value must be set.
+func ValueToYAMLValue(schema *SchemaNode, typ *yang.YangType, value interface{}, rfc7951 bool) (interface{}, error) {
+	switch typ.Kind {
+	case yang.Yunion:
+		for i := range typ.Type {
+			v, err := ValueToYAMLValue(schema, typ.Type[i], value, rfc7951)
+			if err == nil {
+				return v, nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+	case yang.YinstanceIdentifier:
+		// [FIXME] The leftmost (top-level) data node name is always in the
+		//   namespace-qualified form (qname).
+	case yang.Yidentityref:
+		if rfc7951 {
+			v := value
+			if m, ok := schema.Identityref[v.(string)]; ok {
+				return m.Name + ":" + v.(string), nil
+			} else {
+				return v, nil
+			}
+		}
+	case yang.Yenum:
+	case yang.Ydecimal64:
+		if vv, ok := value.(yang.Number); ok {
+			return strconv.ParseFloat(vv.String(), 64)
+		}
+	}
+	v := value
+	if vv, ok := v.(yang.Number); ok {
+		return vv.String(), nil
+	}
+	return v, nil
+}
+
+// yamlkeys returns the listed key values.
+func yamlkeys(node DataNode, rfc7951 bool) ([]interface{}, error) {
+	keynames := node.Schema().Keyname
+	keyvals := make([]interface{}, 0, len(keynames)+1)
+	keyvals = append(keyvals, node.Name())
+	for i := range keynames {
+		keynode := node.Get(keynames[i])
+		if keynode == nil {
+			return nil, fmt.Errorf("%q doesn't have a key node", node.ID())
+		}
+		cschema := keynode.Schema()
+		v, err := ValueToYAMLValue(cschema, cschema.Type, keynode.Value(), rfc7951)
+		if err != nil {
+			return nil, err
+		}
+		keyvals = append(keyvals, v)
+	}
+	return keyvals, nil
+}
+
+func (ynode *YAMLNode) marshalYAMLValue(node DataNode, parent map[interface{}]interface{}) error {
+	schema := node.Schema()
+	key := node.Name()
+	if ynode.RFC7951Format {
+		qname, boundary := node.QName(true)
+		if boundary || ynode.DataNode == node {
+			key = qname
+		}
+	}
+	if node.IsLeafList() {
+		var rvalues []interface{}
+		if values := parent[key]; values != nil {
+			rvalues = parent[key].([]interface{})
+		}
+		values := node.Values()
+		for i := range values {
+			v, err := ValueToYAMLValue(schema, schema.Type, values[i], ynode.RFC7951Format)
+			if err != nil {
+				return err
+			}
+			rvalues = append(rvalues, v)
+		}
+		parent[key] = rvalues
+		return nil
+	}
+	v, err := ValueToYAMLValue(schema, schema.Type, node.Value(), ynode.RFC7951Format)
+	if err != nil {
+		return err
+	}
+	parent[key] = v
+	return nil
+}
+
+func (ynode *YAMLNode) skip(node DataNode) bool {
+	schema := node.Schema()
+	if (ynode.ConfigOnly == yang.TSTrue && schema.IsState) ||
+		(ynode.ConfigOnly == yang.TSFalse && !schema.IsState && !schema.HasState) {
+		// skip the node according to the retrieval option
+		return true
+	}
+	return false
+}
+
+func (ynode *YAMLNode) MarshalYAML() (interface{}, error) {
+	top := make(map[interface{}]interface{})
+	curkeys := make([]interface{}, 0, 8)
+	var targetkeys []interface{}
+	parent := top
+	var traverser func(n DataNode, at TrvsCallOption) error
+	switch {
+	case ynode.RFC7951Format:
+		traverser = func(n DataNode, at TrvsCallOption) error {
+			if ynode.skip(n) {
+				return nil
+			}
+			switch at {
+			case TrvsCalledAtEnter:
+				if n.IsDataBranch() {
+					key := n.ID()
+					if n.IsDuplicatable() {
+						dir, ok := parent[key]
+						if !ok {
+							dir = []interface{}{}
+						}
+						list := dir.([]interface{})
+						dir = make(map[interface{}]interface{})
+						parent[key] = append(list, dir)
+						curkeys = append(curkeys, key, len(list))
+						parent = dir.(map[interface{}]interface{})
+					} else {
+						dir := make(map[interface{}]interface{})
+						parent[key] = dir
+						curkeys = append(curkeys, key)
+						parent = dir
+					}
+				} else {
+					return ynode.marshalYAMLValue(n, parent)
+				}
+			case TrvsCalledAtExit:
+				if n == ynode.DataNode {
+					targetkeys = curkeys
+				}
+				if n.IsDuplicatable() {
+					curkeys = curkeys[:len(curkeys)-2]
+				} else {
+					curkeys = curkeys[:len(curkeys)-1]
+				}
+				var p interface{}
+				p = top
+				for i := range curkeys {
+					switch c := p.(type) {
+					case map[interface{}]interface{}:
+						p = c[curkeys[i]]
+					case []interface{}:
+						p = c[curkeys[i].(int)]
+					}
+				}
+				parent = p.(map[interface{}]interface{})
+			}
+			return nil
+		}
+	case ynode.RFC7951Format:
+		traverser = func(n DataNode, at TrvsCallOption) error {
+			if ynode.skip(n) {
+				return nil
+			}
+			switch at {
+			case TrvsCalledAtEnter:
+				if n.IsDataBranch() {
+					key := n.Name()
+					qname, boundary := n.QName(true)
+					if boundary || ynode.DataNode == n {
+						key = qname
+					}
+					if n.IsList() {
+						dir, ok := parent[key]
+						if !ok {
+							dir = []interface{}{}
+						}
+						list := dir.([]interface{})
+						dir = make(map[interface{}]interface{})
+						parent[key] = append(list, dir)
+						curkeys = append(curkeys, key, len(list))
+						parent = dir.(map[interface{}]interface{})
+					} else {
+						dir := make(map[interface{}]interface{})
+						parent[key] = dir
+						curkeys = append(curkeys, key)
+						parent = dir
+					}
+				} else {
+					return ynode.marshalYAMLValue(n, parent)
+				}
+			case TrvsCalledAtExit:
+				if n == ynode.DataNode {
+					targetkeys = curkeys
+				}
+				if n.IsList() {
+					curkeys = curkeys[:len(curkeys)-2]
+				} else {
+					curkeys = curkeys[:len(curkeys)-1]
+				}
+				var p interface{}
+				p = top
+				for i := range curkeys {
+					switch c := p.(type) {
+					case map[interface{}]interface{}:
+						p = c[curkeys[i]]
+					case []interface{}:
+						p = c[curkeys[i].(int)]
+					}
+				}
+				parent = p.(map[interface{}]interface{})
+			}
+			return nil
+		}
+	default:
+		traverser = func(n DataNode, at TrvsCallOption) error {
+			if ynode.skip(n) {
+				return nil
+			}
+			switch at {
+			case TrvsCalledAtEnter:
+				if n.IsDataBranch() {
+					if n.IsDuplicatable() {
+						key := n.ID()
+						dir, ok := parent[key]
+						if !ok {
+							dir = []interface{}{}
+						}
+						list := dir.([]interface{})
+						dir = make(map[interface{}]interface{})
+						parent[key] = append(list, dir)
+						curkeys = append(curkeys, key, len(list))
+						parent = dir.(map[interface{}]interface{})
+					} else {
+						keys, err := yamlkeys(n, false)
+						if err != nil {
+							return err
+						}
+						for i := range keys {
+							dir, ok := parent[keys[i]]
+							if !ok {
+								dir = make(map[interface{}]interface{})
+								parent[keys[i]] = dir
+							}
+							curkeys = append(curkeys, keys[i])
+							parent = dir.(map[interface{}]interface{})
+						}
+					}
+				} else {
+					return ynode.marshalYAMLValue(n, parent)
+				}
+			case TrvsCalledAtExit:
+				if n == ynode.DataNode {
+					targetkeys = curkeys
+				}
+				if n.IsDuplicatable() {
+					curkeys = curkeys[:len(curkeys)-2]
+				} else {
+					popcount := len(n.Schema().Keyname) + 1
+					curkeys = curkeys[:len(curkeys)-popcount]
+				}
+				var p interface{}
+				p = top
+				for i := range curkeys {
+					switch c := p.(type) {
+					case map[interface{}]interface{}:
+						p = c[curkeys[i]]
+					case []interface{}:
+						p = c[curkeys[i].(int)]
+					}
+				}
+				parent = p.(map[interface{}]interface{})
+			}
+			return nil
+		}
+	}
+
+	if err := Traverse(ynode.DataNode, traverser, TrvsCalledAtBoth, -1, false); err != nil {
+		return nil, err
+	}
+
+	var _top interface{}
+	_top = top
+	for i := range targetkeys {
+		switch c := _top.(type) {
+		case map[interface{}]interface{}:
+			_top = c[targetkeys[i]]
+		case []interface{}:
+			_top = c[targetkeys[i].(int)]
+		}
+	}
+	return _top, nil
 }

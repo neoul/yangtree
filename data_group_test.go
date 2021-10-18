@@ -58,7 +58,7 @@ func TestNewDataGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if y, err := jcontainernodes.MarshalYAML(); err == nil {
+	if y, err := jcontainernodes.MMarshalYAML(); err == nil {
 		t.Log("\n", string(y))
 	}
 
@@ -93,7 +93,7 @@ func TestNewDataGroup(t *testing.T) {
 	if j, err := jleaflistnodes.MarshalJSON(); err == nil {
 		t.Log(string(j))
 	}
-	if y, err := jleaflistnodes.MarshalYAML(); err == nil {
+	if y, err := jleaflistnodes.MMarshalYAML(); err == nil {
 		t.Log(string(y))
 	}
 
@@ -105,7 +105,7 @@ func TestNewDataGroup(t *testing.T) {
 	if j, err := jlistnodes.MarshalJSON_RFC7951(); err == nil {
 		t.Log(string(j))
 	}
-	if y, err := jlistnodes.MarshalYAML_RFC7951(); err == nil {
+	if y, err := jlistnodes.MMarshalYAML_RFC7951(); err == nil {
 		t.Log(string(y))
 	}
 }

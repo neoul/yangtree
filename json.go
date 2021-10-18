@@ -46,7 +46,7 @@ type jDataNode struct {
 func (jnode *jDataNode) getQname() string {
 	switch jnode.rfc7951s {
 	case rfc7951InProgress, rfc7951Enabled:
-		if qname, boundary := jnode.Schema().GetQName(); boundary ||
+		if qname, boundary := jnode.Schema().GetQName(true); boundary ||
 			jnode.rfc7951s == rfc7951Enabled {
 			jnode.rfc7951s = rfc7951InProgress
 			return qname
