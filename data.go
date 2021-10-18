@@ -897,7 +897,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	}
 	// [FIXME]
 	if LeafListValueAsKey {
-		if root.IsDataLeaf() {
+		if root.IsLeafNode() {
 			if pathnode[0].Name == root.ValueString() {
 				return []DataNode{root}
 			}
@@ -959,7 +959,7 @@ func FindValueString(root DataNode, path string) ([]string, error) {
 	}
 	vlist := make([]string, 0, len(node))
 	for i := range node {
-		if node[i].IsDataLeaf() {
+		if node[i].IsLeafNode() {
 			vlist = append(vlist, node[i].ValueString())
 		}
 	}
@@ -981,7 +981,7 @@ func FindValue(root DataNode, path string) ([]interface{}, error) {
 	}
 	vlist := make([]interface{}, 0, len(node))
 	for i := range node {
-		if node[i].IsDataLeaf() {
+		if node[i].IsLeafNode() {
 			vlist = append(vlist, node[i].Value())
 		}
 	}
@@ -1101,7 +1101,7 @@ func Move(src, dest DataNode) error {
 	if dest == nil {
 		return nil
 	}
-	if dest.IsDataLeaf() {
+	if dest.IsLeafNode() {
 		return Errorf(EAppTagInvalidArg, "dest must be a branch node")
 	}
 	destbranch := dest.(*DataBranch)

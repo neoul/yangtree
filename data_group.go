@@ -125,18 +125,18 @@ func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 	return c, nil
 }
 
-func (group *DataNodeGroup) IsDataNode()          {}
-func (group *DataNodeGroup) IsNil() bool          { return group == nil }
-func (group *DataNodeGroup) IsDataBranch() bool   { return group.schema.IsDir() }
-func (group *DataNodeGroup) IsDataLeaf() bool     { return !group.schema.IsDir() }
-func (group *DataNodeGroup) IsLeaf() bool         { return group.schema.IsLeaf() }
-func (group *DataNodeGroup) IsLeafList() bool     { return group.schema.IsLeafList() }
-func (group *DataNodeGroup) IsList() bool         { return group.schema.IsList() }
-func (group *DataNodeGroup) IsContainer() bool    { return group.schema.IsContainer() }
-func (group *DataNodeGroup) IsDuplicatable() bool { return group.schema.IsDuplicatable() }
-func (group *DataNodeGroup) IsListable() bool     { return group.schema.IsListable() }
-func (group *DataNodeGroup) Schema() *SchemaNode  { return group.schema }
-func (group *DataNodeGroup) Parent() DataNode     { return nil }
+func (group *DataNodeGroup) IsDataNode()              {}
+func (group *DataNodeGroup) IsNil() bool              { return group == nil }
+func (group *DataNodeGroup) IsBranchNode() bool       { return group.schema.IsDir() }
+func (group *DataNodeGroup) IsLeafNode() bool         { return !group.schema.IsDir() }
+func (group *DataNodeGroup) IsLeaf() bool             { return group.schema.IsLeaf() }
+func (group *DataNodeGroup) IsLeafList() bool         { return group.schema.IsLeafList() }
+func (group *DataNodeGroup) IsList() bool             { return group.schema.IsList() }
+func (group *DataNodeGroup) IsContainer() bool        { return group.schema.IsContainer() }
+func (group *DataNodeGroup) IsDuplicatableNode() bool { return group.schema.IsDuplicatable() }
+func (group *DataNodeGroup) IsListableNode() bool     { return group.schema.IsListable() }
+func (group *DataNodeGroup) Schema() *SchemaNode      { return group.schema }
+func (group *DataNodeGroup) Parent() DataNode         { return nil }
 func (group *DataNodeGroup) Children() []DataNode {
 	if group.schema.IsDir() {
 		return group.Nodes

@@ -20,18 +20,18 @@ type DataBranch struct {
 
 func (branch *DataBranch) IsDataNode()        {}
 func (branch *DataBranch) IsNil() bool        { return branch == nil }
-func (branch *DataBranch) IsDataBranch() bool { return true }
-func (branch *DataBranch) IsDataLeaf() bool   { return false }
+func (branch *DataBranch) IsBranchNode() bool { return true }
+func (branch *DataBranch) IsLeafNode() bool   { return false }
 func (branch *DataBranch) IsLeaf() bool       { return false }
 func (branch *DataBranch) IsLeafList() bool   { return false }
 func (branch *DataBranch) IsList() bool       { return branch.schema.IsList() }
 func (branch *DataBranch) IsContainer() bool  { return branch.schema.IsContainer() }
 
-func (branch *DataBranch) IsDuplicatable() bool {
+func (branch *DataBranch) IsDuplicatableNode() bool {
 	return branch.schema.IsDuplicatable()
 }
 
-func (branch *DataBranch) IsListable() bool {
+func (branch *DataBranch) IsListableNode() bool {
 	return branch.schema.IsListable()
 }
 

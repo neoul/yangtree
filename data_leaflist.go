@@ -22,16 +22,16 @@ type DataLeafList struct {
 
 func (leaflist *DataLeafList) IsDataNode()        {}
 func (leaflist *DataLeafList) IsNil() bool        { return leaflist == nil }
-func (leaflist *DataLeafList) IsDataBranch() bool { return false }
-func (leaflist *DataLeafList) IsDataLeaf() bool   { return true }
+func (leaflist *DataLeafList) IsBranchNode() bool { return false }
+func (leaflist *DataLeafList) IsLeafNode() bool   { return true }
 func (leaflist *DataLeafList) IsLeaf() bool       { return leaflist.schema.IsLeaf() }
 func (leaflist *DataLeafList) IsLeafList() bool   { return leaflist.schema.IsLeafList() }
 func (leaflist *DataLeafList) IsList() bool       { return leaflist.schema.IsList() }
 func (leaflist *DataLeafList) IsContainer() bool  { return leaflist.schema.IsContainer() }
-func (leaflist *DataLeafList) IsDuplicatable() bool {
+func (leaflist *DataLeafList) IsDuplicatableNode() bool {
 	return leaflist.schema.IsDuplicatable()
 }
-func (leaflist *DataLeafList) IsListable() bool {
+func (leaflist *DataLeafList) IsListableNode() bool {
 	return leaflist.schema.IsListable()
 }
 func (leaflist *DataLeafList) Schema() *SchemaNode { return leaflist.schema }

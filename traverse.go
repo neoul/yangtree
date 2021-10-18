@@ -43,7 +43,7 @@ func traverse(node DataNode, arg *traverseArg) error {
 	if arg.depth == 0 {
 		return nil
 	}
-	if node.IsDataBranch() {
+	if node.IsBranchNode() {
 		if arg.depth > 0 {
 			arg.depth--
 		}

@@ -247,7 +247,7 @@ func (ynode *yamlNode) getQname() string {
 		}
 		return ynode.Schema().Name
 	default:
-		if ynode.InternalFormat && ynode.IsDataBranch() {
+		if ynode.InternalFormat && ynode.IsBranchNode() {
 			return ynode.ID()
 		}
 		return ynode.Schema().Name
@@ -611,7 +611,7 @@ func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]in
 			key = qname
 		}
 	}
-	if node.IsListable() {
+	if node.IsListableNode() {
 		var rvalues []interface{}
 		if values := parent[key]; values != nil {
 			rvalues = parent[key].([]interface{})
@@ -660,7 +660,7 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 			switch at {
 			case TrvsCalledAtEnter:
 				key := n.ID()
-				if n.IsDuplicatable() {
+				if n.IsDuplicatableNode() {
 					dir, ok := parent[key]
 					if !ok {
 						dir = []interface{}{}
@@ -686,7 +686,7 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 				if n == ynode.DataNode {
 					targetkeys = curkeys
 				}
-				if n.IsDuplicatable() {
+				if n.IsDuplicatableNode() {
 					curkeys = curkeys[:len(curkeys)-2]
 				} else {
 					curkeys = curkeys[:len(curkeys)-1]
@@ -769,7 +769,7 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 			}
 			switch at {
 			case TrvsCalledAtEnter:
-				if n.IsDuplicatable() {
+				if n.IsDuplicatableNode() {
 					key := n.ID()
 					dir, ok := parent[key]
 					if !ok {
@@ -805,7 +805,7 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 				if n == ynode.DataNode {
 					targetkeys = curkeys
 				}
-				if n.IsDuplicatable() {
+				if n.IsDuplicatableNode() {
 					curkeys = curkeys[:len(curkeys)-2]
 				} else {
 					popcount := len(n.Schema().Keyname) + 1
