@@ -304,7 +304,7 @@ func (branch *DataBranch) unmarshalJSONList(cschema *SchemaNode, kname []string,
 		return err
 	}
 
-	if _, err := branch.insert(child, EditMerge, nil); err != nil {
+	if _, err := branch.insert(child, nil); err != nil {
 		return err
 	}
 
@@ -361,7 +361,7 @@ func (branch *DataBranch) unmarshalJSONListable(cschema *SchemaNode, kname []str
 		if err = child.UpdateByMap(pmap); err != nil {
 			return err
 		}
-		if _, err = branch.insert(child, EditMerge, nil); err != nil {
+		if _, err = branch.insert(child, nil); err != nil {
 			return err
 		}
 
@@ -420,7 +420,7 @@ func unmarshalJSON(node DataNode, jval interface{}) error {
 						if err := unmarshalJSON(child, v); err != nil {
 							return err
 						}
-						if _, err := n.insert(child, EditMerge, nil); err != nil {
+						if _, err := n.insert(child, nil); err != nil {
 							return err
 						}
 					}

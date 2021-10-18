@@ -117,7 +117,7 @@ func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 			if err != nil {
 				return nil, err
 			}
-			if _, err := c.insert(n, EditMerge, nil); err != nil {
+			if _, err := c.insert(n, nil); err != nil {
 				return nil, err
 			}
 		}
@@ -169,8 +169,8 @@ func (group *DataNodeGroup) GetOrNew(id string, opt *EditOption) (DataNode, bool
 	return nil, false, fmt.Errorf("data node group doesn't support GetOrNew")
 }
 
-func (group *DataNodeGroup) NewDataNode(id string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("data node group doesn't support NewDataNode")
+func (group *DataNodeGroup) Create(id string, value ...string) (DataNode, error) {
+	return nil, fmt.Errorf("data node group doesn't support Create")
 }
 
 func (group *DataNodeGroup) Update(id string, value ...string) (DataNode, error) {
@@ -193,7 +193,7 @@ func (group *DataNodeGroup) Remove() error {
 	return fmt.Errorf("data node group doesn't support Remove")
 }
 
-func (group *DataNodeGroup) Insert(child DataNode, edit *EditOption) (DataNode, error) {
+func (group *DataNodeGroup) Insert(child DataNode, insert InsertOption) (DataNode, error) {
 	return nil, fmt.Errorf("data node group doesn't support Insert")
 }
 

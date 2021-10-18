@@ -228,13 +228,13 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	if err = child.UpdateByMap(pmap); err != nil {
 		return nil, false, err
 	}
-	if _, err = branch.insert(child, op, iopt); err != nil {
+	if _, err = branch.insert(child, iopt); err != nil {
 		return nil, false, err
 	}
 	return child, true, nil
 }
 
-func (branch *DataBranch) NewDataNode(id string, value ...string) (DataNode, error) {
+func (branch *DataBranch) Create(id string, value ...string) (DataNode, error) {
 	if len(value) > 1 {
 		return nil, Errorf(ETagInvalidValue, "a single value can only be set at a time")
 	}
@@ -260,7 +260,7 @@ func (branch *DataBranch) NewDataNode(id string, value ...string) (DataNode, err
 	if err := n.UpdateByMap(pmap); err != nil {
 		return nil, err
 	}
-	if _, err := branch.insert(n, EditCreate, nil); err != nil {
+	if _, err := branch.insert(n, nil); err != nil {
 		return nil, err
 	}
 	return n, nil
@@ -292,7 +292,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	if err := n.UpdateByMap(pmap); err != nil {
 		return nil, err
 	}
-	if _, err := branch.insert(n, EditMerge, nil); err != nil {
+	if _, err := branch.insert(n, nil); err != nil {
 		return nil, err
 	}
 	return n, nil
@@ -309,7 +309,7 @@ func (branch *DataBranch) Set(value ...string) error {
 				if err != nil {
 					return err
 				}
-				_, err = branch.insert(c, EditMerge, nil)
+				_, err = branch.insert(c, nil)
 				if err != nil {
 					return err
 				}
@@ -342,7 +342,7 @@ func (branch *DataBranch) SetSafe(value ...string) error {
 				if err != nil {
 					break
 				}
-				_, err = branch.insert(c, EditMerge, nil)
+				_, err = branch.insert(c, nil)
 				if err != nil {
 					break
 				}
@@ -396,11 +396,11 @@ func (branch *DataBranch) Remove() error {
 	return nil
 }
 
-func (branch *DataBranch) Insert(child DataNode, edit *EditOption) (DataNode, error) {
+func (branch *DataBranch) Insert(child DataNode, insert InsertOption) (DataNode, error) {
 	if !IsValid(child) {
 		return nil, fmt.Errorf("invalid child data node")
 	}
-	return branch.insert(child, edit.GetOperation(), edit.GetInsertOption())
+	return branch.insert(child, insert)
 }
 
 func (branch *DataBranch) Delete(child DataNode) error {
@@ -641,7 +641,7 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 					if err != nil {
 						return err
 					}
-					if _, err := branch.insert(newnode, EditMerge, nil); err != nil {
+					if _, err := branch.insert(newnode, nil); err != nil {
 						return err
 					}
 				}
@@ -761,7 +761,7 @@ func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 			}
 			curchild := branch.Get(child.ID())
 			if curchild == nil {
-				if _, err := branch.insert(child, EditMerge, nil); err != nil {
+				if _, err := branch.insert(child, nil); err != nil {
 					return err
 				}
 			} else {

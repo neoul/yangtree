@@ -204,7 +204,7 @@ func indexRangeBySchema(parent *DataBranch, id *string) (i, max int) {
 
 // insert() insert a child node to the branch node according to the operation and insert option.
 // It returns a data node that becomes replaced.
-func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (DataNode, error) {
+func (branch *DataBranch) insert(child DataNode, iopt InsertOption) (DataNode, error) {
 	if child.Parent() != nil {
 		if child.Parent() == branch {
 			return nil, nil
@@ -229,9 +229,6 @@ func (branch *DataBranch) insert(child DataNode, op EditOp, iopt InsertOption) (
 	if !duplicatable {
 		// find and replace the node if it is not a duplicatable node.
 		if i < len(branch.children) && id == branch.children[i].ID() {
-			if op == EditCreate {
-				return nil, fmt.Errorf("data node %q exists", id)
-			}
 			old := branch.children[i]
 			resetParent(branch.children[i])
 			branch.children[i] = child
@@ -354,7 +351,7 @@ func newDataNode(schema *SchemaNode) (DataNode, error) {
 					if err != nil {
 						return nil, err
 					}
-					_, err = branch.insert(c, EditMerge, nil)
+					_, err = branch.insert(c, nil)
 					if err != nil {
 						return nil, err
 					}
@@ -379,7 +376,7 @@ func mergeChildren(dest, src DataNode, edit *EditOption) ([]DataNode, []DataNode
 			schema := s.children[i].Schema()
 			if schema.IsDuplicatableList() {
 				n = Clone(s.children[i])
-				_, err = d.insert(n, edit.GetOperation(), edit.GetInsertOption())
+				_, err = d.insert(n, edit.GetInsertOption())
 				if err != nil {
 					break
 				}
@@ -394,7 +391,7 @@ func mergeChildren(dest, src DataNode, edit *EditOption) ([]DataNode, []DataNode
 					after = append(after, dchild)
 				} else {
 					n = Clone(s.children[i])
-					_, err = d.insert(n, edit.GetOperation(), edit.GetInsertOption())
+					_, err = d.insert(n, edit.GetInsertOption())
 					if err != nil {
 						break
 					}
@@ -437,7 +434,7 @@ func setGroupValue(branch *DataBranch, cschema *SchemaNode, oldnodes []DataNode,
 			branch.Delete(oldnodes[i])
 		}
 		for i := range newnodes {
-			_, err = branch.insert(newnodes[i], op, iop)
+			_, err = branch.insert(newnodes[i], iop)
 			if err != nil {
 				break
 			}
@@ -469,7 +466,7 @@ func setGroupValue(branch *DataBranch, cschema *SchemaNode, oldnodes []DataNode,
 			branch.Delete(newnodes[i])
 		}
 		for i := range oldnodes {
-			branch.insert(oldnodes[i], EditMerge, nil)
+			branch.insert(oldnodes[i], nil)
 		}
 	}
 	return err
@@ -635,7 +632,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 				return err
 			}
 		}
-		if _, err = branch.insert(child, op, eopt.GetInsertOption()); err != nil {
+		if _, err = branch.insert(child, eopt.GetInsertOption()); err != nil {
 			return err
 		}
 		if reachToEnd {
@@ -714,7 +711,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return fmt.Errorf("%q is not a branch", root)
 	}
 	if len(pathnode) == 0 {
-		_, err := branch.insert(node, EditReplace, nil)
+		_, err := branch.insert(node, nil)
 		return err
 	}
 	switch pathnode[0].Select {
@@ -759,7 +756,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		if err != nil {
 			return err
 		}
-		if _, err := branch.insert(node, EditReplace, nil); err != nil {
+		if _, err := branch.insert(node, nil); err != nil {
 			return err
 		}
 		return nil
@@ -775,7 +772,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		if err = child.UpdateByMap(pmap); err != nil {
 			return err
 		}
-		if _, err = branch.insert(child, EditReplace, nil); err != nil {
+		if _, err = branch.insert(child, nil); err != nil {
 			return err
 		}
 		err = replaceNode(child, pathnode[1:], node)
@@ -1020,7 +1017,7 @@ func clone(destParent *DataBranch, src DataNode) (DataNode, error) {
 		}
 	}
 	if destParent != nil {
-		_, err := destParent.insert(dest, EditMerge, nil)
+		_, err := destParent.insert(dest, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -1115,7 +1112,7 @@ func Move(src, dest DataNode) error {
 			break
 		}
 		if destbranch.schema == p.Schema() {
-			_, err := destbranch.insert(n, EditMerge, nil)
+			_, err := destbranch.insert(n, nil)
 			return err
 		}
 	}
@@ -1318,7 +1315,7 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 			if err = child.UpdateByMap(pmap); err != nil {
 				return nil, nil, err
 			}
-			if _, err = branch.insert(child, EditMerge, nil); err != nil {
+			if _, err = branch.insert(child, nil); err != nil {
 				return nil, nil, err
 			}
 			if created == nil {

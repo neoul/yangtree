@@ -389,7 +389,7 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	simpleChoiceCase, err := rootdata.NewDataNode("simple-choice-case")
+	simpleChoiceCase, err := rootdata.Create("simple-choice-case")
 	if err != nil {
 		t.Error(err)
 	}
@@ -401,7 +401,7 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	choiceCaseAnonymousCase, err := rootdata.NewDataNode("choice-case-anonymous-case")
+	choiceCaseAnonymousCase, err := rootdata.Create("choice-case-anonymous-case")
 	if err != nil {
 		t.Error(err)
 	}
@@ -417,7 +417,7 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	choiceCaseWithLeafref, err := rootdata.NewDataNode("choice-case-with-leafref")
+	choiceCaseWithLeafref, err := rootdata.Create("choice-case-with-leafref")
 	if err != nil {
 		t.Error(err)
 	}
@@ -467,15 +467,15 @@ func TestCreatedWithDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	test, err := rootdata.NewDataNode("test")
+	test, err := rootdata.Create("test")
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = test.NewDataNode("config")
+	_, err = test.Create("config")
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = test.NewDataNode("state")
+	_, err = test.Create("state")
 	if err != nil {
 		t.Error(err)
 	}

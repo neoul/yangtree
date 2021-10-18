@@ -82,7 +82,7 @@ func (leaf *DataLeaf) GetOrNew(id string, opt *EditOption) (DataNode, bool, erro
 	return nil, false, fmt.Errorf("leaf node doesn't support GetOrNew")
 }
 
-func (leaf *DataLeaf) NewDataNode(id string, value ...string) (DataNode, error) {
+func (leaf *DataLeaf) Create(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("new is not supported on %q", leaf)
 }
 
@@ -166,7 +166,7 @@ func (leaf *DataLeaf) Remove() error {
 	return nil
 }
 
-func (leaf *DataLeaf) Insert(child DataNode, edit *EditOption) (DataNode, error) {
+func (leaf *DataLeaf) Insert(child DataNode, insert InsertOption) (DataNode, error) {
 	return nil, fmt.Errorf("insert is not supported on %q", leaf)
 }
 

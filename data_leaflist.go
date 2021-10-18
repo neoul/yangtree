@@ -85,7 +85,7 @@ func (leaflist *DataLeafList) GetOrNew(id string, opt *EditOption) (DataNode, bo
 	return nil, false, fmt.Errorf("leaf-list node doesn't support GetOrNew")
 }
 
-func (leaflist *DataLeafList) NewDataNode(id string, value ...string) (DataNode, error) {
+func (leaflist *DataLeafList) Create(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("new is not supported on %q", leaflist)
 }
 
@@ -218,7 +218,7 @@ func (leaflist *DataLeafList) Remove() error {
 	return nil
 }
 
-func (leaflist *DataLeafList) Insert(child DataNode, edit *EditOption) (DataNode, error) {
+func (leaflist *DataLeafList) Insert(child DataNode, insert InsertOption) (DataNode, error) {
 	return nil, fmt.Errorf("insert is not supported on %q", leaflist)
 }
 

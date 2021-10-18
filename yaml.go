@@ -44,7 +44,7 @@ func (branch *DataBranch) unmarshalYAMLListableNode(cschema *SchemaNode, kname [
 	var child DataNode
 	found := branch.Get(id.String())
 	if found == nil {
-		if child, err = branch.NewDataNode(id.String()); err != nil {
+		if child, err = branch.Create(id.String()); err != nil {
 			return err
 		}
 	} else {
@@ -79,13 +79,13 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *SchemaNod
 		}
 		var child DataNode
 		if cschema.IsDuplicatableList() {
-			if child, err = branch.NewDataNode(id.String()); err != nil {
+			if child, err = branch.Create(id.String()); err != nil {
 				return err
 			}
 		} else {
 			found := branch.Get(id.String())
 			if found == nil {
-				if child, err = branch.NewDataNode(id.String()); err != nil {
+				if child, err = branch.Create(id.String()); err != nil {
 					return err
 				}
 			} else {
@@ -174,7 +174,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						if err := unmarshalYAML(child, vv[i]); err != nil {
 							return err
 						}
-						if _, err := n.insert(child, EditMerge, nil); err != nil {
+						if _, err := n.insert(child, nil); err != nil {
 							return err
 						}
 					}
@@ -194,7 +194,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 						if err := unmarshalYAML(child, v); err != nil {
 							return err
 						}
-						if _, err := n.insert(child, EditMerge, nil); err != nil {
+						if _, err := n.insert(child, nil); err != nil {
 							return err
 						}
 					}
