@@ -13,25 +13,25 @@ type RFC7951Format struct{}
 
 func (f RFC7951Format) IsOption() {}
 
-// rfc7951s (rfc7951 processing status)
-type rfc7951s int
+// RFC7951S (rfc7951 processing status)
+type RFC7951S int
 
 const (
 	// rfc7951disabled - rfc7951 encoding disabled
-	rfc7951Disabled rfc7951s = iota
-	// rfc7951InProgress - rfc7951 encoding is in progress
-	rfc7951InProgress
-	// rfc7951enabled - rfc7951 encoding enabled
-	rfc7951Enabled
+	RFC7951Disabled RFC7951S = iota
+	// RFC7951InProgress - rfc7951 encoding is in progress
+	RFC7951InProgress
+	// RFC7951Enabled - rfc7951 encoding enabled
+	RFC7951Enabled
 )
 
-func (s rfc7951s) String() string {
+func (s RFC7951S) String() string {
 	switch s {
-	case rfc7951Disabled:
+	case RFC7951Disabled:
 		return "rfc7951.disabled"
-	case rfc7951InProgress:
+	case RFC7951InProgress:
 		return "rfc7951.in-progress"
-	case rfc7951Enabled:
+	case RFC7951Enabled:
 		return "rfc7951.enabled"
 	}
 	return "rfc7951.unknown"
@@ -39,16 +39,16 @@ func (s rfc7951s) String() string {
 
 type jDataNode struct {
 	DataNode
-	rfc7951s
+	RFC7951S
 	configOnly yang.TriState
 }
 
 func (jnode *jDataNode) getQname() string {
-	switch jnode.rfc7951s {
-	case rfc7951InProgress, rfc7951Enabled:
+	switch jnode.RFC7951S {
+	case RFC7951InProgress, RFC7951Enabled:
 		if qname, boundary := jnode.Schema().GetQName(true); boundary ||
-			jnode.rfc7951s == rfc7951Enabled {
-			jnode.rfc7951s = rfc7951InProgress
+			jnode.RFC7951S == RFC7951Enabled {
+			jnode.RFC7951S = RFC7951InProgress
 			return qname
 		}
 		return jnode.Schema().Name
@@ -93,7 +93,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 				continue
 			}
 			cjnode.DataNode = node[i]
-			cjnode.rfc7951s = jnode.rfc7951s
+			cjnode.RFC7951S = jnode.RFC7951S
 			if comma {
 				buffer.WriteString(",")
 			}
@@ -110,7 +110,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 		return nil
 	case *DataLeaf:
 		rfc7951enabled := false
-		if jnode.rfc7951s != rfc7951Disabled {
+		if jnode.RFC7951S != RFC7951Disabled {
 			rfc7951enabled = true
 		}
 		b, err := ValueToJSONBytes(datanode.schema, datanode.schema.Type, datanode.value, rfc7951enabled)
@@ -120,7 +120,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 		buffer.Write(b)
 	case *DataLeafList:
 		rfc7951enabled := false
-		if jnode.rfc7951s != rfc7951Disabled {
+		if jnode.RFC7951S != RFC7951Disabled {
 			rfc7951enabled = true
 		}
 		comma := false
@@ -170,7 +170,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 	buffer.WriteString(`"`)
 	buffer.WriteString(first.getQname())
 	buffer.WriteString(`":`)
-	if first.rfc7951s != rfc7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
+	if first.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
 		ii := i
 		for ; i < len(node); i++ {
 			if schema != node[i].Schema() {
@@ -180,7 +180,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 		nodelist := make([]interface{}, 0, i-ii)
 		for ; ii < i; ii++ {
 			jnode := &jDataNode{DataNode: node[ii],
-				configOnly: first.configOnly, rfc7951s: first.rfc7951s}
+				configOnly: first.configOnly, RFC7951S: first.RFC7951S}
 			nodelist = append(nodelist, jnode)
 		}
 		err := marshalJNodeTree(buffer, nodelist)
@@ -190,7 +190,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 	nodemap := map[string]interface{}{}
 	for ; i < len(node); i++ {
 		jnode := &jDataNode{DataNode: node[i],
-			configOnly: first.configOnly, rfc7951s: first.rfc7951s}
+			configOnly: first.configOnly, RFC7951S: first.RFC7951S}
 		if schema != jnode.Schema() {
 			break
 		}
@@ -478,7 +478,7 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 		case StateOnly:
 			jnode.configOnly = yang.TSFalse
 		case RFC7951Format:
-			jnode.rfc7951s = rfc7951Enabled
+			jnode.RFC7951S = RFC7951Enabled
 		}
 	}
 	err := jnode.marshalJSON(&buffer)
@@ -501,7 +501,7 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 		case StateOnly:
 			jnode.configOnly = yang.TSFalse
 		case RFC7951Format:
-			jnode.rfc7951s = rfc7951Enabled
+			jnode.RFC7951S = RFC7951Enabled
 		}
 	}
 	err := jnode.marshalJSON(&buffer)

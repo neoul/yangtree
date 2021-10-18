@@ -320,7 +320,7 @@ func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 func (leaflist *DataLeafList) MarshalJSON_RFC7951() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jDataNode{DataNode: leaflist}
-	jnode.rfc7951s = rfc7951Enabled
+	jnode.RFC7951S = RFC7951Enabled
 	err := jnode.marshalJSON(&buffer)
 	if err != nil {
 		return nil, err

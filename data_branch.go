@@ -670,7 +670,7 @@ func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 func (branch *DataBranch) MarshalJSON_RFC7951() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jDataNode{DataNode: branch}
-	jnode.rfc7951s = rfc7951Enabled
+	jnode.RFC7951S = RFC7951Enabled
 	err := jnode.marshalJSON(&buffer)
 	if err != nil {
 		return nil, err

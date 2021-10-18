@@ -282,7 +282,7 @@ func (group *DataNodeGroup) Merge(src DataNode) error {
 func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
 	configOnly := yang.TSUnset
-	rfc7951s := rfc7951Enabled
+	RFC7951S := RFC7951Enabled
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
@@ -292,13 +292,13 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 		case StateOnly:
 			configOnly = yang.TSFalse
 		case RFC7951Format:
-			rfc7951s = rfc7951Enabled
+			RFC7951S = RFC7951Enabled
 		}
 	}
 	switch configOnly {
 	case yang.TSTrue:
 		if group.schema.IsState {
-			if rfc7951s != rfc7951Disabled {
+			if RFC7951S != RFC7951Disabled {
 				buffer.WriteString("[]")
 			} else {
 				buffer.WriteString("{}")
@@ -307,7 +307,7 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 		}
 	case yang.TSFalse: // stateOnly
 		if !group.schema.IsState && !group.schema.HasState {
-			if rfc7951s != rfc7951Disabled {
+			if RFC7951S != RFC7951Disabled {
 				buffer.WriteString("[]")
 			} else {
 				buffer.WriteString("{}")
@@ -315,10 +315,10 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 			return buffer.Bytes(), nil
 		}
 	}
-	if rfc7951s != rfc7951Disabled || group.schema.IsDuplicatableList() || group.schema.IsLeafList() {
+	if RFC7951S != RFC7951Disabled || group.schema.IsDuplicatableList() || group.schema.IsLeafList() {
 		nodelist := make([]interface{}, 0, len(group.Nodes))
 		for _, n := range group.Nodes {
-			jnode := &jDataNode{DataNode: n, configOnly: configOnly, rfc7951s: rfc7951s}
+			jnode := &jDataNode{DataNode: n, configOnly: configOnly, RFC7951S: RFC7951S}
 			nodelist = append(nodelist, jnode)
 		}
 		if err := marshalJNodeTree(&buffer, nodelist); err != nil {
@@ -329,7 +329,7 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 	nodemap := map[string]interface{}{}
 	for i := range group.Nodes {
 		jnode := &jDataNode{DataNode: group.Nodes[i],
-			configOnly: configOnly, rfc7951s: rfc7951s}
+			configOnly: configOnly, RFC7951S: RFC7951S}
 		keyname, keyval := GetKeyValues(jnode.DataNode)
 		if len(keyname) != len(keyval) {
 			return nil, fmt.Errorf("list %q doesn't have key value pairs", group.schema.Name)
@@ -363,22 +363,22 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
 	schema := group.schema
-	ynode := &yDataNode{indentStr: indentStr}
+	ynode := &YAMLNode{IndentStr: indentStr}
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
 			return nil, fmt.Errorf("%v option can be used to find nodes", option[i])
 		case ConfigOnly:
-			ynode.configOnly = yang.TSTrue
+			ynode.ConfigOnly = yang.TSTrue
 		case StateOnly:
-			ynode.configOnly = yang.TSFalse
+			ynode.ConfigOnly = yang.TSFalse
 		case RFC7951Format:
-			ynode.rfc7951s = rfc7951Enabled
+			ynode.RFC7951S = RFC7951Enabled
 		case InternalFormat:
-			ynode.iformat = true
+			ynode.InternalFormat = true
 		}
 	}
-	switch ynode.configOnly {
+	switch ynode.ConfigOnly {
 	case yang.TSTrue:
 		if group.schema.IsState {
 			return buffer.Bytes(), nil
@@ -388,16 +388,16 @@ func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...
 			return buffer.Bytes(), nil
 		}
 	}
-	if ynode.rfc7951s != rfc7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
+	if ynode.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
 		// writeIndent(&buffer, indent, indentStr, disableFirstIndent)
 		// buffer.WriteString(ynode.getQname())
 		// buffer.WriteString(":\n")
 		// indent++
 		for i := range group.Nodes {
 			ynode.DataNode = group.Nodes[i]
-			writeIndent(&buffer, indent, ynode.indentStr, false)
+			writeIndent(&buffer, indent, ynode.IndentStr, false)
 			buffer.WriteString("-")
-			writeIndent(&buffer, 1, ynode.indentStr, false)
+			writeIndent(&buffer, 1, ynode.IndentStr, false)
 			err := ynode.marshalYAML(&buffer, indent+2, true)
 			if err != nil {
 				return nil, err
@@ -411,8 +411,8 @@ func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...
 	var lastKeyval []string
 	for i := range group.Nodes {
 		ynode.DataNode = group.Nodes[i]
-		if ynode.iformat {
-			writeIndent(&buffer, indent, ynode.indentStr, false)
+		if ynode.InternalFormat {
+			writeIndent(&buffer, indent, ynode.IndentStr, false)
 			buffer.WriteString(ynode.getQname())
 			buffer.WriteString(":\n")
 			err := ynode.marshalYAML(&buffer, indent+1, false)
@@ -428,7 +428,7 @@ func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...
 				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
 					continue
 				}
-				writeIndent(&buffer, indent+j, ynode.indentStr, false)
+				writeIndent(&buffer, indent+j, ynode.IndentStr, false)
 				buffer.WriteString(keyval[j])
 				buffer.WriteString(":\n")
 			}
