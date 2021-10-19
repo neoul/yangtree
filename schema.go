@@ -1119,3 +1119,42 @@ func Unzip(gzj []byte) ([]byte, error) {
 	}
 	return s, nil
 }
+
+// ValueToQValue returns the raw value using namespace-qualified format.
+func (schema *SchemaNode) ValueToQValue(typ *yang.YangType, value interface{}, useModuleName bool) (interface{}, error) {
+	switch typ.Kind {
+	case yang.Yunion:
+		for i := range typ.Type {
+			v, err := schema.ValueToQValue(typ.Type[i], value, useModuleName)
+			if err == nil {
+				return v, nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+	case yang.YinstanceIdentifier:
+		// [FIXME] The leftmost (top-level) data node name is always in the
+		//   namespace-qualified form (qname).
+	case yang.Yidentityref:
+		v := value
+		if m, ok := schema.Identityref[v.(string)]; ok {
+			if useModuleName {
+				return m.Name + ":" + v.(string), nil
+			} else {
+				if m.Prefix != nil {
+					return m.Prefix.Name + ":" + v.(string), nil
+				}
+			}
+		}
+		return v, nil
+	case yang.Yenum:
+	case yang.Ydecimal64:
+		if vv, ok := value.(yang.Number); ok {
+			return strconv.ParseFloat(vv.String(), 64)
+		}
+	}
+	v := value
+	if vv, ok := v.(yang.Number); ok {
+		return vv.String(), nil
+	}
+	return v, nil
+}

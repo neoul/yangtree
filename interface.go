@@ -56,13 +56,21 @@ type DataNode interface {
 	Index(id string) int      // Index() finds all children by the node id and returns the position.
 	Child(index int) DataNode // Child() gets the child of the index.
 
-	String() string
+	String() string                    // String() returns a string to identify the node.
 	Path() string                      // Path() returns the path from the root to the current data node.
 	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
-	Value() interface{}                // Value() returns the raw data of the data node.
-	Values() []interface{}             // Values() returns its values using []interface{} slice
-	ValueString() string               // ValueString() returns the string value of the data node.
-	HasValue(value string) bool        // HasValue() returns true if the data node value has the value.
+
+	Value() interface{}    // Value() returns the raw data of the data node.
+	Values() []interface{} // Values() returns its values using []interface{} slice
+	ValueString() string   // ValueString() returns the string value of the data node.
+	// ValueStrings() []string // ValueString() returns the string value of the data node.
+
+	QValue(useModuleName bool) interface{}    // QValue() returns the raw data of the node if it has a single value using namespace-qualified form.
+	QValues(useModuleName bool) []interface{} // QValues() returns its values using []interface{} slice using namespace-qualified form.
+	// QValueString(useModuleName bool) string   // ValueString() returns the string value of the data node.
+	// QValueStrings() []string // ValueString() returns the string value of the data node.
+
+	HasValue(value string) bool // HasValue() returns true if the data node value has the value.
 
 	MarshalJSON() ([]byte, error)         // MarshalJSON() encodes the data node to JSON bytes.
 	MarshalJSON_RFC7951() ([]byte, error) // MarshalJSON_RFC7951() encodes the data node to JSON_IETF (RFC7951) bytes.

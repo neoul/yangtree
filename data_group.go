@@ -150,7 +150,7 @@ func (group *DataNodeGroup) Children() []DataNode {
 func (group *DataNodeGroup) String() string                    { return "group" + group.schema.Name }
 func (group *DataNodeGroup) Path() string                      { return "" }
 func (group *DataNodeGroup) PathTo(descendant DataNode) string { return "" }
-func (group *DataNodeGroup) Value() interface{}                { return nil }
+func (group *DataNodeGroup) Value() interface{}                { return group.Values() }
 func (group *DataNodeGroup) Values() []interface{} {
 	if !group.schema.IsDir() {
 		if len(group.Nodes) > 0 {
@@ -164,6 +164,21 @@ func (group *DataNodeGroup) Values() []interface{} {
 	return nil
 }
 func (group *DataNodeGroup) ValueString() string { return "" }
+func (group *DataNodeGroup) QValue(useModuleName bool) interface{} {
+	return group.QValues(useModuleName)
+}
+func (group *DataNodeGroup) QValues(useModuleName bool) []interface{} {
+	if !group.schema.IsDir() {
+		if len(group.Nodes) > 0 {
+			values := make([]interface{}, 0, len(group.Nodes))
+			for i := range group.Nodes {
+				values = append(values, group.Nodes[i].QValues(useModuleName)...)
+			}
+			return values
+		}
+	}
+	return nil
+}
 
 func (group *DataNodeGroup) HasValue(value string) bool { return false }
 

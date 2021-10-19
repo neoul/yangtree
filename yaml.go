@@ -546,42 +546,6 @@ func ValueToYAMLBytes(schema *SchemaNode, typ *yang.YangType, value interface{},
 	return out, err
 }
 
-// ValueToYAMLValue encodes the value to a YAML-encoded data. the schema and the type of the value must be set.
-func ValueToYAMLValue(schema *SchemaNode, typ *yang.YangType, value interface{}, rfc7951s RFC7951S) (interface{}, error) {
-	switch typ.Kind {
-	case yang.Yunion:
-		for i := range typ.Type {
-			v, err := ValueToYAMLValue(schema, typ.Type[i], value, rfc7951s)
-			if err == nil {
-				return v, nil
-			}
-		}
-		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
-	case yang.YinstanceIdentifier:
-		// [FIXME] The leftmost (top-level) data node name is always in the
-		//   namespace-qualified form (qname).
-	case yang.Yidentityref:
-		if rfc7951s != RFC7951Disabled {
-			v := value
-			if m, ok := schema.Identityref[v.(string)]; ok {
-				return m.Name + ":" + v.(string), nil
-			} else {
-				return v, nil
-			}
-		}
-	case yang.Yenum:
-	case yang.Ydecimal64:
-		if vv, ok := value.(yang.Number); ok {
-			return strconv.ParseFloat(vv.String(), 64)
-		}
-	}
-	v := value
-	if vv, ok := v.(yang.Number); ok {
-		return vv.String(), nil
-	}
-	return v, nil
-}
-
 // yamlkeys returns the listed key values.
 func yamlkeys(node DataNode, rfc7951s RFC7951S) ([]interface{}, error) {
 	keynames := node.Schema().Keyname
@@ -592,18 +556,16 @@ func yamlkeys(node DataNode, rfc7951s RFC7951S) ([]interface{}, error) {
 		if keynode == nil {
 			return nil, fmt.Errorf("%q doesn't have a key node", node.ID())
 		}
-		cschema := keynode.Schema()
-		v, err := ValueToYAMLValue(cschema, cschema.Type, keynode.Value(), rfc7951s)
-		if err != nil {
-			return nil, err
+		if rfc7951s == RFC7951Disabled {
+			keyvals = append(keyvals, keynode.Value())
+		} else {
+			keyvals = append(keyvals, keynode.QValue(true))
 		}
-		keyvals = append(keyvals, v)
 	}
 	return keyvals, nil
 }
 
 func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]interface{}) (string, error) {
-	schema := node.Schema()
 	key := node.Name()
 	if ynode.RFC7951S != RFC7951Disabled {
 		qname, boundary := node.QName(true)
@@ -612,26 +574,23 @@ func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]in
 		}
 	}
 	if node.IsListableNode() {
-		var rvalues []interface{}
+		var values, rvalues []interface{}
 		if values := parent[key]; values != nil {
 			rvalues = parent[key].([]interface{})
 		}
-		values := node.Values()
-		for i := range values {
-			v, err := ValueToYAMLValue(schema, schema.Type, values[i], ynode.RFC7951S)
-			if err != nil {
-				return "", err
-			}
-			rvalues = append(rvalues, v)
+		if ynode.RFC7951S == RFC7951Disabled {
+			values = node.Values()
+		} else {
+			values = node.QValues(true)
 		}
-		parent[key] = rvalues
+		parent[key] = append(rvalues, values...)
 		return key, nil
 	}
-	v, err := ValueToYAMLValue(schema, schema.Type, node.Value(), ynode.RFC7951S)
-	if err != nil {
-		return "", err
+	if ynode.RFC7951S == RFC7951Disabled {
+		parent[key] = node.Value()
+	} else {
+		parent[key] = node.QValue(true)
 	}
-	parent[key] = v
 	return key, nil
 }
 

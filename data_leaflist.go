@@ -63,9 +63,22 @@ func (leaflist *DataLeafList) PathTo(descendant DataNode) string {
 
 func (leaflist *DataLeafList) Value() interface{}    { return leaflist.value }
 func (leaflist *DataLeafList) Values() []interface{} { return leaflist.value }
-
 func (leaflist *DataLeafList) ValueString() string {
 	return ValueToString(leaflist.value)
+}
+func (leaflist *DataLeafList) QValue(useModuleName bool) interface{} {
+	return leaflist.QValues(useModuleName)
+}
+func (leaflist *DataLeafList) QValues(useModuleName bool) []interface{} {
+	if len(leaflist.value) == 0 {
+		return nil
+	}
+	rvalues := make([]interface{}, 0, len(leaflist.value))
+	for i := range leaflist.value {
+		v, _ := leaflist.schema.ValueToQValue(leaflist.schema.Type, leaflist.value[i], useModuleName)
+		rvalues = append(rvalues, v)
+	}
+	return rvalues
 }
 
 func (leaflist *DataLeafList) HasValue(value string) bool {

@@ -42,7 +42,6 @@ func (branch *DataBranch) Parent() DataNode {
 func (branch *DataBranch) Children() []DataNode  { return branch.children }
 func (branch *DataBranch) Value() interface{}    { return nil }
 func (branch *DataBranch) Values() []interface{} { return nil }
-
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
 	if err != nil {
@@ -50,6 +49,8 @@ func (branch *DataBranch) ValueString() string {
 	}
 	return string(b)
 }
+func (branch *DataBranch) QValue(useModuleName bool) interface{}    { return nil }
+func (branch *DataBranch) QValues(useModuleName bool) []interface{} { return nil }
 
 func (branch *DataBranch) HasValue(value string) bool {
 	return false

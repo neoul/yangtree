@@ -60,16 +60,16 @@ func (leaf *DataLeaf) PathTo(descendant DataNode) string {
 	return ""
 }
 
-func (leaf *DataLeaf) Value() interface{} {
-	return leaf.value
-}
-
+func (leaf *DataLeaf) Value() interface{}    { return leaf.value }
 func (leaf *DataLeaf) Values() []interface{} { return []interface{}{leaf.value} }
-
-func (leaf *DataLeaf) ValueString() string {
-	return ValueToString(leaf.value)
+func (leaf *DataLeaf) ValueString() string   { return ValueToString(leaf.value) }
+func (leaf *DataLeaf) QValue(useModuleName bool) interface{} {
+	v, _ := leaf.schema.ValueToQValue(leaf.schema.Type, leaf.value, useModuleName)
+	return v
 }
-
+func (leaf *DataLeaf) QValues(useModuleName bool) []interface{} {
+	return []interface{}{leaf.QValue(useModuleName)}
+}
 func (leaf *DataLeaf) HasValue(value string) bool {
 	v := ValueToString(leaf.value)
 	return v == value
