@@ -3,7 +3,6 @@ package yangtree
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -921,7 +920,9 @@ func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interf
 				}
 			}
 			if inrange {
-				return number, nil
+				// [FIXME] convert it to float64? or return yang.Number?
+				// return number, nil
+				return strconv.ParseFloat(number.String(), 64)
 			}
 			return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
 		}
@@ -976,96 +977,6 @@ func ValueToString(value interface{}) string {
 		return ""
 	}
 	return fmt.Sprint(value)
-}
-
-// ValueToJSONBytes() marshals a value based on its schema, type and representing format.
-func ValueToJSONBytes(schema *SchemaNode, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
-	switch typ.Kind {
-	case yang.Yunion:
-		for i := range typ.Type {
-			v, err := ValueToJSONBytes(schema, typ.Type[i], value, rfc7951)
-			if err == nil {
-				return v, nil
-			}
-		}
-		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
-	case yang.YinstanceIdentifier:
-		// [FIXME] The leftmost (top-level) data node name is always in the
-		//   namespace-qualified form (qname).
-	case yang.Ydecimal64:
-		switch v := value.(type) {
-		case yang.Number:
-			return []byte(v.String()), nil
-		case string:
-			return []byte(v), nil
-		}
-	}
-	if rfc7951 {
-		switch typ.Kind {
-		// case yang.Ystring, yang.Ybinary:
-		// case yang.Ybool:
-		// case yang.Yleafref:
-		// case yang.Ynone:
-		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
-		// case yang.Ybits, yang.Yenum:
-		case yang.Yempty:
-			return []byte("[null]"), nil
-		case yang.Yidentityref:
-			if s, ok := value.(string); ok {
-				m, ok := schema.Identityref[s]
-				if !ok {
-					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
-				}
-				return json.Marshal(m.Name + ":" + s)
-			}
-		case yang.Yint64:
-			if v, ok := value.(int64); ok {
-				str := strconv.FormatInt(v, 10)
-				return json.Marshal(str)
-			}
-		case yang.Yuint64:
-			if v, ok := value.(uint64); ok {
-				str := strconv.FormatUint(v, 10)
-				return json.Marshal(str)
-			}
-		}
-	}
-	// else {
-	// 	switch typ.Kind {
-	// 	case yang.Yempty:
-	// 		return []byte("null"), nil
-	// 	}
-	// }
-	return json.Marshal(value)
-}
-
-func isIntegral(val float64) bool {
-	return val == float64(int(val))
-}
-
-// JSONValueToString() returns a string value from the json scalar value that is unmarshalled by json.Unmarshal()
-func JSONValueToString(jval interface{}) (string, error) {
-	switch jdata := jval.(type) {
-	case float64:
-		if isIntegral(jdata) {
-			return fmt.Sprint(int64(jdata)), nil
-		}
-		return fmt.Sprint(jdata), nil
-	case string:
-		return jdata, nil
-	case nil:
-		return "", nil
-	case bool:
-		if jdata {
-			return "true", nil
-		}
-		return "false", nil
-	case []interface{}:
-		if len(jdata) == 1 && jdata[0] == nil {
-			return "true", nil
-		}
-	}
-	return "", fmt.Errorf("unexpected json-value %v (%T)", jval, jval)
 }
 
 // GetMust() returns the "must" statements of the schema node.
