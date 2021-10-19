@@ -10,25 +10,29 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// unmarshalYAMLListableNode constructs list entries of a data node using YAML values.
-func (branch *DataBranch) unmarshalYAMLListableNode(cschema *SchemaNode, kname []string, kval []interface{}, yval interface{}) error {
-	jdata, ok := yval.(map[interface{}]interface{})
+// unmarshalYAMLListNode constructs list nodes of the parent node using YAML values.
+func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string, kval []interface{}, yamlHash interface{}) error {
+	entry, ok := yamlHash.(map[interface{}]interface{})
 	if !ok {
-		if yval == nil {
+		if yamlHash == nil {
 			return nil
 		}
-		return fmt.Errorf("unexpected yaml-val \"%v\" (%T) for %q", yval, yval, cschema.Name)
+		return fmt.Errorf("unexpected yaml value %q (%T) for %q", yamlHash, yamlHash, cschema.Name)
 	}
+
 	if len(kname) != len(kval) {
-		for k, v := range jdata {
+		for k, v := range entry {
 			kval = append(kval, k)
-			err := branch.unmarshalYAMLListableNode(cschema, kname, kval, v)
+			err := unmarshalYAMLListNode(parent, cschema, kname, kval, v)
 			if err != nil {
 				return err
 			}
 			kval = kval[:len(kval)-1]
 		}
 		return nil
+	}
+	if cschema.IsDuplicatableList() {
+		return fmt.Errorf("non-id list %q must have the array format", cschema.Name)
 	}
 	// check existent DataNode
 	var err error
@@ -42,24 +46,37 @@ func (branch *DataBranch) unmarshalYAMLListableNode(cschema *SchemaNode, kname [
 		id.WriteString("]")
 	}
 	var child DataNode
-	found := branch.Get(id.String())
-	if found == nil {
-		if child, err = branch.Create(id.String()); err != nil {
+	if found := parent.Get(id.String()); found == nil {
+		if child, err = parent.Create(id.String()); err != nil {
 			return err
 		}
 	} else {
 		child = found
 	}
-	// Update DataNode
-	return unmarshalYAML(child, yval)
+	return unmarshalYAML(child, yamlHash)
 }
 
-// unmarshalYAMLListableNodeForRFC7951 constructs list entries of a data node using YAML values.
-func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *SchemaNode, kname []string, listentry []interface{}) error {
-	for i := range listentry {
-		entry, ok := listentry[i].(map[interface{}]interface{})
+// unmarshalYAMLListableNode constructs listable child nodes of the parent data node using YAML values.
+func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []string, yamlSeq []interface{}) error {
+	if cschema.IsLeafList() {
+		for i := range yamlSeq {
+			child, err := NewDataNode(cschema)
+			if err != nil {
+				return err
+			}
+			if err = unmarshalYAML(child, yamlSeq[i]); err != nil {
+				return err
+			}
+			if _, err = parent.Insert(child, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for i := range yamlSeq {
+		entry, ok := yamlSeq[i].(map[interface{}]interface{})
 		if !ok {
-			return fmt.Errorf("unexpected yaml type '%T' for %s", listentry[i], cschema.Name)
+			return fmt.Errorf("unexpected yaml value %T for %s", yamlSeq[i], cschema.Name)
 		}
 		// check existent DataNode
 		var err error
@@ -71,7 +88,7 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *SchemaNod
 			id.WriteString("=")
 			id.WriteString(fmt.Sprint(entry[kname[i]]))
 			id.WriteString("]")
-			// [FIXME] need to check id validation
+			// [FIXME] Does it need to check id validation?
 			// kchild, err := NewDataNode(kschema, kval)
 			// if err != nil {
 			// 	return err
@@ -79,21 +96,18 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *SchemaNod
 		}
 		var child DataNode
 		if cschema.IsDuplicatableList() {
-			if child, err = branch.Create(id.String()); err != nil {
+			if child, err = parent.Create(id.String()); err != nil {
 				return err
 			}
 		} else {
-			found := branch.Get(id.String())
-			if found == nil {
-				if child, err = branch.Create(id.String()); err != nil {
+			if found := parent.Get(id.String()); found == nil {
+				if child, err = parent.Create(id.String()); err != nil {
 					return err
 				}
 			} else {
 				child = found
 			}
 		}
-
-		// Update DataNode
 		if err := unmarshalYAML(child, entry); err != nil {
 			return err
 		}
@@ -103,119 +117,109 @@ func (branch *DataBranch) unmarshalYAMLListableNodeForRFC7951(cschema *SchemaNod
 
 // unmarshalYAML updates a data node using YAML values.
 func unmarshalYAML(node DataNode, yval interface{}) error {
-	switch n := node.(type) {
-	case *DataBranch:
-		switch data := yval.(type) {
+	if node.IsBranchNode() {
+		switch entry := yval.(type) {
 		case map[interface{}]interface{}:
-			for k, v := range data {
+			schema := node.Schema()
+			for k, v := range entry {
 				keystr := ValueToString(k)
 				name, haskey, err := extractSchemaName(&keystr)
 				if err != nil {
-					return err
+					return Error(EAppTagYAMLParsing, err)
 				}
-				cschema := n.schema.GetSchema(name)
+				cschema := schema.GetSchema(name)
 				if cschema == nil {
-					return fmt.Errorf("schema %q not found from %q", k, n.schema.Name)
+					return Errorf(EAppTagYAMLParsing, "schema %q not found from %q", k, schema.Name)
 				}
-
-				switch {
-				case cschema.IsList():
-					if haskey {
-						keyname := cschema.Keyname
-						keyval, err := extractKeyValues(keyname, &keystr)
-						if err != nil {
-							return err
-						}
-						keymap := map[interface{}]interface{}{}
-						m := keymap
-						for x := range keyval {
-							if x < len(keyname)-1 {
-								if n := m[keyval[x]]; n == nil {
-									n := map[interface{}]interface{}{}
-									m[keyval[x]] = n
-									m = n
-								} else {
-									m = n.(map[interface{}]interface{})
-								}
+				if haskey {
+					keyname := cschema.Keyname
+					keyval, err := extractKeyValues(keyname, &keystr)
+					if err != nil {
+						return Error(EAppTagYAMLParsing, err)
+					}
+					keymap := map[interface{}]interface{}{}
+					m := keymap
+					for x := range keyval {
+						if x < len(keyname)-1 {
+							if n := m[keyval[x]]; n == nil {
+								n := map[interface{}]interface{}{}
+								m[keyval[x]] = n
+								m = n
 							} else {
-								if v != nil {
-									m[keyval[x]] = v
-								} else {
-									m[keyval[x]] = map[interface{}]interface{}{}
-								}
+								m = n.(map[interface{}]interface{})
+							}
+						} else {
+							if v != nil {
+								m[keyval[x]] = v
+							} else {
+								m[keyval[x]] = map[interface{}]interface{}{}
 							}
 						}
-						v = keymap
 					}
-					if rfc7951StyleList, ok := v.([]interface{}); ok {
-						if err := n.unmarshalYAMLListableNodeForRFC7951(cschema, cschema.Keyname, rfc7951StyleList); err != nil {
-							return err
+					v = keymap
+				}
+				if cschema.IsListable() {
+					switch vv := v.(type) {
+					case []interface{}:
+						if err := unmarshalYAMLListableNode(node, cschema, cschema.Keyname, vv); err != nil {
+							return Error(EAppTagYAMLParsing, err)
 						}
-					} else {
-						if cschema.IsDuplicatableList() {
-							return fmt.Errorf("non-id list %q must have the array format", cschema.Name)
-						}
+					case map[interface{}]interface{}:
 						kname := cschema.Keyname
 						kval := make([]interface{}, 0, len(kname))
-						if err := n.unmarshalYAMLListableNode(cschema, kname, kval, v); err != nil {
-							return err
+						if err := unmarshalYAMLListNode(node, cschema, kname, kval, v); err != nil {
+							return Error(EAppTagYAMLParsing, err)
 						}
+					default:
+						return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q for %q", vv, cschema.Name)
 					}
-				case cschema.IsLeafList():
-					vv, ok := v.([]interface{})
-					if !ok {
-						return fmt.Errorf("unexpected type inserted for %q", cschema.Name)
-					}
-					for i := range vv {
-						child, err := NewDataNode(cschema)
-						if err != nil {
-							return err
+				} else {
+					if child := node.Get(keystr); child == nil {
+						if child, err = NewDataNode(cschema); err != nil {
+							return Error(EAppTagYAMLParsing, err)
 						}
-						if err := unmarshalYAML(child, vv[i]); err != nil {
-							return err
+						if err = unmarshalYAML(child, v); err != nil {
+							return Error(EAppTagYAMLParsing, err)
 						}
-						if _, err := n.insert(child, nil); err != nil {
-							return err
-						}
-					}
-				default:
-					var child DataNode
-					i := n.Index(keystr)
-					if i < len(n.children) && n.children[i].ID() == k {
-						child = n.children[i]
-						if err := unmarshalYAML(child, v); err != nil {
-							return err
+						if _, err = node.Insert(child, nil); err != nil {
+							return Error(EAppTagYAMLParsing, err)
 						}
 					} else {
-						child, err := NewDataNode(cschema)
-						if err != nil {
-							return err
-						}
 						if err := unmarshalYAML(child, v); err != nil {
-							return err
-						}
-						if _, err := n.insert(child, nil); err != nil {
-							return err
+							return Error(EAppTagYAMLParsing, err)
 						}
 					}
-
 				}
 			}
 			return nil
 		case []interface{}:
-			for i := range data {
-				if err := unmarshalYAML(node, data[i]); err != nil {
-					return err
+			for i := range entry {
+				if err := unmarshalYAML(node, entry[i]); err != nil {
+					return Error(EAppTagYAMLParsing, err)
 				}
 			}
 			return nil
 		default:
-			return fmt.Errorf("unexpected yaml value \"%v\" (%T) inserted for %q", yval, yval, n)
+			return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", yval, node)
 		}
-	case *DataLeaf:
-		return n.Set(ValueToString(yval))
-	default:
-		return fmt.Errorf("unknown data node type: %T", node)
+	} else {
+		// leaf-list or list
+		switch entry := yval.(type) {
+		case map[interface{}]interface{}:
+			return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", entry, node.ID())
+		case []interface{}:
+			if !node.HasMultipleValues() {
+				return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", entry, node.ID())
+			}
+			for i := range entry {
+				if err := node.Set(ValueToString(entry[i])); err != nil {
+					return Error(EAppTagYAMLParsing, err)
+				}
+			}
+			return nil
+		default:
+			return Error(EAppTagYAMLParsing, node.Set(ValueToString(yval)))
+		}
 	}
 }
 
@@ -235,6 +239,7 @@ type yamlNode struct {
 	InternalFormat bool // Interval YAML format
 	ConfigOnly     yang.TriState
 	IndentStr      string
+	PrefixStr      string
 }
 
 func (ynode *yamlNode) getQname() string {
@@ -277,7 +282,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 		}
 	}
 	if cynode.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
-		writeIndent(buffer, indent, cynode.IndentStr, disableFirstIndent)
+		cynode.WriteIndent(buffer, indent, disableFirstIndent)
 		buffer.WriteString(cynode.getQname())
 		buffer.WriteString(":\n")
 		indent++
@@ -286,9 +291,9 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 			if schema != cynode.Schema() {
 				break
 			}
-			writeIndent(buffer, indent, cynode.IndentStr, false)
+			cynode.WriteIndent(buffer, indent, false)
 			buffer.WriteString("-")
-			writeIndent(buffer, 1, cynode.IndentStr, false)
+			cynode.WriteIndent(buffer, 1, false)
 			err := cynode.marshalYAML(buffer, indent+2, true)
 			if err != nil {
 				return i, err
@@ -301,7 +306,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 	}
 	var lastKeyval []string
 	if !cynode.InternalFormat {
-		disableFirstIndent = writeIndent(buffer, indent, cynode.IndentStr, disableFirstIndent)
+		disableFirstIndent = cynode.WriteIndent(buffer, indent, disableFirstIndent)
 		buffer.WriteString(cynode.getQname())
 		buffer.WriteString(":\n")
 		indent++
@@ -312,7 +317,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 			break
 		}
 		if cynode.InternalFormat {
-			disableFirstIndent = writeIndent(buffer, indent, cynode.IndentStr, disableFirstIndent)
+			disableFirstIndent = cynode.WriteIndent(buffer, indent, disableFirstIndent)
 			buffer.WriteString(cynode.getQname())
 			buffer.WriteString(":\n")
 			err := cynode.marshalYAML(buffer, indent+1, false)
@@ -328,7 +333,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
 					continue
 				}
-				writeIndent(buffer, indent+j, cynode.IndentStr, false)
+				cynode.WriteIndent(buffer, indent+j, false)
 				buffer.WriteString(keyval[j])
 				buffer.WriteString(":\n")
 			}
@@ -352,7 +357,7 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 				var err error
 				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent, disableFirstIndent)
 				if err != nil {
-					return err
+					return Error(EAppTagYAMLEmitting, err)
 				}
 				disableFirstIndent = false
 				continue
@@ -366,7 +371,7 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 			}
 			cynode.DataNode = children[i]
 			cynode.RFC7951S = ynode.RFC7951S
-			disableFirstIndent = writeIndent(buffer, indent, cynode.IndentStr, disableFirstIndent)
+			disableFirstIndent = cynode.WriteIndent(buffer, indent, disableFirstIndent)
 			buffer.WriteString(cynode.getQname())
 			buffer.WriteString(":")
 			if cynode.IsLeaf() {
@@ -377,7 +382,7 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 					buffer.WriteString(" ")
 				}
 				if err := cynode.marshalYAML(buffer, indent+1, false); err != nil {
-					return err
+					return Error(EAppTagYAMLEmitting, err)
 				}
 				if !newline {
 					buffer.WriteString("\n")
@@ -385,7 +390,7 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 			} else {
 				buffer.WriteString("\n")
 				if err := cynode.marshalYAML(buffer, indent+1, false); err != nil {
-					return err
+					return Error(EAppTagYAMLEmitting, err)
 				}
 			}
 			i++
@@ -405,7 +410,7 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 					}
 					valbyte, err := ValueToYAMLBytes(schema, schema.Type, value[i], rfc7951enabled)
 					if err != nil {
-						return err
+						return Error(EAppTagYAMLEmitting, err)
 					}
 					buffer.Write(valbyte)
 					comma = true
@@ -413,11 +418,11 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 				buffer.WriteString("]")
 			} else {
 				for i := range value {
-					writeIndent(buffer, indent, ynode.IndentStr, false)
+					ynode.WriteIndent(buffer, indent, false)
 					buffer.WriteString("- ")
 					valbyte, err := ValueToYAMLBytes(schema, schema.Type, value[i], rfc7951enabled)
 					if err != nil {
-						return err
+						return Error(EAppTagYAMLEmitting, err)
 					}
 					buffer.Write(valbyte)
 					buffer.WriteString("\n")
@@ -429,49 +434,20 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 		rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
 		valbyte, err := ValueToYAMLBytes(schema, schema.Type, ynode.Value(), rfc7951enabled)
 		if err != nil {
-			return err
+			return Error(EAppTagYAMLEmitting, err)
 		}
 		buffer.Write(valbyte)
 	}
 	return nil
 }
 
-// InternalFormat is an option to marshal a data node to an internal YAML format.
-type InternalFormat struct{}
-
-func (o InternalFormat) IsOption() {}
-
-// MarshalYAML encodes the data node to a YAML document with a number of options.
-// The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
-func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
-	buffer := bytes.NewBufferString("")
-	ynode := &yamlNode{DataNode: node, IndentStr: " "}
-	for i := range option {
-		switch option[i].(type) {
-		case HasState:
-			return nil, fmt.Errorf("%v option can be used to find nodes", option[i])
-		case ConfigOnly:
-			ynode.ConfigOnly = yang.TSTrue
-		case StateOnly:
-			ynode.ConfigOnly = yang.TSFalse
-		case RFC7951Format:
-			ynode.RFC7951S = RFC7951Enabled
-		case InternalFormat:
-			ynode.InternalFormat = true
-		}
-	}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func writeIndent(buffer *bytes.Buffer, indent int, indentStr string, disableIndent bool) bool {
+func (yamlnode *yamlNode) WriteIndent(buffer *bytes.Buffer, indent int, disableIndent bool) bool {
 	if disableIndent {
 		return false
 	}
+	buffer.WriteString(yamlnode.PrefixStr)
 	for i := 0; i < indent; i++ {
-		buffer.WriteString(indentStr)
+		buffer.WriteString(yamlnode.IndentStr)
 	}
 	return disableIndent
 }
@@ -787,7 +763,7 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 	}
 
 	if err := Traverse(ynode.DataNode, traverser, TrvsCalledAtEnterAndExit, -1, false); err != nil {
-		return nil, err
+		return nil, Error(EAppTagYAMLEmitting, err)
 	}
 
 	var _top interface{}
@@ -801,4 +777,34 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 		}
 	}
 	return _top, nil
+}
+
+// InternalFormat is an option to marshal a data node to an internal YAML format.
+type InternalFormat struct{}
+
+func (o InternalFormat) IsOption() {}
+
+// MarshalYAML encodes the data node to a YAML document with a number of options.
+// The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
+func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yamlNode{DataNode: node, IndentStr: " "}
+	for i := range option {
+		switch option[i].(type) {
+		case HasState:
+			return nil, Errorf(EAppTagYAMLEmitting, "%v option can be used to find nodes", option[i])
+		case ConfigOnly:
+			ynode.ConfigOnly = yang.TSTrue
+		case StateOnly:
+			ynode.ConfigOnly = yang.TSFalse
+		case RFC7951Format:
+			ynode.RFC7951S = RFC7951Enabled
+		case InternalFormat:
+			ynode.InternalFormat = true
+		}
+	}
+	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }

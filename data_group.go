@@ -418,15 +418,15 @@ func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...
 		}
 	}
 	if ynode.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
-		// writeIndent(&buffer, indent, indentStr, disableFirstIndent)
+		// WriteIndent(&buffer, indent, indentStr, disableFirstIndent)
 		// buffer.WriteString(ynode.getQname())
 		// buffer.WriteString(":\n")
 		// indent++
 		for i := range group.Nodes {
 			ynode.DataNode = group.Nodes[i]
-			writeIndent(&buffer, indent, ynode.IndentStr, false)
+			ynode.WriteIndent(&buffer, indent, false)
 			buffer.WriteString("-")
-			writeIndent(&buffer, 1, ynode.IndentStr, false)
+			ynode.WriteIndent(&buffer, 1, false)
 			err := ynode.marshalYAML(&buffer, indent+2, true)
 			if err != nil {
 				return nil, err
@@ -441,7 +441,7 @@ func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...
 	for i := range group.Nodes {
 		ynode.DataNode = group.Nodes[i]
 		if ynode.InternalFormat {
-			writeIndent(&buffer, indent, ynode.IndentStr, false)
+			ynode.WriteIndent(&buffer, indent, false)
 			buffer.WriteString(ynode.getQname())
 			buffer.WriteString(":\n")
 			err := ynode.marshalYAML(&buffer, indent+1, false)
@@ -457,7 +457,7 @@ func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...
 				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
 					continue
 				}
-				writeIndent(&buffer, indent+j, ynode.IndentStr, false)
+				ynode.WriteIndent(&buffer, indent+j, false)
 				buffer.WriteString(keyval[j])
 				buffer.WriteString(":\n")
 			}

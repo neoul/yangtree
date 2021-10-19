@@ -32,6 +32,8 @@ const (
 	EAppTagDataNodeMissing
 	EAppTagDataNodeExists
 	EAppTagInvalidArg
+	EAppTagYAMLParsing
+	EAppTagYAMLEmitting
 )
 
 func (et ErrorTag) String() string {
@@ -84,6 +86,10 @@ func (et ErrorTag) String() string {
 		return "data-node-exists"
 	case EAppTagInvalidArg:
 		return "invalid-argument"
+	case EAppTagYAMLParsing:
+		return "yaml-parsing-error"
+	case EAppTagYAMLEmitting:
+		return "yaml-emitting-error"
 	default:
 		return "unknown"
 	}
@@ -127,15 +133,21 @@ func (ye *YError) Error() string {
 	return "[" + ye.ErrorTag.String() + "] " + ye.ErrorMessage
 }
 
-func NewError(etag ErrorTag, eMessage string) *YError {
+func Error(etag ErrorTag, err error) error {
+	if err == nil {
+		return nil
+	}
+	if yerr, ok := err.(*YError); ok {
+		return yerr
+	}
 	return &YError{
 		ErrorTag:     etag,
 		ErrorType:    ETypeApplication,
-		ErrorMessage: eMessage,
+		ErrorMessage: err.Error(),
 	}
 }
 
-func NewErrorf(etag ErrorTag, eMessage string, arg ...interface{}) *YError {
+func NewErrorf(etag ErrorTag, eMessage string, arg ...interface{}) error {
 	return &YError{
 		ErrorTag:     etag,
 		ErrorType:    ETypeApplication,
@@ -143,7 +155,7 @@ func NewErrorf(etag ErrorTag, eMessage string, arg ...interface{}) *YError {
 	}
 }
 
-func Errorf(etag ErrorTag, eMessage string, arg ...interface{}) *YError {
+func Errorf(etag ErrorTag, eMessage string, arg ...interface{}) error {
 	return &YError{
 		ErrorTag:     etag,
 		ErrorType:    ETypeApplication,

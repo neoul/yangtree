@@ -1,7 +1,8 @@
 package yangtree
 
 import (
-	"fmt"
+	"encoding/json"
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -95,13 +96,28 @@ func TestNewDataGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if j, err := jleaflistnodes.MarshalJSON(); err == nil {
-		t.Log(string(j))
-	}
-	if y, err := yaml.Marshal(jleaflistnodes); err == nil {
-		fmt.Println(string(y))
-	} else {
-		t.Fatal(err)
+	{
+		j, err := jleaflistnodes.MarshalJSON()
+		if err != nil {
+			t.Fatal(err)
+		}
+		y, err := yaml.Marshal(jleaflistnodes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var o1, o2 interface{}
+		if err := json.Unmarshal(j, &o1); err != nil {
+			t.Fatal(err)
+		}
+		if err := yaml.Unmarshal(y, &o2); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(o1, o2) {
+			t.Error("not equal leaf-list nodes")
+			t.Error("json:", o1)
+			t.Error("yaml:", o1)
+			return
+		}
 	}
 
 	schema = RootSchema.FindSchema("sample/single-key-list")
