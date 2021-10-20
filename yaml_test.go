@@ -40,11 +40,11 @@ func TestYAML(t *testing.T) {
 		if i >= 1 {
 			if !Equal(root[i-1], root[i]) {
 				t.Errorf("unmarshaled data is not equal")
-				b1, err := root[i-1].MarshalJSON()
+				b1, err := MarshalJSON(root[i-1])
 				if err != nil {
 					t.Error(err)
 				}
-				b2, err := root[i].MarshalJSON()
+				b2, err := MarshalJSON(root[i])
 				if err != nil {
 					t.Error(err)
 				}
@@ -78,11 +78,11 @@ func TestYAML(t *testing.T) {
 		if i >= 1 {
 			if !Equal(reversed[i-1], reversed[i]) {
 				t.Errorf("unmarshaled data is not equal")
-				b1, err := reversed[i-1].MarshalJSON()
+				b1, err := MarshalJSON(reversed[i-1])
 				if err != nil {
 					t.Error(err)
 				}
-				b2, err := reversed[i].MarshalJSON()
+				b2, err := MarshalJSON(reversed[i])
 				if err != nil {
 					t.Error(err)
 				}
@@ -120,7 +120,7 @@ func BenchmarkYAMLmarshallingOld(b *testing.B) {
 	}
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < max; i++ {
-			_, err := root[i].MarshalJSON()
+			_, err := MarshalJSON(root[i])
 			if err != nil {
 				b.Error(err)
 			}

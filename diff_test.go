@@ -60,7 +60,7 @@ func TestDiffUpdate(t *testing.T) {
 	// created
 	t.Log("[created]", len(created))
 	for i := range created {
-		b, _ := created[i].MarshalJSON()
+		b, _ := MarshalJSON(created[i])
 		t.Log(created[i].Path(), string(b))
 	}
 	if len(created) != 16 {
@@ -68,13 +68,13 @@ func TestDiffUpdate(t *testing.T) {
 	}
 	t.Log("[replaced]", len(replaced))
 	for i := range replaced {
-		b, _ := replaced[i].MarshalJSON()
+		b, _ := MarshalJSON(replaced[i])
 		t.Log(replaced[i].Path(), string(b))
 	}
 	if len(replaced) != 2 {
 		t.Errorf("expected num: %d, got: %d", 2, len(replaced))
 	}
 
-	b, _ := root.MarshalJSON()
+	b, _ := MarshalJSON(root)
 	t.Log(string(b))
 }

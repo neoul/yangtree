@@ -447,7 +447,7 @@ func TestComplexModel(t *testing.T) {
 		t.Error(err)
 	}
 
-	j, err := rootdata.MarshalJSON()
+	j, err := MarshalJSON(rootdata)
 	if err != nil {
 		t.Error(err)
 	}
@@ -491,7 +491,7 @@ func TestCreatedWithDefault(t *testing.T) {
 		t.Errorf("d1 node must be created with default. d1=%v\n", node[0].Value())
 	}
 
-	j, err := rootdata.MarshalJSON()
+	j, err := MarshalJSON(rootdata)
 	if err != nil {
 		t.Error(err)
 	}
@@ -550,7 +550,7 @@ func TestReplace(t *testing.T) {
 		t.Errorf("expected num: %d, got: %d", 6, len(ifnodes))
 	}
 
-	b, _ := root.MarshalJSON()
+	b, _ := MarshalJSON(root)
 	t.Log(string(b))
 }
 

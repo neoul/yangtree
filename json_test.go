@@ -65,7 +65,7 @@ func TestDataNode_JSON(t *testing.T) {
 		}
 	   }
 	`
-	if err := RootData.UnmarshalJSON([]byte(jbyte)); err != nil {
+	if err := json.Unmarshal([]byte(jbyte), RootData); err != nil {
 		t.Error(err)
 	}
 	var jdata1 interface{}
@@ -75,7 +75,7 @@ func TestDataNode_JSON(t *testing.T) {
 		t.Error(err)
 	}
 
-	jbyte2, err := RootData.MarshalJSON()
+	jbyte2, err := MarshalJSON(RootData)
 	if err != nil {
 		t.Error(err)
 	}
@@ -149,7 +149,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 		}
 	   }	   
 	`
-	if err := RootData.UnmarshalJSON([]byte(jbyte)); err != nil {
+	if err := json.Unmarshal([]byte(jbyte), RootData); err != nil {
 		t.Error(err)
 	}
 	var jdata1 interface{}
@@ -159,7 +159,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 		t.Error(err)
 	}
 
-	jbyte2, err := RootData.MarshalJSON_RFC7951()
+	jbyte2, err := MarshalJSON(RootData, RFC7951Format{})
 	if err != nil {
 		t.Error(err)
 	}
