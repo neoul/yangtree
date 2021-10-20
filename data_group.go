@@ -387,7 +387,7 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 	if RFC7951S != RFC7951Disabled || group.schema.IsDuplicatableList() || group.schema.IsLeafList() {
 		nodelist := make([]interface{}, 0, len(group.Nodes))
 		for _, n := range group.Nodes {
-			jnode := &jDataNode{DataNode: n, configOnly: configOnly, RFC7951S: RFC7951S}
+			jnode := &jsonNode{DataNode: n, configOnly: configOnly, RFC7951S: RFC7951S}
 			nodelist = append(nodelist, jnode)
 		}
 		if err := marshalJNodeTree(&buffer, nodelist); err != nil {
@@ -397,7 +397,7 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 	}
 	nodemap := map[string]interface{}{}
 	for i := range group.Nodes {
-		jnode := &jDataNode{DataNode: group.Nodes[i],
+		jnode := &jsonNode{DataNode: group.Nodes[i],
 			configOnly: configOnly, RFC7951S: RFC7951S}
 		keyname, keyval := GetKeyValues(jnode.DataNode)
 		if len(keyname) != len(keyval) {

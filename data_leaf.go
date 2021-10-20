@@ -283,7 +283,7 @@ func (leaf *DataLeaf) UnmarshalJSON(jbytes []byte) error {
 
 func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: leaf}
+	jnode := &jsonNode{DataNode: leaf}
 	err := jnode.marshalJSON(&buffer)
 	if err != nil {
 		return nil, err

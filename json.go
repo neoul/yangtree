@@ -39,13 +39,13 @@ func (s RFC7951S) String() string {
 	return "rfc7951.unknown"
 }
 
-type jDataNode struct {
+type jsonNode struct {
 	DataNode
 	RFC7951S
 	configOnly yang.TriState
 }
 
-func (jnode *jDataNode) getQname() string {
+func (jnode *jsonNode) getQname() string {
 	switch jnode.RFC7951S {
 	case RFC7951InProgress, RFC7951Enabled:
 		if qname, boundary := jnode.Schema().GetQName(true); boundary ||
@@ -58,7 +58,7 @@ func (jnode *jDataNode) getQname() string {
 	return jnode.Schema().Name
 }
 
-func (jnode *jDataNode) MarshalJSON() ([]byte, error) {
+func (jnode *jsonNode) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	err := jnode.marshalJSON(&buffer)
 	if err != nil {
@@ -67,7 +67,7 @@ func (jnode *jDataNode) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
+func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer) error {
 	if jnode == nil || jnode.DataNode == nil {
 		buffer.WriteString(`null`)
 		return nil
@@ -143,7 +143,7 @@ func (jnode *jDataNode) marshalJSON(buffer *bytes.Buffer) error {
 	return nil
 }
 
-func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma bool, parent *jDataNode) (int, bool, error) {
+func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma bool, parent *jsonNode) (int, bool, error) {
 	first := *parent
 	first.DataNode = node[i]
 	schema := first.Schema()
@@ -181,7 +181,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 		}
 		nodelist := make([]interface{}, 0, i-ii)
 		for ; ii < i; ii++ {
-			jnode := &jDataNode{DataNode: node[ii],
+			jnode := &jsonNode{DataNode: node[ii],
 				configOnly: first.configOnly, RFC7951S: first.RFC7951S}
 			nodelist = append(nodelist, jnode)
 		}
@@ -191,7 +191,7 @@ func marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma
 
 	nodemap := map[string]interface{}{}
 	for ; i < len(node); i++ {
-		jnode := &jDataNode{DataNode: node[i],
+		jnode := &jsonNode{DataNode: node[i],
 			configOnly: first.configOnly, RFC7951S: first.RFC7951S}
 		if schema != jnode.Schema() {
 			break
@@ -254,7 +254,7 @@ func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
 			}
 		}
 		buffer.WriteString(`]`)
-	case *jDataNode:
+	case *jsonNode:
 		if err := jj.marshalJSON(buffer); err != nil {
 			return err
 		}
@@ -469,7 +469,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 // Marshal traverses the value v recursively.
 func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: node}
+	jnode := &jsonNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:
@@ -492,7 +492,7 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 // MarshalJSONIndent is like Marshal but applies an indent and a prefix to format the output.
 func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: node}
+	jnode := &jsonNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
 		case HasState:

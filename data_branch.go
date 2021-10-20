@@ -676,7 +676,7 @@ func (branch *DataBranch) UnmarshalJSON(jbytes []byte) error {
 
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: branch}
+	jnode := &jsonNode{DataNode: branch}
 	err := jnode.marshalJSON(&buffer)
 	if err != nil {
 		return nil, err
