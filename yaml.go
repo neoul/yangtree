@@ -583,7 +583,6 @@ func (ynode *yamlNode) skip(node DataNode) bool {
 func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 	top := make(map[interface{}]interface{})
 	curkeys := make([]interface{}, 0, 8)
-	var targetkeys []interface{}
 	parent := top
 	var traverser func(n DataNode, at TrvsCallOption) error
 	switch {
@@ -612,15 +611,9 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 					parent = dir
 				}
 			case TrvsCalledAtEnterAndExit:
-				key, err := ynode.marshalYAMLValue(n, parent)
-				if n == ynode.DataNode {
-					targetkeys = append(curkeys, key)
-				}
+				_, err := ynode.marshalYAMLValue(n, parent)
 				return err
 			case TrvsCalledAtExit:
-				if n == ynode.DataNode {
-					targetkeys = curkeys
-				}
 				if n.IsDuplicatableNode() {
 					curkeys = curkeys[:len(curkeys)-2]
 				} else {
@@ -669,15 +662,9 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 					parent = dir
 				}
 			case TrvsCalledAtEnterAndExit:
-				key, err := ynode.marshalYAMLValue(n, parent)
-				if n == ynode.DataNode {
-					targetkeys = append(curkeys, key)
-				}
+				_, err := ynode.marshalYAMLValue(n, parent)
 				return err
 			case TrvsCalledAtExit:
-				if n == ynode.DataNode {
-					targetkeys = curkeys
-				}
 				if n.IsList() {
 					curkeys = curkeys[:len(curkeys)-2]
 				} else {
@@ -731,15 +718,9 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 					}
 				}
 			case TrvsCalledAtEnterAndExit:
-				key, err := ynode.marshalYAMLValue(n, parent)
-				if n == ynode.DataNode {
-					targetkeys = append(curkeys, key)
-				}
+				_, err := ynode.marshalYAMLValue(n, parent)
 				return err
 			case TrvsCalledAtExit:
-				if n == ynode.DataNode {
-					targetkeys = curkeys
-				}
 				if n.IsDuplicatableNode() {
 					curkeys = curkeys[:len(curkeys)-2]
 				} else {
@@ -762,21 +743,21 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 		}
 	}
 
-	if err := Traverse(ynode.DataNode, traverser, TrvsCalledAtEnterAndExit, -1, false); err != nil {
-		return nil, Error(EAppTagYAMLEmitting, err)
-	}
-
-	var _top interface{}
-	_top = top
-	for i := range targetkeys {
-		switch c := _top.(type) {
-		case map[interface{}]interface{}:
-			_top = c[targetkeys[i]]
-		case []interface{}:
-			_top = c[targetkeys[i].(int)]
+	if ynode.IsBranchNode() {
+		children := ynode.Children()
+		for i := range children {
+			if err := Traverse(children[i], traverser, TrvsCalledAtEnterAndExit, -1, false); err != nil {
+				return nil, Error(EAppTagYAMLEmitting, err)
+			}
 		}
+		return top, nil
+	} else {
+		key, err := ynode.marshalYAMLValue(ynode.DataNode, parent)
+		if err != nil {
+			return nil, Error(EAppTagYAMLEmitting, err)
+		}
+		return parent[key], nil
 	}
-	return _top, nil
 }
 
 // InternalFormat is an option to marshal a data node to an internal YAML format.
