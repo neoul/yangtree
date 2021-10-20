@@ -32,6 +32,8 @@ const (
 	EAppTagDataNodeMissing
 	EAppTagDataNodeExists
 	EAppTagInvalidArg
+	EAppTagJSONParsing
+	EAppTagJSONEmitting
 	EAppTagYAMLParsing
 	EAppTagYAMLEmitting
 )
@@ -86,6 +88,10 @@ func (et ErrorTag) String() string {
 		return "data-node-exists"
 	case EAppTagInvalidArg:
 		return "invalid-argument"
+	case EAppTagJSONParsing:
+		return "json-parsing-error"
+	case EAppTagJSONEmitting:
+		return "json-emitting-error"
 	case EAppTagYAMLParsing:
 		return "yaml-parsing-error"
 	case EAppTagYAMLEmitting:

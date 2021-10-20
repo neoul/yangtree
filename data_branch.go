@@ -649,36 +649,6 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 	return nil
 }
 
-func (branch *DataBranch) UnmarshalJSON(jbytes []byte) error {
-	var jval interface{}
-	err := json.Unmarshal(jbytes, &jval)
-	if err != nil {
-		return err
-	}
-	return unmarshalJSON(branch, jval) // merge
-}
-
-func (branch *DataBranch) MarshalJSON() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: branch}
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func (branch *DataBranch) MarshalJSON_RFC7951() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: branch}
-	jnode.RFC7951S = RFC7951Enabled
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
 // Replace() replaces itself to the src node.
 func (branch *DataBranch) Replace(src DataNode) error {
 	if !IsValid(src) {
@@ -695,8 +665,23 @@ func (branch *DataBranch) Merge(src DataNode) error {
 	return merge(branch, src)
 }
 
-type _xmlnode struct {
-	DataNode
+func (branch *DataBranch) UnmarshalJSON(jbytes []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jbytes, &jval)
+	if err != nil {
+		return err
+	}
+	return unmarshalJSON(branch, branch.schema, jval) // merge
+}
+
+func (branch *DataBranch) MarshalJSON() ([]byte, error) {
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: branch}
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (branch *DataBranch) MarshalXML(e *xml.Encoder, start xml.StartElement) error {

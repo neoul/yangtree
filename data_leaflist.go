@@ -305,36 +305,6 @@ func (leaflist *DataLeafList) UpdateByMap(pmap map[string]interface{}) error {
 	return nil
 }
 
-func (leaflist *DataLeafList) UnmarshalJSON(jbytes []byte) error {
-	var jval interface{}
-	err := json.Unmarshal(jbytes, &jval)
-	if err != nil {
-		return err
-	}
-	return unmarshalJSON(leaflist, jval) // merge
-}
-
-func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: leaflist}
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func (leaflist *DataLeafList) MarshalJSON_RFC7951() ([]byte, error) {
-	var buffer bytes.Buffer
-	jnode := &jDataNode{DataNode: leaflist}
-	jnode.RFC7951S = RFC7951Enabled
-	err := jnode.marshalJSON(&buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
 // Replace() replaces itself to the src node.
 func (leaflist *DataLeafList) Replace(src DataNode) error {
 	if !IsValid(src) {
@@ -349,6 +319,25 @@ func (leaflist *DataLeafList) Merge(src DataNode) error {
 		return fmt.Errorf("invalid src data node")
 	}
 	return merge(leaflist, src)
+}
+
+func (leaflist *DataLeafList) UnmarshalJSON(jbytes []byte) error {
+	var jval interface{}
+	err := json.Unmarshal(jbytes, &jval)
+	if err != nil {
+		return err
+	}
+	return unmarshalJSON(leaflist, leaflist.schema, jval) // merge
+}
+
+func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
+	var buffer bytes.Buffer
+	jnode := &jDataNode{DataNode: leaflist}
+	err := jnode.marshalJSON(&buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (leaflist *DataLeafList) MarshalXML(e *xml.Encoder, start xml.StartElement) error {

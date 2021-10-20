@@ -312,6 +312,34 @@ func NewDataNode(schema *SchemaNode, value ...string) (DataNode, error) {
 	return node, err
 }
 
+// NewDataNodeByID() creates a new DataNode according to the schema
+// with its values. The values should be a string if the new DataNode is *DataLeaf.
+// The values should be JSON encoded bytes if the node is *DataBranch.
+func NewDataNodeByID(schema *SchemaNode, id string) (DataNode, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+	pathnode, err := ParsePath(&id)
+	if err != nil {
+		return nil, err
+	}
+	if len(pathnode) == 0 || len(pathnode) > 1 {
+		return nil, fmt.Errorf("invalid id %q inserted", id)
+	}
+	node, err := newDataNode(schema)
+	if err != nil {
+		return nil, err
+	}
+	pmap, err := pathnode[0].PredicatesToMap()
+	if err != nil {
+		return nil, err
+	}
+	if err := node.UpdateByMap(pmap); err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
 func newDataNode(schema *SchemaNode) (DataNode, error) {
 	var err error
 	var newdata DataNode

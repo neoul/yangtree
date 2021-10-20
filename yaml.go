@@ -36,35 +36,46 @@ func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string,
 	}
 	// check existent DataNode
 	var err error
-	var id strings.Builder
-	id.WriteString(cschema.Name)
+	var idBuilder strings.Builder
+	idBuilder.WriteString(cschema.Name)
 	for i := range kval {
-		id.WriteString("[")
-		id.WriteString(kname[i])
-		id.WriteString("=")
-		id.WriteString(ValueToString(kval[i]))
-		id.WriteString("]")
+		idBuilder.WriteString("[")
+		idBuilder.WriteString(kname[i])
+		idBuilder.WriteString("=")
+		idBuilder.WriteString(ValueToString(kval[i]))
+		idBuilder.WriteString("]")
 	}
-	var child DataNode
-	if found := parent.Get(id.String()); found == nil {
-		if child, err = parent.Create(id.String()); err != nil {
+	id := idBuilder.String()
+	var child, found DataNode
+	if found = parent.Get(id); found == nil {
+		child, err = NewDataNodeByID(cschema, id)
+		if err != nil {
+			return err
+		}
+		if _, err = parent.Insert(child, nil); err != nil {
 			return err
 		}
 	} else {
 		child = found
 	}
-	return unmarshalYAML(child, yamlHash)
+	if err := unmarshalYAML(child, yamlHash); err != nil {
+		if found == nil {
+			parent.Delete(child)
+		}
+		return err
+	}
+	return nil
 }
 
 // unmarshalYAMLListableNode constructs listable child nodes of the parent data node using YAML values.
-func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []string, yamlSeq []interface{}) error {
+func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []string, sequnce []interface{}) error {
 	if cschema.IsLeafList() {
-		for i := range yamlSeq {
+		for i := range sequnce {
 			child, err := NewDataNode(cschema)
 			if err != nil {
 				return err
 			}
-			if err = unmarshalYAML(child, yamlSeq[i]); err != nil {
+			if err = unmarshalYAML(child, sequnce[i]); err != nil {
 				return err
 			}
 			if _, err = parent.Insert(child, nil); err != nil {
@@ -73,42 +84,47 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 		}
 		return nil
 	}
-	for i := range yamlSeq {
-		entry, ok := yamlSeq[i].(map[interface{}]interface{})
+	for i := range sequnce {
+		entry, ok := sequnce[i].(map[interface{}]interface{})
 		if !ok {
-			return fmt.Errorf("unexpected yaml value %T for %s", yamlSeq[i], cschema.Name)
+			return fmt.Errorf("unexpected yaml value %T for %s", sequnce[i], cschema.Name)
 		}
 		// check existent DataNode
 		var err error
-		var id strings.Builder
-		id.WriteString(cschema.Name)
+		var idBuilder strings.Builder
+		idBuilder.WriteString(cschema.Name)
 		for i := range kname {
-			id.WriteString("[")
-			id.WriteString(kname[i])
-			id.WriteString("=")
-			id.WriteString(fmt.Sprint(entry[kname[i]]))
-			id.WriteString("]")
+			idBuilder.WriteString("[")
+			idBuilder.WriteString(kname[i])
+			idBuilder.WriteString("=")
+			idBuilder.WriteString(fmt.Sprint(entry[kname[i]]))
+			idBuilder.WriteString("]")
 			// [FIXME] Does it need to check id validation?
 			// kchild, err := NewDataNode(kschema, kval)
 			// if err != nil {
 			// 	return err
 			// }
 		}
-		var child DataNode
+		id := idBuilder.String()
+		var child, found DataNode
 		if cschema.IsDuplicatableList() {
-			if child, err = parent.Create(id.String()); err != nil {
+			child = nil
+		} else if found = parent.Get(id); found != nil {
+			child = found
+		}
+		if child == nil {
+			child, err = NewDataNodeByID(cschema, id)
+			if err != nil {
 				return err
 			}
-		} else {
-			if found := parent.Get(id.String()); found == nil {
-				if child, err = parent.Create(id.String()); err != nil {
-					return err
-				}
-			} else {
-				child = found
+			if _, err = parent.Insert(child, nil); err != nil {
+				return err
 			}
 		}
 		if err := unmarshalYAML(child, entry); err != nil {
+			if found == nil {
+				parent.Delete(child)
+			}
 			return err
 		}
 	}
@@ -203,7 +219,6 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 			return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", yval, node)
 		}
 	} else {
-		// leaf-list or list
 		switch entry := yval.(type) {
 		case map[interface{}]interface{}:
 			return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", entry, node.ID())

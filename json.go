@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )
@@ -261,16 +262,16 @@ func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
 	return nil
 }
 
-// unmarshalJSONList decode jval to the list that has the keys.
-func (branch *DataBranch) unmarshalJSONList(cschema *SchemaNode, kname []string, kval []string, jval interface{}) error {
-	jdata, ok := jval.(map[string]interface{})
+// unmarshalJSONListNode decode jval to the list that has the keys.
+func unmarshalJSONListNode(parent DataNode, cschema *SchemaNode, kname []string, kval []string, object interface{}) error {
+	jobj, ok := object.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", jval, jval, cschema.Name)
+		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", object, object, cschema.Name)
 	}
 	if len(kname) != len(kval) {
-		for k, v := range jdata {
+		for k, v := range jobj {
 			kval = append(kval, k)
-			err := branch.unmarshalJSONList(cschema, kname, kval, v)
+			err := unmarshalJSONListNode(parent, cschema, kname, kval, v)
 			if err != nil {
 				return err
 			}
@@ -278,189 +279,188 @@ func (branch *DataBranch) unmarshalJSONList(cschema *SchemaNode, kname []string,
 		}
 		return nil
 	}
-
+	if cschema.IsDuplicatableList() {
+		return fmt.Errorf("non-id list %q must have the array format", cschema.Name)
+	}
+	// check existent DataNode
 	var err error
-	pmap := make(map[string]interface{})
-	for i := range kname {
-		pmap[kname[i]] = kval[i]
+	var idBuilder strings.Builder
+	idBuilder.WriteString(cschema.Name)
+	for i := range kval {
+		idBuilder.WriteString("[")
+		idBuilder.WriteString(kname[i])
+		idBuilder.WriteString("=")
+		idBuilder.WriteString(ValueToString(kval[i]))
+		idBuilder.WriteString("]")
 	}
-
-	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
-	children := branch.find(cschema, &id, groupSearch, valueSearch, nil)
-	if cschema.IsDuplicatable() {
-		children = nil // clear found nodes
-	}
-	var created bool
-	var child DataNode
-	if len(children) > 0 {
-		child = children[0]
-	} else {
-		child, err = NewDataNode(cschema)
+	var child, found DataNode
+	id := idBuilder.String()
+	if found = parent.Get(id); found == nil {
+		child, err = NewDataNodeByID(cschema, id)
 		if err != nil {
 			return err
 		}
-		created = true
+		if _, err = parent.Insert(child, nil); err != nil {
+			return err
+		}
+	} else {
+		child = found
 	}
-	if err = child.UpdateByMap(pmap); err != nil {
-		return err
-	}
-
-	if _, err := branch.insert(child, nil); err != nil {
-		return err
-	}
-
-	// Update DataNode
-	err = unmarshalJSON(child, jval)
-	if err != nil {
-		if created {
-			child.Remove()
+	if err := unmarshalJSON(child, cschema, object); err != nil {
+		if found == nil {
+			parent.Delete(child)
 		}
 		return err
 	}
 	return nil
 }
 
-func (branch *DataBranch) unmarshalJSONListable(cschema *SchemaNode, kname []string, listentry []interface{}) error {
-	for i := range listentry {
+func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []string, arrary []interface{}) error {
+	if cschema.IsLeafList() {
+		for i := range arrary {
+			child, err := NewDataNode(cschema)
+			if err != nil {
+				return err
+			}
+			if err = unmarshalJSON(child, cschema, arrary[i]); err != nil {
+				return err
+			}
+			if _, err = parent.Insert(child, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for i := range arrary {
+		entry, ok := arrary[i].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected yaml value %T for %s", arrary[i], cschema.Name)
+		}
+
 		var err error
-		pmap := make(map[string]interface{})
-		switch jentry := listentry[i].(type) {
-		case map[string]interface{}:
-			for i := range kname {
-				valstr, err := JSONValueToString(jentry[kname[i]])
-				if err != nil {
-					return err
-				}
-				pmap[kname[i]] = valstr
-			}
-		// case []interface{}:
-		// 	return fmt.Errorf("unexpected json type '%T' for %s", listentry[i], cschema.Name)
-		default:
-			valstr, err := JSONValueToString(jentry)
+		var idBuilder strings.Builder
+		idBuilder.WriteString(cschema.Name)
+		for i := range kname {
+			idBuilder.WriteString("[")
+			idBuilder.WriteString(kname[i])
+			idBuilder.WriteString("=")
+			idBuilder.WriteString(fmt.Sprint(entry[kname[i]]))
+			idBuilder.WriteString("]")
+			// [FIXME] Does it need to check id validation?
+			// kchild, err := NewDataNode(kschema, kval)
+			// if err != nil {
+			// 	return err
+			// }
+		}
+		id := idBuilder.String()
+		var child, found DataNode
+		if cschema.IsDuplicatableList() {
+			child = nil
+		} else if found = parent.Get(id); found != nil {
+			child = found
+		}
+		if child == nil {
+			child, err = NewDataNodeByID(cschema, id)
 			if err != nil {
 				return err
 			}
-			pmap["."] = valstr
-		}
-
-		id, groupSearch, valueSearch := GenerateID(cschema, pmap)
-		children := branch.find(cschema, &id, groupSearch, valueSearch, nil)
-		if cschema.IsDuplicatable() {
-			children = nil // clear found nodes
-		}
-		var created bool
-		var child DataNode
-		if len(children) > 0 {
-			child = children[0]
-		} else {
-			child, err = NewDataNode(cschema)
-			if err != nil {
+			if _, err = parent.Insert(child, nil); err != nil {
 				return err
 			}
-			created = true
 		}
-		if err = child.UpdateByMap(pmap); err != nil {
-			return err
-		}
-		if _, err = branch.insert(child, nil); err != nil {
-			return err
-		}
-
-		// Update DataNode if it is a list node.
-		if cschema.IsList() {
-			if err := unmarshalJSON(child, listentry[i]); err != nil {
-				if created {
-					branch.Delete(child)
-				}
-				return err
+		if err := unmarshalJSON(child, cschema, arrary[i]); err != nil {
+			if found == nil {
+				parent.Delete(child)
 			}
+			return err
 		}
 	}
 	return nil
 }
 
-func unmarshalJSON(node DataNode, jval interface{}) error {
-	switch n := node.(type) {
-	case *DataBranch:
-		switch jdata := jval.(type) {
+func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
+	if node.IsBranchNode() {
+		switch entry := jval.(type) {
 		case map[string]interface{}:
-			for k, v := range jdata {
-				cschema := n.schema.GetSchema(k)
+			for k, v := range entry {
+				cschema := schema.GetSchema(k)
 				if cschema == nil {
-					return fmt.Errorf("schema %q not found from %q", k, n.schema.Name)
+					return fmt.Errorf("schema %q not found from %q", k, schema.Name)
 				}
 				switch {
 				case cschema.IsListable():
-					if list, ok := v.([]interface{}); ok {
-						if err := n.unmarshalJSONListable(cschema, cschema.Keyname, list); err != nil {
-							return err
+					switch vv := v.(type) {
+					case []interface{}:
+						if err := unmarshalJSONListableNode(node, cschema, cschema.Keyname, vv); err != nil {
+							return Error(EAppTagJSONParsing, err)
 						}
-					} else {
-						if cschema.IsDuplicatableList() {
-							return fmt.Errorf("non-key list %q must have the array format of RFC7951", cschema.Name)
-						}
+					case map[string]interface{}:
 						kname := cschema.Keyname
 						kval := make([]string, 0, len(kname))
-						if err := n.unmarshalJSONList(cschema, kname, kval, v); err != nil {
-							return err
+						if err := unmarshalJSONListNode(node, cschema, kname, kval, v); err != nil {
+							return Error(EAppTagJSONParsing, err)
 						}
+					default:
+						return Errorf(EAppTagJSONParsing, "unexpected json value %q for %q", vv, cschema.Name)
 					}
 				default:
-					var child DataNode
-					i := n.Index(k)
-					if i < len(n.children) && n.children[i].ID() == k {
-						child = n.children[i]
-						if err := unmarshalJSON(child, v); err != nil {
-							return err
+					var err error
+					if child := node.Get(k); child == nil {
+						if child, err = NewDataNode(cschema); err != nil {
+							return Error(EAppTagYAMLParsing, err)
+						}
+						if err = unmarshalJSON(child, cschema, v); err != nil {
+							return Error(EAppTagYAMLParsing, err)
+						}
+						if _, err = node.Insert(child, nil); err != nil {
+							return Error(EAppTagYAMLParsing, err)
 						}
 					} else {
-						child, err := NewDataNode(cschema)
-						if err != nil {
-							return err
-						}
-						if err := unmarshalJSON(child, v); err != nil {
-							return err
-						}
-						if _, err := n.insert(child, nil); err != nil {
-							return err
+						if err = unmarshalJSON(child, cschema, v); err != nil {
+							return Error(EAppTagYAMLParsing, err)
 						}
 					}
 				}
 			}
 			return nil
 		case []interface{}:
-			for i := range jdata {
-				if err := unmarshalJSON(node, jdata[i]); err != nil {
+			for i := range entry {
+				if err := unmarshalJSON(node, schema, entry[i]); err != nil {
 					return err
 				}
 			}
 			return nil
 		default:
-			return fmt.Errorf("unexpected json value \"%v\" (%T) inserted for %q", jval, jval, n)
+			return fmt.Errorf("unexpected json value \"%v\" (%T) inserted for %q", jval, jval, node)
 		}
-	case *DataLeaf:
-		valstr, err := JSONValueToString(jval)
-		if err != nil {
-			return err
-		}
-		return n.Set(valstr)
-	case *DataLeafList:
-		list, ok := jval.([]interface{})
-		if !ok {
-			return fmt.Errorf("leaf-list node requires json array")
-		}
-		for i := range list {
-			valstr, err := JSONValueToString(list[i])
+	} else {
+		switch entry := jval.(type) {
+		case map[string]interface{}:
+			return Errorf(EAppTagJSONParsing, "unexpected json value %q inserted for %q", entry, node.ID())
+		case []interface{}:
+			if len(entry) == 1 && entry[0] == nil { // empty type
+				return Error(EAppTagJSONParsing, node.Unset(""))
+			}
+			if !node.HasMultipleValues() {
+				return Errorf(EAppTagJSONParsing, "*unexpected json value %q inserted for %q", entry, node.ID())
+			}
+			for i := range entry {
+				valstr, err := JSONValueToString(entry[i])
+				if err != nil {
+					return err
+				}
+				if err := node.Set(valstr); err != nil {
+					return Error(EAppTagJSONParsing, err)
+				}
+			}
+			return nil
+		default:
+			valstr, err := JSONValueToString(jval)
 			if err != nil {
 				return err
 			}
-			if err := n.Set(valstr); err != nil {
-				return err
-			}
+			return Error(EAppTagJSONParsing, node.Set(valstr))
 		}
-		return nil
-	default:
-		return fmt.Errorf("unknown data node type: %T", node)
 	}
 }
 
@@ -524,7 +524,7 @@ func UnmarshalJSON(node DataNode, jbytes []byte) error {
 	if err != nil {
 		return err
 	}
-	return unmarshalJSON(node, jval)
+	return unmarshalJSON(node, node.Schema(), jval)
 }
 
 // ValueToJSONBytes() marshals a value based on its schema, type and representing format.

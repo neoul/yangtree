@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )
@@ -105,11 +106,11 @@ func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
 			}
 			kname := schema.Keyname
 			kval := make([]string, 0, len(kname))
-			if err := c.unmarshalJSONList(schema, kname, kval, jdata); err != nil {
+			if err := unmarshalJSONListNode(c, schema, kname, kval, jdata); err != nil {
 				return nil, err
 			}
 		case []interface{}:
-			if err := c.unmarshalJSONListable(schema, schema.Keyname, jdata); err != nil {
+			if err := unmarshalJSONListableNode(c, schema, schema.Keyname, jdata); err != nil {
 				return nil, err
 			}
 		default:
@@ -228,36 +229,87 @@ func (group *DataNodeGroup) SetMeta(meta ...map[string]string) error {
 }
 
 func (group *DataNodeGroup) Exist(id string) bool {
+	for i := range group.Nodes {
+		if group.Nodes[i].ID() == id {
+			return true
+		}
+	}
 	return false
 }
 
 func (group *DataNodeGroup) Get(id string) DataNode {
-	// FIXME - search the data node having the id.
+	for i := range group.Nodes {
+		if group.Nodes[i].ID() == id {
+			return group.Nodes[i]
+		}
+	}
 	return nil
 }
 
 func (group *DataNodeGroup) GetAll(id string) []DataNode {
-	return group.Nodes
+	nodes := []DataNode{}
+	for i := range group.Nodes {
+		if group.Nodes[i].ID() == id {
+			nodes = append(nodes, group.Nodes[i])
+		}
+	}
+	if len(nodes) > 0 {
+		return nodes
+	}
+	return nil
 }
 
 func (group *DataNodeGroup) GetValue(id string) interface{} {
+	if group.schema.IsDir() {
+		return nil
+	}
+	for i := range group.Nodes {
+		if group.Nodes[i].ID() == id {
+			return group.Nodes[i].Value()
+		}
+	}
 	return nil
 }
 
 func (group *DataNodeGroup) GetValueString(id string) string {
+	if group.schema.IsDir() {
+		return ""
+	}
+	for i := range group.Nodes {
+		if group.Nodes[i].ID() == id {
+			return group.Nodes[i].ValueString()
+		}
+	}
 	return ""
 }
 
 func (group *DataNodeGroup) Lookup(prefix string) []DataNode {
+	nodes := []DataNode{}
+	for i := range group.Nodes {
+		if strings.HasPrefix(group.Nodes[i].ID(), prefix) {
+			nodes = append(nodes, group.Nodes[i])
+		}
+	}
+	if len(nodes) > 0 {
+		return nodes
+	}
 	return nil
 }
 
 func (group *DataNodeGroup) Child(index int) DataNode {
+	if index >= 0 && index < len(group.Nodes) {
+		return group.Nodes[index]
+	}
 	return nil
 }
 
 func (group *DataNodeGroup) Index(id string) int {
-	return 0
+	for i := range group.Nodes {
+		if group.Nodes[i].ID() == id {
+			return i
+		}
+	}
+	return len(group.Nodes)
 }
 
 func (group *DataNodeGroup) Len() int {
@@ -279,18 +331,6 @@ func (group *DataNodeGroup) ID() string {
 // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 func (group *DataNodeGroup) UpdateByMap(pmap map[string]interface{}) error {
 	return fmt.Errorf("data node group doesn't support UpdateByMap")
-}
-
-func (group *DataNodeGroup) UnmarshalJSON(jbytes []byte) error {
-	return nil
-}
-
-func (group *DataNodeGroup) MarshalJSON() ([]byte, error) {
-	return group.marshalJSON()
-}
-
-func (group *DataNodeGroup) MarshalJSON_RFC7951() ([]byte, error) {
-	return group.marshalJSON(RFC7951Format{})
 }
 
 // Replace() replaces itself to the src node.
@@ -384,91 +424,12 @@ func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// MarshalYAML() encodes the data node group to a YAML document with a number of options.
-// The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
-//   // usage:
-//   var node DataNodeGroup
-//   yamlbytes, err := DataNodeGroup(got).MarshalYAML()
-func (group *DataNodeGroup) marshalYAML(indent int, indentStr string, option ...Option) ([]byte, error) {
-	var buffer bytes.Buffer
-	schema := group.schema
-	ynode := &yamlNode{IndentStr: indentStr}
-	for i := range option {
-		switch option[i].(type) {
-		case HasState:
-			return nil, fmt.Errorf("%v option can be used to find nodes", option[i])
-		case ConfigOnly:
-			ynode.ConfigOnly = yang.TSTrue
-		case StateOnly:
-			ynode.ConfigOnly = yang.TSFalse
-		case RFC7951Format:
-			ynode.RFC7951S = RFC7951Enabled
-		case InternalFormat:
-			ynode.InternalFormat = true
-		}
-	}
-	switch ynode.ConfigOnly {
-	case yang.TSTrue:
-		if group.schema.IsState {
-			return buffer.Bytes(), nil
-		}
-	case yang.TSFalse: // stateOnly
-		if !group.schema.IsState && !group.schema.HasState {
-			return buffer.Bytes(), nil
-		}
-	}
-	if ynode.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
-		// WriteIndent(&buffer, indent, indentStr, disableFirstIndent)
-		// buffer.WriteString(ynode.getQname())
-		// buffer.WriteString(":\n")
-		// indent++
-		for i := range group.Nodes {
-			ynode.DataNode = group.Nodes[i]
-			ynode.WriteIndent(&buffer, indent, false)
-			buffer.WriteString("-")
-			ynode.WriteIndent(&buffer, 1, false)
-			err := ynode.marshalYAML(&buffer, indent+2, true)
-			if err != nil {
-				return nil, err
-			}
-			if ynode.IsLeafList() {
-				buffer.WriteString("\n")
-			}
-		}
-		return buffer.Bytes(), nil
-	}
-	var lastKeyval []string
-	for i := range group.Nodes {
-		ynode.DataNode = group.Nodes[i]
-		if ynode.InternalFormat {
-			ynode.WriteIndent(&buffer, indent, false)
-			buffer.WriteString(ynode.getQname())
-			buffer.WriteString(":\n")
-			err := ynode.marshalYAML(&buffer, indent+1, false)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			keyname, keyval := GetKeyValues(ynode.DataNode)
-			if len(keyname) != len(keyval) {
-				return nil, fmt.Errorf("list %q doesn't have a id value", schema.Name)
-			}
-			for j := range keyval {
-				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
-					continue
-				}
-				ynode.WriteIndent(&buffer, indent+j, false)
-				buffer.WriteString(keyval[j])
-				buffer.WriteString(":\n")
-			}
-			err := ynode.marshalYAML(&buffer, indent+len(keyval), false)
-			if err != nil {
-				return nil, err
-			}
-			lastKeyval = keyval
-		}
-	}
-	return buffer.Bytes(), nil
+func (group *DataNodeGroup) UnmarshalJSON(jbytes []byte) error {
+	return nil
+}
+
+func (group *DataNodeGroup) MarshalJSON() ([]byte, error) {
+	return group.marshalJSON()
 }
 
 func (group *DataNodeGroup) MarshalYAML() (interface{}, error) {
@@ -476,6 +437,12 @@ func (group *DataNodeGroup) MarshalYAML() (interface{}, error) {
 		DataNode: group,
 	}
 	return ynode.MarshalYAML()
+	// m, err := ynode.MarshalYAML()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// // if m[group.schema.Name]
+	// // return
 }
 
 func (group *DataNodeGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {
