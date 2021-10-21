@@ -2,7 +2,6 @@ package yangtree
 
 import (
 	"encoding/xml"
-	"fmt"
 	"testing"
 )
 
@@ -28,7 +27,7 @@ func TestXML(t *testing.T) {
 		t.Fatalf("failed to get yang library")
 	}
 	xmlstr, _ := xml.MarshalIndent(yanglib, "", " ")
-	fmt.Println(string(xmlstr))
+	// fmt.Println(string(xmlstr))
 
 	newyanglib, err := NewDataNode(yanglib.Schema())
 	if err != nil {
@@ -37,9 +36,9 @@ func TestXML(t *testing.T) {
 	if err := xml.Unmarshal(xmlstr, newyanglib); err != nil {
 		t.Fatalf("error in new: %v", err)
 	}
-	y, err := MarshalYAML(yanglib, RFC7951Format{})
-	if err != nil {
-		t.Fatalf("error in marshalling: %v", err)
-	}
-	fmt.Println(string(y))
+	// y, err := MarshalYAML(yanglib, RFC7951Format{})
+	// if err != nil {
+	// 	t.Fatalf("error in marshalling: %v", err)
+	// }
+	// fmt.Println(string(y))
 }

@@ -22,19 +22,84 @@ type DataNodeGroup struct {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
 func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, error) {
-	vv := make([]*string, len(value))
-	for i := range value {
-		vv[i] = &(value[i])
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
 	}
-	collector, err := newDataNodes(schema, vv...)
+	switch {
+	case schema.IsSingleLeafList():
+		break
+	case schema.IsLeafList():
+		collector := NewDataNodeCollector().(*DataBranch)
+		if len(value) == 1 {
+			if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
+				var jval interface{}
+				if err := json.Unmarshal([]byte(value[0]), &jval); err != nil {
+					return nil, err
+				}
+				array, ok := jval.([]interface{})
+				if !ok {
+					return nil, fmt.Errorf("invalid value inserted for %q", schema.Name)
+				}
+				if err := unmarshalJSONListableNode(collector, schema, schema.Keyname, array); err != nil {
+					return nil, err
+				}
+				return &DataNodeGroup{
+					schema: schema,
+					Nodes:  copyDataNodeList(collector.children),
+				}, nil
+			}
+		}
+		for i := range value {
+			node, err := NewDataNode(schema, value[i])
+			if err != nil {
+				return nil, err
+			}
+			if _, err := collector.insert(node, nil); err != nil {
+				return nil, err
+			}
+		}
+		return &DataNodeGroup{
+			schema: schema,
+			Nodes:  copyDataNodeList(collector.children),
+		}, nil
+	case schema.IsList():
+		collector := NewDataNodeCollector().(*DataBranch)
+		for i := range value {
+			var jval interface{}
+			if err := json.Unmarshal([]byte(value[i]), &jval); err != nil {
+				return nil, err
+			}
+			switch jdata := jval.(type) {
+			case map[string]interface{}:
+				if schema.IsDuplicatableList() {
+					return nil, fmt.Errorf("non-key list %q must have the array format of RFC7951", schema.Name)
+				}
+				kname := schema.Keyname
+				kval := make([]string, 0, len(kname))
+				if err := unmarshalJSONListNode(collector, schema, kname, kval, jdata); err != nil {
+					return nil, err
+				}
+			case []interface{}:
+				if err := unmarshalJSONListableNode(collector, schema, schema.Keyname, jdata); err != nil {
+					return nil, err
+				}
+			default:
+				return nil, fmt.Errorf("invalid value inserted for %q", schema.Name)
+			}
+		}
+		return &DataNodeGroup{
+			schema: schema,
+			Nodes:  copyDataNodeList(collector.children),
+		}, nil
+	}
+	node, err := NewDataNode(schema, value...)
 	if err != nil {
 		return nil, err
 	}
-	group := &DataNodeGroup{
+	return &DataNodeGroup{
 		schema: schema,
-		Nodes:  copyDataNodeList(collector.children),
-	}
-	return group, nil
+		Nodes:  []DataNode{node},
+	}, nil
 }
 
 // ConvertToDataNodeGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
@@ -65,63 +130,6 @@ func ConvertToDataNodeGroup(schema *SchemaNode, nodes []DataNode) (*DataNodeGrou
 		Nodes:  copyDataNodeList(nodes),
 	}
 	return group, nil
-}
-
-// func ValidateDataNodeGroup(nodes []DataNode) bool {
-// 	if len(nodes) == 0 {
-// 		return false
-// 	}
-// 	parent := nodes[0].Parent()
-// 	schema := nodes[0].Schema()
-// 	if parent == nil {
-// 		return false
-// 	}
-// 	for i := 1; i < len(nodes); i++ {
-// 		if schema != nodes[i].Schema() {
-// 			return false
-// 		}
-// 		if parent != nodes[i].Parent() {
-// 			return false
-// 		}
-// 	}
-// 	return true
-// }
-
-func newDataNodes(schema *SchemaNode, value ...*string) (*DataBranch, error) {
-	if schema == nil {
-		return nil, fmt.Errorf("schema is nil")
-	}
-	c := NewDataNodeCollector().(*DataBranch)
-	for i := range value {
-		var jval interface{}
-		if err := json.Unmarshal([]byte(*(value[i])), &jval); err != nil {
-			return nil, err
-		}
-		switch jdata := jval.(type) {
-		case map[string]interface{}:
-			if schema.IsDuplicatableList() {
-				return nil, fmt.Errorf("non-key list %q must have the array format of RFC7951", schema.Name)
-			}
-			kname := schema.Keyname
-			kval := make([]string, 0, len(kname))
-			if err := unmarshalJSONListNode(c, schema, kname, kval, jdata); err != nil {
-				return nil, err
-			}
-		case []interface{}:
-			if err := unmarshalJSONListableNode(c, schema, schema.Keyname, jdata); err != nil {
-				return nil, err
-			}
-		default:
-			n, err := NewDataNode(schema, *(value[i]))
-			if err != nil {
-				return nil, err
-			}
-			if _, err := c.insert(n, nil); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return c, nil
 }
 
 func (group *DataNodeGroup) IsDataNode()              {}

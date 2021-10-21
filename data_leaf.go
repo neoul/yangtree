@@ -93,6 +93,9 @@ func (leaf *DataLeaf) Set(value ...string) error {
 			return nil
 		}
 	}
+	if len(value) > 1 {
+		return fmt.Errorf("data node %q is single value node", leaf)
+	}
 	for i := range value {
 		v, err := StringToValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {

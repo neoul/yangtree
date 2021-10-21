@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -30,11 +29,11 @@ func TestYANGLibrary(t *testing.T) {
 	if yanglib == nil {
 		t.Fatalf("failed to get yang library")
 	}
-	y, err := MarshalYAML(yanglib, RFC7951Format{})
-	if err != nil {
-		t.Fatalf("error in marshalling: %v", err)
-	}
-	fmt.Println(string(y))
+	// y, err := MarshalYAML(yanglib, RFC7951Format{})
+	// if err != nil {
+	// 	t.Fatalf("error in marshalling: %v", err)
+	// }
+	// fmt.Println(string(y))
 	// y, err := MarshalJSONIndent(yanglib, "", " ")
 	// if err != nil {
 	// 	t.Fatalf("error in marshalling: %v", err)

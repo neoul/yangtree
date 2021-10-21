@@ -563,6 +563,11 @@ func TestLeafList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Edit(nil, RootData, "/sample/leaf-list-ro", "n1")
+	// Edit(nil, RootData, "/sample/leaf-list-ro", "n1")
+	// if y, err := MarshalYAML(RootData); err == nil {
+	// 	t.Logf("\n%s", string(y))
+	// }
 
 	tests := []struct {
 		path          string

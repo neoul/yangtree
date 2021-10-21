@@ -397,6 +397,11 @@ func (schema *SchemaNode) IsAnyData() bool {
 	return schema.Kind == yang.AnyDataEntry
 }
 
+// IsSingleLeafList() returns true if the schema node is anydata.
+func (schema *SchemaNode) IsSingleLeafList() bool {
+	return schema.Option.SingleLeafList && schema.IsLeafList()
+}
+
 // GetQName() returns the qname (namespace-qualified name e.g. module-name:node-name) of the schema node.
 func (schema *SchemaNode) GetQName(rfc7951 bool) (string, bool) {
 	if schema.Module == nil {
