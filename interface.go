@@ -60,16 +60,9 @@ type DataNode interface {
 	Path() string                      // Path() returns the path from the root to the current data node.
 	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
 
-	Value() interface{}    // Value() returns the raw data of the data node.
-	Values() []interface{} // Values() returns its values using []interface{} slice
-	ValueString() string   // ValueString() returns the string value of the data node.
-	// ValueStrings() []string // ValueString() returns the string value of the data node.
-
-	QValue(rfc7951format bool) interface{}    // QValue() returns the raw data of the node if it has a single value using namespace-qualified form.
-	QValues(rfc7951format bool) []interface{} // QValues() returns its values using []interface{} slice using namespace-qualified form.
-	// QValueString(rfc7951format bool) string   // ValueString() returns the string value of the data node.
-	// QValueStrings() []string // ValueString() returns the string value of the data node.
-
+	Value() interface{}         // Value() returns the raw data of the data node.
+	Values() []interface{}      // Values() returns its values using []interface{} slice
+	ValueString() string        // ValueString() returns the string value of the data node.
 	HasValue(value string) bool // HasValue() returns true if the data node value has the value.
 }
 

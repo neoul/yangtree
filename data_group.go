@@ -163,22 +163,6 @@ func (group *DataNodeGroup) Values() []interface{} {
 	return nil
 }
 func (group *DataNodeGroup) ValueString() string { return "" }
-func (group *DataNodeGroup) QValue(rfc7951format bool) interface{} {
-	return group.QValues(rfc7951format)
-}
-func (group *DataNodeGroup) QValues(rfc7951format bool) []interface{} {
-	if !group.schema.IsDir() {
-		if len(group.Nodes) > 0 {
-			values := make([]interface{}, 0, len(group.Nodes))
-			for i := range group.Nodes {
-				values = append(values, group.Nodes[i].QValues(rfc7951format)...)
-			}
-			return values
-		}
-	}
-	return nil
-}
-
 func (group *DataNodeGroup) HasValue(value string) bool {
 	if !group.schema.IsDir() {
 		for i := range group.Nodes {

@@ -63,13 +63,6 @@ func (leaf *DataLeaf) PathTo(descendant DataNode) string {
 func (leaf *DataLeaf) Value() interface{}    { return leaf.value }
 func (leaf *DataLeaf) Values() []interface{} { return []interface{}{leaf.value} }
 func (leaf *DataLeaf) ValueString() string   { return ValueToString(leaf.value) }
-func (leaf *DataLeaf) QValue(rfc7951format bool) interface{} {
-	v, _ := leaf.schema.ValueToQValue(leaf.schema.Type, leaf.value, rfc7951format)
-	return v
-}
-func (leaf *DataLeaf) QValues(rfc7951format bool) []interface{} {
-	return []interface{}{leaf.QValue(rfc7951format)}
-}
 func (leaf *DataLeaf) HasValue(value string) bool {
 	v := ValueToString(leaf.value)
 	return v == value

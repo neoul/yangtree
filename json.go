@@ -66,35 +66,6 @@ func (jnode *jsonNode) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// func (jnode *jsonNode) marshalJSONValue(buffer *bytes.Buffer, node DataNode) error {
-// 	key := node.Name()
-// 	if jnode.RFC7951S != RFC7951Disabled {
-// 		qname, boundary := node.QName(true)
-// 		if boundary || jnode.DataNode == node {
-// 			key = qname
-// 		}
-// 	}
-// 	if node.IsListableNode() {
-// 		var values, rvalues []interface{}
-// 		if values := parent[key]; values != nil {
-// 			rvalues = parent[key].([]interface{})
-// 		}
-// 		if jnode.RFC7951S == RFC7951Disabled {
-// 			values = node.Values()
-// 		} else {
-// 			values = node.QValues(true)
-// 		}
-// 		parent[key] = append(rvalues, values...)
-// 		return key, nil
-// 	}
-// 	if jnode.RFC7951S == RFC7951Disabled {
-// 		parent[key] = node.Value()
-// 	} else {
-// 		parent[key] = node.QValue(true)
-// 	}
-// 	return key, nil
-// }
-
 func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, skipRootMarshalling bool) error {
 	if jnode == nil || jnode.DataNode == nil {
 		buffer.WriteString(`null`)

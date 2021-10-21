@@ -66,20 +66,6 @@ func (leaflist *DataLeafList) Values() []interface{} { return leaflist.value }
 func (leaflist *DataLeafList) ValueString() string {
 	return ValueToString(leaflist.value)
 }
-func (leaflist *DataLeafList) QValue(rfc7951format bool) interface{} {
-	return leaflist.QValues(rfc7951format)
-}
-func (leaflist *DataLeafList) QValues(rfc7951format bool) []interface{} {
-	if len(leaflist.value) == 0 {
-		return nil
-	}
-	rvalues := make([]interface{}, 0, len(leaflist.value))
-	for i := range leaflist.value {
-		v, _ := leaflist.schema.ValueToQValue(leaflist.schema.Type, leaflist.value[i], rfc7951format)
-		rvalues = append(rvalues, v)
-	}
-	return rvalues
-}
 
 func (leaflist *DataLeafList) HasValue(value string) bool {
 	for i := range leaflist.value {

@@ -480,7 +480,12 @@ func yamlkeys(node DataNode, rfc7951s RFC7951S) ([]interface{}, error) {
 		if rfc7951s == RFC7951Disabled {
 			keyvals = append(keyvals, keynode.Value())
 		} else {
-			keyvals = append(keyvals, keynode.QValue(true))
+			kschema := keynode.Schema()
+			v, err := kschema.ValueToQValue(kschema.Type, keynode.Value(), true)
+			if err != nil {
+				return nil, err
+			}
+			keyvals = append(keyvals, v)
 		}
 	}
 	return keyvals, nil
@@ -502,7 +507,15 @@ func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]in
 		if ynode.RFC7951S == RFC7951Disabled {
 			values = node.Values()
 		} else {
-			values = node.QValues(true)
+			values = node.Values()
+			schema := node.Schema()
+			for i := range values {
+				v, err := schema.ValueToQValue(schema.Type, values[i], true)
+				if err != nil {
+					return "", err
+				}
+				values[i] = v
+			}
 		}
 		parent[key] = append(rvalues, values...)
 		return key, nil
@@ -510,7 +523,12 @@ func (ynode *yamlNode) marshalYAMLValue(node DataNode, parent map[interface{}]in
 	if ynode.RFC7951S == RFC7951Disabled {
 		parent[key] = node.Value()
 	} else {
-		parent[key] = node.QValue(true)
+		kschema := node.Schema()
+		v, err := kschema.ValueToQValue(kschema.Type, node.Value(), true)
+		if err != nil {
+			return "", err
+		}
+		parent[key] = v
 	}
 	return key, nil
 }

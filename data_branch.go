@@ -49,9 +49,6 @@ func (branch *DataBranch) ValueString() string {
 	}
 	return string(b)
 }
-func (branch *DataBranch) QValue(rfc7951format bool) interface{}    { return nil }
-func (branch *DataBranch) QValues(rfc7951format bool) []interface{} { return nil }
-
 func (branch *DataBranch) HasValue(value string) bool {
 	return false
 }
