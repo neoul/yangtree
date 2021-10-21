@@ -78,7 +78,7 @@ func (leaflist *DataLeafList) HasValue(value string) bool {
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
-func (leaflist *DataLeafList) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
+func (leaflist *DataLeafList) GetOrNew(id string, insert InsertOption) (DataNode, bool, error) {
 	return nil, false, fmt.Errorf("leaf-list node doesn't support GetOrNew")
 }
 

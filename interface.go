@@ -39,7 +39,7 @@ type DataNode interface {
 	// GetOrNew() gets or creates a node having the id and returns
 	// the found or created node with the boolean value that
 	// indicates the returned node is created.
-	GetOrNew(id string, opt *EditOption) (DataNode, bool, error)
+	GetOrNew(id string, insert InsertOption) (DataNode, bool, error)
 
 	Create(id string, value ...string) (DataNode, error) // Create() creates a child using the node id (NODE_NAME[KEY=VALUE]).
 	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id using the input values.

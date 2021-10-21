@@ -8,11 +8,6 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
-var (
-	// LeafListValueAsKey - leaf-list value can be represented to a path if it is set to true.
-	LeafListValueAsKey bool = true
-)
-
 // ConfigOnly option is used to find config data nodes that have "config true" statement.
 type ConfigOnly struct{}
 
@@ -610,7 +605,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value ...*s
 		if cschema.Option.SingleLeafList {
 			delete(pmap, ".")
 		}
-		if LeafListValueAsKey && len(pathnode) == 2 {
+		if cschema.Option.LeafListValueAsKey && len(pathnode) == 2 {
 			value = nil
 			pmap["."] = pathnode[1].Name
 			pathnode = pathnode[:1]
@@ -706,7 +701,12 @@ func Set(root DataNode, path string, value ...string) error {
 	for i := range value {
 		vv = append(vv, &(value[i]))
 	}
-	return setValue(root, pathnode, nil, vv...)
+	for i := range value {
+		if err := setValue(root, pathnode, nil, vv[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Edit sets a value to the target DataNode in the path.
@@ -771,7 +771,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	}
 	switch {
 	case cschema.IsLeafList():
-		if LeafListValueAsKey && len(pathnode) == 2 {
+		if cschema.Option.LeafListValueAsKey && len(pathnode) == 2 {
 			pmap["."] = pathnode[1].Name
 			pathnode = pathnode[:1]
 		}
@@ -924,8 +924,8 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 		return returnFound(root, option...)
 	}
 	// [FIXME]
-	if LeafListValueAsKey {
-		if root.IsLeafNode() {
+	if root.IsLeafNode() {
+		if root.Schema().Option.LeafListValueAsKey {
 			if pathnode[0].Name == root.ValueString() {
 				return []DataNode{root}
 			}

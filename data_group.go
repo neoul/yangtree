@@ -176,7 +176,7 @@ func (group *DataNodeGroup) HasValue(value string) bool {
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
-func (group *DataNodeGroup) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
+func (group *DataNodeGroup) GetOrNew(id string, insert InsertOption) (DataNode, bool, error) {
 	return nil, false, fmt.Errorf("data node group doesn't support GetOrNew")
 }
 

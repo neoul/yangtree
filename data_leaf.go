@@ -70,7 +70,7 @@ func (leaf *DataLeaf) HasValue(value string) bool {
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
-func (leaf *DataLeaf) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
+func (leaf *DataLeaf) GetOrNew(id string, insert InsertOption) (DataNode, bool, error) {
 	return nil, false, fmt.Errorf("leaf node doesn't support GetOrNew")
 }
 

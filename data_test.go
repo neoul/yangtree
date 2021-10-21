@@ -187,7 +187,7 @@ func TestChildDataNodeListing(t *testing.T) {
 }
 
 func TestDataNode(t *testing.T) {
-	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil, SchemaOption{LeafListValueAsKey: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,7 +555,7 @@ func TestReplace(t *testing.T) {
 }
 
 func TestLeafList(t *testing.T) {
-	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil, SchemaOption{LeafListValueAsKey: true})
 	if err != nil {
 		t.Fatal(err)
 	}

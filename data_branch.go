@@ -180,13 +180,7 @@ func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch, val
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
-func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, error) {
-	op := opt.GetOperation()
-	if op == EditRemove || op == EditDelete {
-		return nil, false, Errorf(ETagOperationNotSupported, "delete or remove is not supported for GetOrNew")
-	}
-	iopt := opt.GetInsertOption()
-
+func (branch *DataBranch) GetOrNew(id string, insert InsertOption) (DataNode, bool, error) {
 	pathnode, err := ParsePath(&id)
 	if err != nil {
 		return nil, false, err
@@ -206,7 +200,7 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
 	children = branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	if cschema.IsDuplicatableList() {
-		switch iopt.(type) {
+		switch insert.(type) {
 		case InsertToAfter, InsertToBefore:
 			return nil, false, Errorf(ETagOperationNotSupported,
 				"insert option (after, before) not supported for non-key list")
@@ -223,7 +217,7 @@ func (branch *DataBranch) GetOrNew(id string, opt *EditOption) (DataNode, bool, 
 	if err = child.UpdateByMap(pmap); err != nil {
 		return nil, false, err
 	}
-	if _, err = branch.insert(child, iopt); err != nil {
+	if _, err = branch.insert(child, insert); err != nil {
 		return nil, false, err
 	}
 	return child, true, nil
