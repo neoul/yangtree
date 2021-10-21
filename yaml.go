@@ -3,7 +3,6 @@ package yangtree
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
@@ -274,7 +273,7 @@ func (ynode *yamlNode) getQname() string {
 	}
 }
 
-func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node []DataNode, i int, indent int, disableFirstIndent bool) (int, error) {
+func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node []DataNode, i int, indent int, disableIndent, skipRootMarshalling bool) (int, error) {
 	schema := node[i].Schema()
 	cynode := *ynode          // copy options
 	cynode.DataNode = node[i] // update the marshalling target
@@ -297,19 +296,20 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 		}
 	}
 	if cynode.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
-		cynode.WriteIndent(buffer, indent, disableFirstIndent)
-		buffer.WriteString(cynode.getQname())
-		buffer.WriteString(":\n")
-		indent++
+		if !skipRootMarshalling {
+			cynode.WriteIndent(buffer, indent, disableIndent)
+			buffer.WriteString(cynode.getQname())
+			buffer.WriteString(":\n")
+			indent++
+		}
 		for ; i < len(node); i++ {
 			cynode.DataNode = node[i]
 			if schema != cynode.Schema() {
 				break
 			}
 			cynode.WriteIndent(buffer, indent, false)
-			buffer.WriteString("-")
-			cynode.WriteIndent(buffer, 1, false)
-			err := cynode.marshalYAML(buffer, indent+2, true)
+			buffer.WriteString("- ")
+			err := cynode.marshalYAML(buffer, indent+2, true, false)
 			if err != nil {
 				return i, err
 			}
@@ -321,25 +321,19 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 	}
 	var lastKeyval []string
 	if !cynode.InternalFormat {
-		disableFirstIndent = cynode.WriteIndent(buffer, indent, disableFirstIndent)
-		buffer.WriteString(cynode.getQname())
-		buffer.WriteString(":\n")
-		indent++
+		if !skipRootMarshalling {
+			disableIndent = cynode.WriteIndent(buffer, indent, disableIndent)
+			buffer.WriteString(cynode.getQname())
+			buffer.WriteString(":\n")
+			indent++
+		}
 	}
 	for ; i < len(node); i++ {
 		cynode.DataNode = node[i]
 		if schema != cynode.Schema() {
 			break
 		}
-		if cynode.InternalFormat {
-			disableFirstIndent = cynode.WriteIndent(buffer, indent, disableFirstIndent)
-			buffer.WriteString(cynode.getQname())
-			buffer.WriteString(":\n")
-			err := cynode.marshalYAML(buffer, indent+1, false)
-			if err != nil {
-				return i, err
-			}
-		} else {
+		if !cynode.InternalFormat {
 			keyname, keyval := GetKeyValues(cynode.DataNode)
 			if len(keyname) != len(keyval) {
 				return i, fmt.Errorf("list %q doesn't have a id value", schema.Name)
@@ -352,17 +346,25 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 				buffer.WriteString(keyval[j])
 				buffer.WriteString(":\n")
 			}
-			err := cynode.marshalYAML(buffer, indent+len(keyval), false)
+			err := cynode.marshalYAML(buffer, indent+len(keyval), false, false)
 			if err != nil {
 				return i, err
 			}
 			lastKeyval = keyval
+		} else {
+			disableIndent = cynode.WriteIndent(buffer, indent, disableIndent)
+			buffer.WriteString(cynode.getQname())
+			buffer.WriteString(":\n")
+			err := cynode.marshalYAML(buffer, indent+1, false, false)
+			if err != nil {
+				return i, err
+			}
 		}
 	}
 	return i, nil
 }
 
-func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirstIndent bool) error {
+func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableIndent, skipRootMarshalling bool) error {
 	cynode := *ynode
 	switch {
 	case ynode.IsBranchNode():
@@ -370,11 +372,11 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 		for i := 0; i < len(children); {
 			if children[i].IsListableNode() { // for list and multiple leaf-list nodes
 				var err error
-				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent, disableFirstIndent)
+				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent, disableIndent, skipRootMarshalling)
 				if err != nil {
 					return Error(EAppTagYAMLEmitting, err)
 				}
-				disableFirstIndent = false
+				disableIndent = false
 				continue
 			}
 			// container, leaf, single leaf-list node
@@ -386,68 +388,66 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableFirs
 			}
 			cynode.DataNode = children[i]
 			cynode.RFC7951S = ynode.RFC7951S
-			disableFirstIndent = cynode.WriteIndent(buffer, indent, disableFirstIndent)
-			buffer.WriteString(cynode.getQname())
-			buffer.WriteString(":")
-			if cynode.IsLeaf() {
-				newline := ynode.HasMultipleValues() && ynode.Len() > 8
-				if newline {
-					buffer.WriteString("\n")
+
+			newline := false
+			if !skipRootMarshalling {
+				disableIndent = cynode.WriteIndent(buffer, indent, disableIndent)
+				buffer.WriteString(cynode.getQname())
+				if cynode.IsLeaf() {
+					newline = ynode.HasMultipleValues() && ynode.Len() > 8
+					if newline {
+						buffer.WriteString(":\n")
+					} else {
+						buffer.WriteString(": ")
+					}
 				} else {
-					buffer.WriteString(" ")
+					buffer.WriteString(":\n")
 				}
-				if err := cynode.marshalYAML(buffer, indent+1, false); err != nil {
-					return Error(EAppTagYAMLEmitting, err)
-				}
-				if !newline {
-					buffer.WriteString("\n")
-				}
-			} else {
+			}
+			if err := cynode.marshalYAML(buffer, indent+1, false, false); err != nil {
+				return Error(EAppTagYAMLEmitting, err)
+			}
+			if cynode.IsLeaf() && !newline {
 				buffer.WriteString("\n")
-				if err := cynode.marshalYAML(buffer, indent+1, false); err != nil {
-					return Error(EAppTagYAMLEmitting, err)
-				}
 			}
 			i++
 		}
-	case ynode.IsLeafNode():
-		// write the data to the buffer without the data node name
-		if ynode.HasMultipleValues() {
-			schema := ynode.Schema()
-			value := ynode.Values()
-			rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
-			if len(value) <= 8 {
-				comma := false
-				buffer.WriteString("[")
-				for i := range value {
-					if comma {
-						buffer.WriteString(",")
-					}
-					valbyte, err := ValueToYAMLBytes(schema, schema.Type, value[i], rfc7951enabled)
-					if err != nil {
-						return Error(EAppTagYAMLEmitting, err)
-					}
-					buffer.Write(valbyte)
-					comma = true
+	case ynode.HasMultipleValues():
+		schema := ynode.Schema()
+		value := ynode.Values()
+		rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
+		if len(value) <= 8 {
+			comma := false
+			buffer.WriteString("[")
+			for i := range value {
+				if comma {
+					buffer.WriteString(",")
 				}
-				buffer.WriteString("]")
-			} else {
-				for i := range value {
-					ynode.WriteIndent(buffer, indent, false)
-					buffer.WriteString("- ")
-					valbyte, err := ValueToYAMLBytes(schema, schema.Type, value[i], rfc7951enabled)
-					if err != nil {
-						return Error(EAppTagYAMLEmitting, err)
-					}
-					buffer.Write(valbyte)
-					buffer.WriteString("\n")
+				valbyte, err := schema.ValueToYAMLBytes(schema.Type, value[i], rfc7951enabled)
+				if err != nil {
+					return Error(EAppTagYAMLEmitting, err)
 				}
+				buffer.Write(valbyte)
+				comma = true
 			}
-			return nil
+			buffer.WriteString("]")
+		} else {
+			for i := range value {
+				ynode.WriteIndent(buffer, indent, false)
+				buffer.WriteString("- ")
+				valbyte, err := schema.ValueToYAMLBytes(schema.Type, value[i], rfc7951enabled)
+				if err != nil {
+					return Error(EAppTagYAMLEmitting, err)
+				}
+				buffer.Write(valbyte)
+				buffer.WriteString("\n")
+			}
 		}
+		return nil
+	case ynode.IsLeafNode():
 		schema := ynode.Schema()
 		rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
-		valbyte, err := ValueToYAMLBytes(schema, schema.Type, ynode.Value(), rfc7951enabled)
+		valbyte, err := schema.ValueToYAMLBytes(schema.Type, ynode.Value(), rfc7951enabled)
 		if err != nil {
 			return Error(EAppTagYAMLEmitting, err)
 		}
@@ -465,76 +465,6 @@ func (yamlnode *yamlNode) WriteIndent(buffer *bytes.Buffer, indent int, disableI
 		buffer.WriteString(yamlnode.IndentStr)
 	}
 	return disableIndent
-}
-
-// ValueToYAMLBytes encodes the value to a YAML-encoded data. the schema and the type of the value must be set.
-func ValueToYAMLBytes(schema *SchemaNode, typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
-	switch typ.Kind {
-	case yang.Yunion:
-		for i := range typ.Type {
-			v, err := ValueToYAMLBytes(schema, typ.Type[i], value, rfc7951)
-			if err == nil {
-				return v, nil
-			}
-		}
-		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
-	case yang.YinstanceIdentifier:
-		// [FIXME] The leftmost (top-level) data node name is always in the
-		//   namespace-qualified form (qname).
-	case yang.Ydecimal64:
-		switch v := value.(type) {
-		case yang.Number:
-			return []byte(v.String()), nil
-		case string:
-			return []byte(v), nil
-		}
-	case yang.Yempty:
-		return []byte(""), nil
-	}
-	if rfc7951 {
-		switch typ.Kind {
-		// case yang.Ystring, yang.Ybinary:
-		// case yang.Ybool:
-		// case yang.Yleafref:
-		// case yang.Ynone:
-		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
-		// case yang.Ybits, yang.Yenum:
-		// case yang.Yempty:
-		// 	return []byte(""), nil
-		case yang.Yidentityref:
-			if s, ok := value.(string); ok {
-				m, ok := schema.Identityref[s]
-				if !ok {
-					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
-				}
-				value = m.Name + ":" + s
-			}
-		case yang.Yint64:
-			if v, ok := value.(int64); ok {
-				str := strconv.FormatInt(v, 10)
-				return []byte(str), nil
-			}
-		case yang.Yuint64:
-			if v, ok := value.(uint64); ok {
-				str := strconv.FormatUint(v, 10)
-				return []byte(str), nil
-			}
-		}
-	}
-	// else {
-	// 	switch typ.Kind {
-	// 	case yang.Yempty:
-	// 		return []byte("null"), nil
-	// 	}
-	// }
-	out, err := yaml.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	if strings.HasSuffix(string(out), "\n") {
-		return out[:len(out)-1], nil
-	}
-	return out, err
 }
 
 // yamlkeys returns the listed key values.
@@ -595,7 +525,8 @@ func (ynode *yamlNode) skip(node DataNode) bool {
 	return false
 }
 
-func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
+// marshalYAML2() encodes the data node using golang yaml marshaler interface.
+func (ynode *yamlNode) marshalYAML2(skipRootMarshalling bool) (interface{}, error) {
 	top := make(map[interface{}]interface{})
 	curkeys := make([]interface{}, 0, 8)
 	parent := top
@@ -765,6 +696,14 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 				return nil, Error(EAppTagYAMLEmitting, err)
 			}
 		}
+		if skipRootMarshalling {
+			if len(top) == 1 {
+				for _, v := range top {
+					return v, nil
+				}
+			}
+			return nil, Errorf(EAppTagYAMLEmitting, "unable to skip top node marshalling")
+		}
 		return top, nil
 	} else {
 		key, err := ynode.marshalYAMLValue(ynode.DataNode, parent)
@@ -773,6 +712,10 @@ func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
 		}
 		return parent[key], nil
 	}
+}
+
+func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
+	return ynode.marshalYAML2(false)
 }
 
 // InternalFormat is an option to marshal a data node to an internal YAML format.
@@ -799,8 +742,14 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 			ynode.InternalFormat = true
 		}
 	}
-	if err := ynode.marshalYAML(buffer, 0, false); err != nil {
-		return nil, err
+	if _, ok := node.(*DataNodeGroup); ok {
+		if err := ynode.marshalYAML(buffer, 0, false, true); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := ynode.marshalYAML(buffer, 0, false, false); err != nil {
+			return nil, err
+		}
 	}
 	return buffer.Bytes(), nil
 }

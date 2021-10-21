@@ -66,16 +66,16 @@ func (leaflist *DataLeafList) Values() []interface{} { return leaflist.value }
 func (leaflist *DataLeafList) ValueString() string {
 	return ValueToString(leaflist.value)
 }
-func (leaflist *DataLeafList) QValue(useModuleName bool) interface{} {
-	return leaflist.QValues(useModuleName)
+func (leaflist *DataLeafList) QValue(rfc7951format bool) interface{} {
+	return leaflist.QValues(rfc7951format)
 }
-func (leaflist *DataLeafList) QValues(useModuleName bool) []interface{} {
+func (leaflist *DataLeafList) QValues(rfc7951format bool) []interface{} {
 	if len(leaflist.value) == 0 {
 		return nil
 	}
 	rvalues := make([]interface{}, 0, len(leaflist.value))
 	for i := range leaflist.value {
-		v, _ := leaflist.schema.ValueToQValue(leaflist.schema.Type, leaflist.value[i], useModuleName)
+		v, _ := leaflist.schema.ValueToQValue(leaflist.schema.Type, leaflist.value[i], rfc7951format)
 		rvalues = append(rvalues, v)
 	}
 	return rvalues
@@ -333,7 +333,7 @@ func (leaflist *DataLeafList) UnmarshalJSON(jbytes []byte) error {
 func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: leaflist}
-	err := jnode.marshalJSON(&buffer)
+	err := jnode.marshalJSON(&buffer, false)
 	if err != nil {
 		return nil, err
 	}

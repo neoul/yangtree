@@ -49,8 +49,8 @@ func (branch *DataBranch) ValueString() string {
 	}
 	return string(b)
 }
-func (branch *DataBranch) QValue(useModuleName bool) interface{}    { return nil }
-func (branch *DataBranch) QValues(useModuleName bool) []interface{} { return nil }
+func (branch *DataBranch) QValue(rfc7951format bool) interface{}    { return nil }
+func (branch *DataBranch) QValues(rfc7951format bool) []interface{} { return nil }
 
 func (branch *DataBranch) HasValue(value string) bool {
 	return false
@@ -677,7 +677,7 @@ func (branch *DataBranch) UnmarshalJSON(jbytes []byte) error {
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: branch}
-	err := jnode.marshalJSON(&buffer)
+	err := jnode.marshalJSON(&buffer, false)
 	if err != nil {
 		return nil, err
 	}

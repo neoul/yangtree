@@ -3,6 +3,7 @@ package yangtree
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/util"
+	"gopkg.in/yaml.v2"
 )
 
 // SchemaOption is used to store global yangtree schema options.
@@ -1032,11 +1034,11 @@ func Unzip(gzj []byte) ([]byte, error) {
 }
 
 // ValueToQValue returns the raw value using namespace-qualified format.
-func (schema *SchemaNode) ValueToQValue(typ *yang.YangType, value interface{}, useModuleName bool) (interface{}, error) {
+func (schema *SchemaNode) ValueToQValue(typ *yang.YangType, value interface{}, rfc7951format bool) (interface{}, error) {
 	switch typ.Kind {
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := schema.ValueToQValue(typ.Type[i], value, useModuleName)
+			v, err := schema.ValueToQValue(typ.Type[i], value, rfc7951format)
 			if err == nil {
 				return v, nil
 			}
@@ -1048,7 +1050,7 @@ func (schema *SchemaNode) ValueToQValue(typ *yang.YangType, value interface{}, u
 	case yang.Yidentityref:
 		v := value
 		if m, ok := schema.Identityref[v.(string)]; ok {
-			if useModuleName {
+			if rfc7951format {
 				return m.Name + ":" + v.(string), nil
 			} else {
 				if m.Prefix != nil {
@@ -1062,10 +1064,146 @@ func (schema *SchemaNode) ValueToQValue(typ *yang.YangType, value interface{}, u
 		if vv, ok := value.(yang.Number); ok {
 			return strconv.ParseFloat(vv.String(), 64)
 		}
+	case yang.Yempty:
+		if rfc7951format {
+			return []interface{}{nil}, nil
+		}
+		return nil, nil
 	}
 	v := value
 	if vv, ok := v.(yang.Number); ok {
 		return vv.String(), nil
 	}
 	return v, nil
+}
+
+// ValueToJSONBytes() marshals a value based on its schema, type and representing format.
+func (schema *SchemaNode) ValueToJSONBytes(typ *yang.YangType, value interface{}, rfc7951format bool) ([]byte, error) {
+	switch typ.Kind {
+	case yang.Yunion:
+		for i := range typ.Type {
+			v, err := schema.ValueToJSONBytes(typ.Type[i], value, rfc7951format)
+			if err == nil {
+				return v, nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+	case yang.YinstanceIdentifier:
+		// [FIXME] The leftmost (top-level) data node name is always in the
+		//   namespace-qualified form (qname).
+	case yang.Ydecimal64:
+		switch v := value.(type) {
+		case yang.Number:
+			return []byte(v.String()), nil
+		case string:
+			return []byte(v), nil
+		}
+	}
+	if rfc7951format {
+		switch typ.Kind {
+		// case yang.Ystring, yang.Ybinary:
+		// case yang.Ybool:
+		// case yang.Yleafref:
+		// case yang.Ynone:
+		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
+		// case yang.Ybits, yang.Yenum:
+		case yang.Yempty:
+			return []byte("[null]"), nil
+		case yang.Yidentityref:
+			if s, ok := value.(string); ok {
+				m, ok := schema.Identityref[s]
+				if !ok {
+					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
+				}
+				return json.Marshal(m.Name + ":" + s)
+			}
+		case yang.Yint64:
+			if v, ok := value.(int64); ok {
+				str := strconv.FormatInt(v, 10)
+				return json.Marshal(str)
+			}
+		case yang.Yuint64:
+			if v, ok := value.(uint64); ok {
+				str := strconv.FormatUint(v, 10)
+				return json.Marshal(str)
+			}
+		}
+	}
+	// else {
+	// 	switch typ.Kind {
+	// 	case yang.Yempty:
+	// 		return []byte("null"), nil
+	// 	}
+	// }
+	return json.Marshal(value)
+}
+
+// ValueToYAMLBytes encodes the value to a YAML-encoded data. the schema and the type of the value must be set.
+func (schema *SchemaNode) ValueToYAMLBytes(typ *yang.YangType, value interface{}, rfc7951 bool) ([]byte, error) {
+	switch typ.Kind {
+	case yang.Yunion:
+		for i := range typ.Type {
+			v, err := schema.ValueToYAMLBytes(typ.Type[i], value, rfc7951)
+			if err == nil {
+				return v, nil
+			}
+		}
+		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+	case yang.YinstanceIdentifier:
+		// [FIXME] The leftmost (top-level) data node name is always in the
+		//   namespace-qualified form (qname).
+	case yang.Ydecimal64:
+		switch v := value.(type) {
+		case yang.Number:
+			return []byte(v.String()), nil
+		case string:
+			return []byte(v), nil
+		}
+	case yang.Yempty:
+		return []byte(""), nil
+	}
+	if rfc7951 {
+		switch typ.Kind {
+		// case yang.Ystring, yang.Ybinary:
+		// case yang.Ybool:
+		// case yang.Yleafref:
+		// case yang.Ynone:
+		// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
+		// case yang.Ybits, yang.Yenum:
+		// case yang.Yempty:
+		// 	return []byte(""), nil
+		case yang.Yidentityref:
+			if s, ok := value.(string); ok {
+				m, ok := schema.Identityref[s]
+				if !ok {
+					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
+				}
+				value = m.Name + ":" + s
+			}
+		case yang.Yint64:
+			if v, ok := value.(int64); ok {
+				str := strconv.FormatInt(v, 10)
+				return []byte(str), nil
+			}
+		case yang.Yuint64:
+			if v, ok := value.(uint64); ok {
+				str := strconv.FormatUint(v, 10)
+				return []byte(str), nil
+			}
+		}
+	}
+	// else {
+	// 	switch typ.Kind {
+	// 	case yang.Yempty:
+	// 		return []byte("null"), nil
+	// 	}
+	// }
+	out, err := yaml.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	if strings.HasSuffix(string(out), "\n") {
+		return out[:len(out)-1], nil
+	}
+	return out, err
 }

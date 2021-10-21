@@ -63,12 +63,12 @@ func (leaf *DataLeaf) PathTo(descendant DataNode) string {
 func (leaf *DataLeaf) Value() interface{}    { return leaf.value }
 func (leaf *DataLeaf) Values() []interface{} { return []interface{}{leaf.value} }
 func (leaf *DataLeaf) ValueString() string   { return ValueToString(leaf.value) }
-func (leaf *DataLeaf) QValue(useModuleName bool) interface{} {
-	v, _ := leaf.schema.ValueToQValue(leaf.schema.Type, leaf.value, useModuleName)
+func (leaf *DataLeaf) QValue(rfc7951format bool) interface{} {
+	v, _ := leaf.schema.ValueToQValue(leaf.schema.Type, leaf.value, rfc7951format)
 	return v
 }
-func (leaf *DataLeaf) QValues(useModuleName bool) []interface{} {
-	return []interface{}{leaf.QValue(useModuleName)}
+func (leaf *DataLeaf) QValues(rfc7951format bool) []interface{} {
+	return []interface{}{leaf.QValue(rfc7951format)}
 }
 func (leaf *DataLeaf) HasValue(value string) bool {
 	v := ValueToString(leaf.value)
@@ -284,7 +284,7 @@ func (leaf *DataLeaf) UnmarshalJSON(jbytes []byte) error {
 func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: leaf}
-	err := jnode.marshalJSON(&buffer)
+	err := jnode.marshalJSON(&buffer, false)
 	if err != nil {
 		return nil, err
 	}

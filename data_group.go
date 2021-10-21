@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/openconfig/goyang/pkg/yang"
 )
 
 // A set of data nodes that have the same schema.
@@ -138,7 +136,7 @@ func (group *DataNodeGroup) IsDuplicatableNode() bool { return group.schema.IsDu
 func (group *DataNodeGroup) IsListableNode() bool     { return group.schema.IsListable() }
 func (group *DataNodeGroup) IsStateNode() bool        { return group.schema.IsState }
 func (group *DataNodeGroup) HasStateNode() bool       { return group.schema.HasState }
-func (group *DataNodeGroup) HasMultipleValues() bool  { return false }
+func (group *DataNodeGroup) HasMultipleValues() bool  { return !group.schema.IsDir() }
 
 func (group *DataNodeGroup) Schema() *SchemaNode { return group.schema }
 func (group *DataNodeGroup) Parent() DataNode    { return nil }
@@ -165,15 +163,15 @@ func (group *DataNodeGroup) Values() []interface{} {
 	return nil
 }
 func (group *DataNodeGroup) ValueString() string { return "" }
-func (group *DataNodeGroup) QValue(useModuleName bool) interface{} {
-	return group.QValues(useModuleName)
+func (group *DataNodeGroup) QValue(rfc7951format bool) interface{} {
+	return group.QValues(rfc7951format)
 }
-func (group *DataNodeGroup) QValues(useModuleName bool) []interface{} {
+func (group *DataNodeGroup) QValues(rfc7951format bool) []interface{} {
 	if !group.schema.IsDir() {
 		if len(group.Nodes) > 0 {
 			values := make([]interface{}, 0, len(group.Nodes))
 			for i := range group.Nodes {
-				values = append(values, group.Nodes[i].QValues(useModuleName)...)
+				values = append(values, group.Nodes[i].QValues(rfc7951format)...)
 			}
 			return values
 		}
@@ -181,7 +179,16 @@ func (group *DataNodeGroup) QValues(useModuleName bool) []interface{} {
 	return nil
 }
 
-func (group *DataNodeGroup) HasValue(value string) bool { return false }
+func (group *DataNodeGroup) HasValue(value string) bool {
+	if !group.schema.IsDir() {
+		for i := range group.Nodes {
+			if group.Nodes[i].ValueString() == value {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
 // with the boolean value that indicates the returned node is created.
@@ -343,106 +350,25 @@ func (group *DataNodeGroup) Merge(src DataNode) error {
 	return nil
 }
 
-// MarshalJSON() encodes the data node group to a YAML document with a number of options.
-// The options available are [ConfigOnly, StateOnly, RFC7951Format].
-//   // usage:
-//   var node DataNodeGroup
-//   jsonbytes, err := DataNodeGroup(got).MarshalYAML()
-func (group *DataNodeGroup) marshalJSON(option ...Option) ([]byte, error) {
-	var buffer bytes.Buffer
-	configOnly := yang.TSUnset
-	RFC7951S := RFC7951Enabled
-	for i := range option {
-		switch option[i].(type) {
-		case HasState:
-			return nil, fmt.Errorf("%v is not allowed for marshaling", option[i])
-		case ConfigOnly:
-			configOnly = yang.TSTrue
-		case StateOnly:
-			configOnly = yang.TSFalse
-		case RFC7951Format:
-			RFC7951S = RFC7951Enabled
-		}
-	}
-	switch configOnly {
-	case yang.TSTrue:
-		if group.schema.IsState {
-			if RFC7951S != RFC7951Disabled {
-				buffer.WriteString("[]")
-			} else {
-				buffer.WriteString("{}")
-			}
-			return buffer.Bytes(), nil
-		}
-	case yang.TSFalse: // stateOnly
-		if !group.schema.IsState && !group.schema.HasState {
-			if RFC7951S != RFC7951Disabled {
-				buffer.WriteString("[]")
-			} else {
-				buffer.WriteString("{}")
-			}
-			return buffer.Bytes(), nil
-		}
-	}
-	if RFC7951S != RFC7951Disabled || group.schema.IsDuplicatableList() || group.schema.IsLeafList() {
-		nodelist := make([]interface{}, 0, len(group.Nodes))
-		for _, n := range group.Nodes {
-			jnode := &jsonNode{DataNode: n, ConfigOnly: configOnly, RFC7951S: RFC7951S}
-			nodelist = append(nodelist, jnode)
-		}
-		if err := marshalJNodeTree(&buffer, nodelist); err != nil {
-			return nil, err
-		}
-		return buffer.Bytes(), nil
-	}
-	nodemap := map[string]interface{}{}
-	for i := range group.Nodes {
-		jnode := &jsonNode{DataNode: group.Nodes[i],
-			ConfigOnly: configOnly, RFC7951S: RFC7951S}
-		keyname, keyval := GetKeyValues(jnode.DataNode)
-		if len(keyname) != len(keyval) {
-			return nil, fmt.Errorf("list %q doesn't have key value pairs", group.schema.Name)
-		}
-		m := nodemap
-		for x := range keyval {
-			if x < len(keyname)-1 {
-				if n := m[keyval[x]]; n == nil {
-					n := map[string]interface{}{}
-					m[keyval[x]] = n
-					m = n
-				} else {
-					m = n.(map[string]interface{})
-				}
-			} else {
-				m[keyval[x]] = jnode
-			}
-		}
-	}
-	if err := marshalJNodeTree(&buffer, nodemap); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
 func (group *DataNodeGroup) UnmarshalJSON(jbytes []byte) error {
 	return nil
 }
 
 func (group *DataNodeGroup) MarshalJSON() ([]byte, error) {
-	return group.marshalJSON()
+	var buffer bytes.Buffer
+	jnode := &jsonNode{DataNode: group}
+	err := jnode.marshalJSON(&buffer, true)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func (group *DataNodeGroup) MarshalYAML() (interface{}, error) {
 	ynode := &yamlNode{
 		DataNode: group,
 	}
-	return ynode.MarshalYAML()
-	// m, err := ynode.MarshalYAML()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// // if m[group.schema.Name]
-	// // return
+	return ynode.marshalYAML2(true)
 }
 
 func (group *DataNodeGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {
