@@ -375,7 +375,7 @@ func (schema *SchemaNode) IsListHasKey() bool {
 	return schema.IsList() && schema.Key != ""
 }
 
-// IsListable() checks if the data node is a list or a leaf-list node.
+// IsListable() checks if the schema node is a list or a leaf-list node.
 // If SingleLeafList is set, a single leaf-list node has several values and it is not listable.
 func (schema *SchemaNode) IsListable() bool {
 	if schema.IsDir() {
@@ -397,7 +397,7 @@ func (schema *SchemaNode) IsAnyData() bool {
 	return schema.Kind == yang.AnyDataEntry
 }
 
-// IsSingleLeafList() returns true if the schema node is anydata.
+// IsSingleLeafList() returns true if the schema node is single leaf-list schema.
 func (schema *SchemaNode) IsSingleLeafList() bool {
 	return schema.Option.SingleLeafList && schema.IsLeafList()
 }
