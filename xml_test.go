@@ -27,14 +27,15 @@ func TestXML(t *testing.T) {
 		t.Fatalf("failed to get yang library")
 	}
 	xmlstr, _ := xml.MarshalIndent(yanglib, "", " ")
-	// fmt.Println(string(xmlstr))
-
 	newyanglib, err := NewDataNode(yanglib.Schema())
 	if err != nil {
 		t.Fatalf("error in new: %v", err)
 	}
 	if err := xml.Unmarshal(xmlstr, newyanglib); err != nil {
 		t.Fatalf("error in new: %v", err)
+	}
+	if !Equal(yanglib, newyanglib) {
+		t.Error("invalid xml marshalling & unmarshalling")
 	}
 	// y, err := MarshalYAML(yanglib, RFC7951Format{})
 	// if err != nil {
