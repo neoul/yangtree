@@ -43,7 +43,9 @@ type DataNode interface {
 
 	Create(id string, value ...string) (DataNode, error) // Create() creates a child using the node id (NODE_NAME[KEY=VALUE]).
 	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id using the input values.
-	UpdateByMap(pmap map[string]interface{}) error       // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
+
+	CreateByMap(pmap map[string]interface{}) error // CreateByMap() updates the data node using pmap (path predicate map) and string values.
+	UpdateByMap(pmap map[string]interface{}) error // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 
 	Exist(id string) bool              // Exist() is used to check a data node is present.
 	Get(id string) DataNode            // Get() is used to get the first child has the id.

@@ -246,11 +246,28 @@ func (leaflist *DataLeafList) ID() string {
 	return leaflist.schema.Name
 }
 
+// CreateByMap() updates the data node using pmap (path predicate map) and string values.
+func (leaflist *DataLeafList) CreateByMap(pmap map[string]interface{}) error {
+	for k, v := range pmap {
+		if k != "." {
+			if leaflist.ValueString() == v.(string) {
+				return nil
+			}
+		}
+		if err := leaflist.Set(v.(string)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 func (leaflist *DataLeafList) UpdateByMap(pmap map[string]interface{}) error {
-	if v, ok := pmap["."]; ok {
-		if leaflist.ValueString() == v.(string) {
-			return nil
+	for k, v := range pmap {
+		if k != "." {
+			if leaflist.ValueString() == v.(string) {
+				return nil
+			}
 		}
 		if err := leaflist.Set(v.(string)); err != nil {
 			return err

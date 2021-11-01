@@ -239,6 +239,19 @@ func (leaf *DataLeaf) ID() string {
 	return leaf.schema.Name + `[.=` + ValueToString(leaf.value) + `]`
 }
 
+// CreateByMap() updates the data node using pmap (path predicate map) and string values.
+func (leaf *DataLeaf) CreateByMap(pmap map[string]interface{}) error {
+	if v, ok := pmap["."]; ok {
+		if leaf.ValueString() == v.(string) {
+			return nil
+		}
+		if err := leaf.Set(v.(string)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 func (leaf *DataLeaf) UpdateByMap(pmap map[string]interface{}) error {
 	if v, ok := pmap["."]; ok {

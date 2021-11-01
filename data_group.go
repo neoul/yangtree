@@ -327,6 +327,11 @@ func (group *DataNodeGroup) ID() string {
 	return group.schema.Name
 }
 
+// CreateByMap() updates the data node using pmap (path predicate map) and string values.
+func (group *DataNodeGroup) CreateByMap(pmap map[string]interface{}) error {
+	return fmt.Errorf("data node group doesn't support CreateByMap")
+}
+
 // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 func (group *DataNodeGroup) UpdateByMap(pmap map[string]interface{}) error {
 	return fmt.Errorf("data node group doesn't support UpdateByMap")

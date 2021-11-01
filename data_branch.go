@@ -618,8 +618,8 @@ func (branch *DataBranch) ID() string {
 	}
 }
 
-// UpdateByMap() updates the data node using pmap (path predicate map) and string values.
-func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
+// CreateByMap() updates the data node using pmap (path predicate map) and string values.
+func (branch *DataBranch) CreateByMap(pmap map[string]interface{}) error {
 	for k, v := range pmap {
 		if !strings.HasPrefix(k, "@") {
 			if vstr, ok := v.(string); ok {
@@ -631,6 +631,34 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 						return err
 					}
 					if _, err := branch.insert(newnode, nil); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// UpdateByMap() updates the data node using pmap (path predicate map) and string values.
+func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
+	for k, v := range pmap {
+		if !strings.HasPrefix(k, "@") {
+			if vstr, ok := v.(string); ok {
+				if k == "." {
+					continue
+				}
+				found := branch.Get(k)
+				if found == nil {
+					newnode, err := NewDataNode(branch.Schema().GetSchema(k), vstr)
+					if err != nil {
+						return err
+					}
+					if _, err := branch.insert(newnode, nil); err != nil {
+						return err
+					}
+				} else {
+					if err := found.Set(vstr); err != nil {
 						return err
 					}
 				}
