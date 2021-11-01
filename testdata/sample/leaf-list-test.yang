@@ -1,0 +1,38 @@
+module leaf-list-test {
+  prefix "leaf-list-test";
+  namespace "yangtree:leaf-list-test";
+  // meta
+  organization "leaf-list-test model";
+
+  contact "neoul@ymail.com";
+
+  // Max line length throughout the modules should be 70 cols.
+
+  // Formatting description statements: for consistency, the
+  // description text should start on the line following the
+  // 'description' keyword and be indented 2 spaces.
+  description
+    "leaf-list-test model description!";
+
+  revision "2020-06-01" {
+    description
+      "Inital model";
+    reference "0.1.1";
+  }
+
+  leaf-list single-leaf-list-ro {
+    config false;
+    type string;
+  }
+  leaf-list single-leaf-list-ro-int {
+    config false;
+    type int32;
+  }
+  leaf-list single-leaf-list-rw-system {
+    type string;
+  }
+  leaf-list single-leaf-list-rw-user {
+    ordered-by user;
+    type string;
+  }
+}

@@ -1,58 +1,95 @@
 package yangtree
 
-import "testing"
+import (
+	"fmt"
+	"reflect"
+	"testing"
+)
 
-func TestDataLeafList(t *testing.T) {
+func TestSingleDataLeafList(t *testing.T) {
 	schema, err := Load([]string{"testdata/sample"}, nil, nil, SchemaOption{SingleLeafList: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// jcontainer := `
-	// {
-	// 	"container-val": {
-	// 		"a": "A",
-	// 		"enum-val": "enum2",
-	// 		"leaf-list-val": [
-	// 			"first",
-	// 			"fourth",
-	// 			"second",
-	// 			"third"
-	// 		],
-	// 		"test-default": 11
-	// 	},
-	// 	"empty-val": null,
-	// 	"multiple-key-list": {
-	// 		"first": {
-	// 			"1": {
-	// 				"integer": 1,
-	// 				"ok": true,
-	// 				"str": "first"
-	// 			},
-	// 			"2": {
-	// 				"integer": 2,
-	// 				"str": "first"
-	// 			}
-	// 		}
-	// 	},
-	// 	"non-key-list": [
-	// 		{
-	// 			"strval": "XYZ",
-	// 			"uintval": 10
-	// 		}
-	// 	],
-	// 	"single-key-list": {
-	// 		"AAA": {
-	// 			"country-code": "KR",
-	// 			"decimal-range": 1.01,
-	// 			"empty-node": null,
-	// 			"list-key": "AAA",
-	// 			"uint32-range": 100,
-	// 			"uint64-node": 1234567890
-	// 		}
-	// 	},
-	// 	"str-val": "abc"
-	// }
-	// `
+
+	testItem1 := []struct {
+		path     string
+		input    string
+		json     string
+		yaml     string
+		expected []interface{}
+	}{
+		{
+			path:     "single-leaf-list-rw-system",
+			input:    `["first","second","third","fourth"]`,
+			json:     `["first","fourth","second","third"]`,
+			yaml:     "[first,fourth,second,third]",
+			expected: []interface{}{"first", "fourth", "second", "third"},
+		},
+		{
+			path:     "single-leaf-list-rw-user",
+			input:    `["first","second","third","fourth"]`,
+			json:     `["first","second","third","fourth"]`,
+			yaml:     "[first,second,third,fourth]",
+			expected: []interface{}{"first", "second", "third", "fourth"},
+		},
+		{
+			path:     "single-leaf-list-ro",
+			input:    `["first","second","third","fourth"]`,
+			json:     `["first","second","third","fourth"]`,
+			yaml:     "[first,second,third,fourth]",
+			expected: []interface{}{"first", "second", "third", "fourth"},
+		},
+		{
+			path:     "single-leaf-list-ro-int",
+			input:    `[1,2,3,4]`,
+			json:     `[1,2,3,4]`,
+			yaml:     "[1,2,3,4]",
+			expected: []interface{}{int32(1), int32(2), int32(3), int32(4)},
+		},
+	}
+	for _, tt := range testItem1 {
+		t.Run("Set."+tt.path, func(t *testing.T) {
+			singleLeafListSchema := schema.FindSchema(tt.path)
+			singleLeafList, err := NewDataNode(singleLeafListSchema, tt.input)
+			if err != nil {
+				t.Errorf("NewDataNode() error = %v, path = %s", err, tt.path)
+				return
+			}
+			// check the values of the single leaf-list (ordered-by system)
+			values := singleLeafList.Values()
+			if !reflect.DeepEqual(values, tt.expected) {
+				t.Errorf("invalid single leaf-list values %q", singleLeafList.Values())
+				return
+			}
+
+			y, err := MarshalYAML(singleLeafList)
+			if err != nil {
+				t.Errorf("leaflist marshalling to YAML: %v", err)
+				return
+			}
+			if string(y) != tt.yaml {
+				t.Errorf("leaflist yaml marshalling failed: %s", string(y))
+				return
+			}
+			j, err := MarshalJSON(singleLeafList)
+			if err != nil {
+				t.Errorf("leaflist marshalling to JSON: %v", err)
+				return
+			}
+			if string(j) != tt.json {
+				t.Errorf("leaflist json marshalling failed: %s", string(j))
+				return
+			}
+
+		})
+	}
+
+	root, err := NewDataNode(schema)
+	if err != nil {
+		t.Fatalf("root creation failed: %v", err)
+	}
+
 	jcontainer := `
 	{
 		"container-val": {
@@ -65,33 +102,10 @@ func TestDataLeafList(t *testing.T) {
 		}
 	}
 	`
-	singleLeafList, err := NewDataNode(schema.FindSchema("/sample/container-val/leaf-list-val"), `["first","fourth","second","third"]`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	y, err := MarshalYAML(singleLeafList)
-	if err != nil {
-		t.Fatalf("leaflist marshalling to YAML: %v", err)
-	}
-	if string(y) != "[first,fourth,second,third]" {
-		t.Fatalf("leaflist yaml marshalling failed: %s", string(y))
-	}
-	j, err := MarshalJSON(singleLeafList)
-	if err != nil {
-		t.Fatalf("leaflist marshalling to JSON: %v", err)
-	}
-	if string(j) != `["first","fourth","second","third"]` {
-		t.Fatalf("leaflist json marshalling failed: %s", string(j))
-	}
-
-	root, err := NewDataNode(schema)
-	if err != nil {
-		t.Fatalf("root creation failed: %v", err)
-	}
 	if err := Set(root, "sample", jcontainer); err != nil {
 		t.Fatalf("sample set failed: %v", err)
 	}
-	if j, err = MarshalJSON(root, RFC7951Format{}); err != nil {
+	if j, err := MarshalJSON(root, RFC7951Format{}); err != nil {
 		t.Fatalf("sample json marshalling failed: %v", err)
 	} else if string(j) != `{"sample:sample":{"container-val":{"leaf-list-val":["first","fourth","second","third"]}}}` {
 		t.Fatalf("json marshalling failed: %s", string(j))
@@ -103,18 +117,41 @@ func TestDataLeafList(t *testing.T) {
 	if len(found) != 1 {
 		t.Fatalf("leaf-list-val finding failed: single leaf-list node")
 	}
-	y, err = MarshalYAML(found[0])
+	y, err := MarshalYAML(found[0])
 	if err != nil {
 		t.Fatalf("leaf-list-val yaml marshalling failed: %v", err)
 	}
 	if string(y) != `[first,fourth,second,third]` {
 		t.Fatalf("leaflist json marshalling failed: %s", string(y))
 	}
-	j, err = MarshalJSON(found[0], RFC7951Format{})
+	j, err := MarshalJSON(found[0], RFC7951Format{})
 	if err != nil {
 		t.Fatalf("leaf-list-val yaml marshalling failed: %v", err)
 	}
 	if string(j) != `["first","fourth","second","third"]` {
 		t.Fatalf("leaflist json marshalling failed: %s", string(j))
+	}
+
+	testItem2 := []struct {
+		values   []string
+		expected string
+	}{
+		{values: []string{"fifth", "sixth"}, expected: `["fifth","first","fourth","second","sixth","third"]`},
+		{values: []string{`["seventh","eighth"]`}, expected: `["eighth","fifth","first","fourth","second","seventh","sixth","third"]`},
+	}
+	for _, tt := range testItem2 {
+		t.Run(fmt.Sprint("single-leaf-list test", tt.values), func(t *testing.T) {
+			// Set each values
+			if err := Set(root, "sample/container-val/leaf-list-val", tt.values...); err != nil {
+				t.Fatalf("sample set failed: %v", err)
+			}
+			j, err = MarshalJSON(found[0], RFC7951Format{})
+			if err != nil {
+				t.Fatalf("leaf-list-val yaml marshalling failed: %v", err)
+			}
+			if string(j) != tt.expected {
+				t.Fatalf("leaflist json marshalling failed: %s", string(j))
+			}
+		})
 	}
 }
