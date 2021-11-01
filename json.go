@@ -348,10 +348,18 @@ func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []str
 		var idBuilder strings.Builder
 		idBuilder.WriteString(cschema.Name)
 		for i := range kname {
+			kvalue := entry[kname[i]]
+			if kvalue == nil {
+				kcschema := cschema.GetSchema(kname[i])
+				qname, _ := kcschema.GetQName(true)
+				if kvalue = entry[qname]; kvalue == nil {
+					return fmt.Errorf("not found key data node %q from %v", kname[i], entry)
+				}
+			}
 			idBuilder.WriteString("[")
 			idBuilder.WriteString(kname[i])
 			idBuilder.WriteString("=")
-			idBuilder.WriteString(fmt.Sprint(entry[kname[i]]))
+			idBuilder.WriteString(fmt.Sprint(kvalue))
 			idBuilder.WriteString("]")
 		}
 		id := idBuilder.String()
@@ -484,7 +492,11 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 			jnode.RFC7951S = RFC7951Enabled
 		}
 	}
-	err := jnode.marshalJSON(&buffer, false)
+	skipRootMarshalling := false
+	if _, ok := node.(*DataNodeGroup); ok {
+		skipRootMarshalling = true
+	}
+	err := jnode.marshalJSON(&buffer, skipRootMarshalling)
 	if err != nil {
 		return nil, err
 	}
@@ -507,7 +519,11 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 			jnode.RFC7951S = RFC7951Enabled
 		}
 	}
-	err := jnode.marshalJSON(&buffer, false)
+	skipRootMarshalling := false
+	if _, ok := node.(*DataNodeGroup); ok {
+		skipRootMarshalling = true
+	}
+	err := jnode.marshalJSON(&buffer, skipRootMarshalling)
 	if err != nil {
 		return nil, err
 	}

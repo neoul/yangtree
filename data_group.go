@@ -18,7 +18,7 @@ type DataNodeGroup struct {
 // It is useful to create multiple list or leaf-list nodes.
 //    // e.g.
 //    groups, err := NewDataNodeGroup(schema, `["leaf-list-value1", "leaf-list-value2"]`)
-//    for _, node := range groups {
+//    for _, node := range groups.Nodes {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
 func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, error) {

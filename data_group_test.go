@@ -1,11 +1,8 @@
 package yangtree
 
 import (
-	"encoding/json"
-	"reflect"
+	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v2"
 )
 
 func TestNewDataGroup(t *testing.T) {
@@ -14,97 +11,90 @@ func TestNewDataGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	{
-		jleaflist := `["leaf-list-first","leaf-list-fourth","leaf-list-second","leaf-list-third"]`
-		leafListSchema := RootSchema.FindSchema("sample/container-val/leaf-list-val")
-		jleaflistnodes, err := NewDataNodeGroup(leafListSchema, jleaflist)
+		// multiple leaf-list node
+		jleaflist := `["first","fourth","second","third"]`
+		schema := RootSchema.FindSchema("sample/container-val/leaf-list-val")
+		jleaflistnodes, err := NewDataNodeGroup(schema, jleaflist)
 		if err != nil {
 			t.Fatal(err)
 		}
-		j, err := json.Marshal(jleaflistnodes)
+		values := []string{"first", "fourth", "second", "third"}
+		expected := []DataNode{}
+		for _, value := range values {
+			n, _ := NewDataNode(schema, value)
+			expected = append(expected, n)
+		}
+		for i := 0; i < 4; i++ {
+			if !Equal(jleaflistnodes.Nodes[i], expected[i]) {
+				t.Errorf("not equal: %d (%v, %v)", i, jleaflistnodes.Nodes[i], expected[i])
+			}
+		}
+		j, err := jleaflistnodes.MarshalJSON()
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("leaflist json marshalling: %v", err)
 		}
-		y, err := yaml.Marshal(jleaflistnodes)
-		if err != nil {
-			t.Fatal(err)
-		}
-		// y2, err := MarshalYAML(jleaflistnodes)
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
-		// fmt.Println(string(y2))
-		var o1, o2 interface{}
-		if err := json.Unmarshal(j, &o1); err != nil {
-			t.Fatal(err)
-		}
-		if err := yaml.Unmarshal(y, &o2); err != nil {
-			t.Fatal(err)
-		}
-		// if err := yaml.Unmarshal(y2, &o3); err != nil {
-		// 	t.Fatal(err)
-		// }
-		// pretty.Println("json:", o1)
-		// pretty.Println("yaml:", o2)
-		// pretty.Println("yaml:", o3)
-		if !reflect.DeepEqual(o1, o2) {
-			t.Error("not equal leaf-list nodes")
-			t.Error("json:", o1)
-			t.Error("yaml:", o1)
+		if string(j) != jleaflist {
+			t.Errorf("leaflist json marshalling failed: %s", string(j))
 			return
 		}
 	}
 	{
+		// list node
 		jlist := `[
 			{
-				"country-code": "KR",
-				"decimal-range": 1.01,
-				"empty-node": [
-				 null
+				"sample:country-code": "KR",
+				"sample:decimal-range": 1.01,
+				"sample:empty-node": [
+					null
 				],
-				"list-key": "BBB"
+				"sample:list-key": "AAA",
+				"sample:uint32-range": 100,
+				"sample:uint64-node": "1234567890"
 			},
-			{"list-key":"CCC"},
 			{
-			 "country-code": "KR",
-			 "decimal-range": 1.01,
-			 "empty-node": [
-			  null
-			 ],
-			 "list-key": "AAA",
-			 "uint32-range": 100,
-			 "uint64-node": "1234567890"
+				"sample:country-code": "KR",
+				"sample:decimal-range": 1.01,
+				"sample:empty-node": [
+					null
+				],
+				"sample:list-key": "BBB"
+			},
+			{
+				"sample:list-key": "CCC"
 			}
-			]`
+		]`
 
 		schema := RootSchema.FindSchema("sample/single-key-list")
 		jlistnodes, err := NewDataNodeGroup(schema, jlist)
 		if err != nil {
 			t.Fatal(err)
 		}
-		j, err := json.Marshal(jlistnodes)
+
+		values := []string{
+			`{"sample:country-code":"KR","sample:decimal-range":1.01,"sample:empty-node":[null],"sample:list-key":"AAA","sample:uint32-range":100,"sample:uint64-node":"1234567890"}`,
+			`{"sample:country-code":"KR","sample:decimal-range":1.01,"sample:empty-node":[null],"sample:list-key":"BBB"}`,
+			`{"sample:list-key":"CCC"}`,
+		}
+		expected := []DataNode{}
+		for _, value := range values {
+			n, _ := NewDataNode(schema, value)
+			expected = append(expected, n)
+		}
+		for i := 0; i < 3; i++ {
+			if !Equal(jlistnodes.Nodes[i], expected[i]) {
+				t.Errorf("not equal: %d (%v, %v)", i, jlistnodes.Nodes[i], expected[i])
+			}
+		}
+		j, err := MarshalJSON(jlistnodes, RFC7951Format{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		y, err := yaml.Marshal(jlistnodes)
-		if err != nil {
-			t.Fatal(err)
-		}
-		// y2, err := MarshalYAML(jlistnodes, RFC7951Format{})
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
-		// fmt.Println(string(y2))
-		var o1, o2 interface{}
-		if err := json.Unmarshal(j, &o1); err != nil {
-			t.Fatal(err)
-		}
-		if err := yaml.Unmarshal(y, &o2); err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(o1, o2) {
-			t.Error("not equal list nodes")
-			t.Log("json:", o1)
-			t.Log("yaml:", o2)
+		jlist = strings.ReplaceAll(jlist, " ", "")
+		jlist = strings.ReplaceAll(jlist, "\t", "")
+		jlist = strings.ReplaceAll(jlist, "\n", "")
+		if string(j) != jlist {
+			t.Errorf("leaflist json marshalling failed: %s", string(j))
+			t.Errorf("leaflist json marshalling failed: %s", jlist)
 			return
 		}
 	}
