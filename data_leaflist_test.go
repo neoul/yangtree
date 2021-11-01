@@ -167,65 +167,92 @@ func TestMultipleLeafList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Edit(nil, RootData, "/sample/leaf-list-ro", "n1")
-	// Edit(nil, RootData, "/sample/leaf-list-ro", "n1")
-	// if y, err := MarshalYAML(RootData); err == nil {
-	// 	t.Logf("\n%s", string(y))
-	// }
 
-	tests := []struct {
+	rwLeafListTest := []struct {
 		path          string
 		value         string
 		wantInsertErr bool
 		wantDeleteErr bool
+		numOfNodes    int
 	}{
 		// Read-write leaf-list
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "[]"},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-1", "leaf-list-2"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-2"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: ""},
-		{wantInsertErr: true, wantDeleteErr: true, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: ""},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "leaf-list-5"},
-
-		// // Read-only leaf-list
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "[]"}, // do nothing
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-1", "leaf-list-2"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-2"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro/leaf-list-4", value: ""},
-		{wantInsertErr: true, wantDeleteErr: true, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: ""},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5"},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "[]", numOfNodes: 0},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-1", "leaf-list-2"]`, numOfNodes: 2},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-2"]`, numOfNodes: 2},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`, numOfNodes: 3},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`, numOfNodes: 3},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: "", numOfNodes: 4},
+		{wantInsertErr: true, wantDeleteErr: true, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "", numOfNodes: 4},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "leaf-list-5", numOfNodes: 5},
 	}
-	for _, tt := range tests {
+	for _, tt := range rwLeafListTest {
 		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
 			editopt := &EditOption{EditOp: EditMerge}
 			err := Edit(editopt, RootData, tt.path, tt.value)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				return
+			}
+			if sample := RootData.Get("sample"); sample != nil {
+				if sample.Len() != tt.numOfNodes {
+					t.Errorf("Edit() error = unexpected number of nodes in %s, expected num %d, got %d", tt.path, tt.numOfNodes, sample.Len())
+					return
+				}
 			}
 		})
 	}
-	y, err := MarshalYAML(RootData)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("\n%s", string(y))
-	for i := len(tests) - 1; i >= 0; i-- {
-		t.Run(fmt.Sprintf("Delete.%s", tests[i].path), func(t *testing.T) {
-			// err := Delete(RootData, tests[i].path)
+	for i := len(rwLeafListTest) - 1; i >= 0; i-- {
+		t.Run(fmt.Sprintf("Delete.%s", rwLeafListTest[i].path), func(t *testing.T) {
+			// err := Delete(RootData, rwLeafListTest[i].path)
 			editopt := &EditOption{EditOp: EditRemove}
-			err := Edit(editopt, RootData, tests[i].path, tests[i].value)
-			if (err != nil) != tests[i].wantDeleteErr {
-				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, tests[i].wantDeleteErr, tests[i].path)
+			err := Edit(editopt, RootData, rwLeafListTest[i].path, rwLeafListTest[i].value)
+			if (err != nil) != rwLeafListTest[i].wantDeleteErr {
+				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, rwLeafListTest[i].wantDeleteErr, rwLeafListTest[i].path)
 			}
 		})
 	}
-	y, err = MarshalYAML(RootData)
-	if err != nil {
-		t.Fatal(err)
+
+	roLeafListTest := []struct {
+		path          string
+		value         string
+		wantInsertErr bool
+		wantDeleteErr bool
+		numOfNodes    int
+	}{
+		// // Read-only leaf-list
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "[]", numOfNodes: 0}, // do nothing
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-1", "leaf-list-2"]`, numOfNodes: 2},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-2"]`, numOfNodes: 3},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`, numOfNodes: 4},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`, numOfNodes: 5},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro/leaf-list-4", value: "", numOfNodes: 6},
+		{wantInsertErr: true, wantDeleteErr: true, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "", numOfNodes: 6},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5", numOfNodes: 7},
 	}
-	t.Log("\n", string(y))
+	for _, tt := range roLeafListTest {
+		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
+			editopt := &EditOption{EditOp: EditMerge}
+			err := Edit(editopt, RootData, tt.path, tt.value)
+			if (err != nil) != tt.wantInsertErr {
+				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				return
+			}
+			if sample := RootData.Get("sample"); sample != nil {
+				if sample.Len() != tt.numOfNodes {
+					t.Errorf("Edit() error = unexpected number of nodes in %s, expected num %d, got %d", tt.path, tt.numOfNodes, sample.Len())
+					return
+				}
+			}
+		})
+	}
+	for i := len(roLeafListTest) - 1; i >= 0; i-- {
+		t.Run(fmt.Sprintf("Delete.%s", roLeafListTest[i].path), func(t *testing.T) {
+			// err := Delete(RootData, roLeafListTest[i].path)
+			editopt := &EditOption{EditOp: EditRemove}
+			err := Edit(editopt, RootData, roLeafListTest[i].path, roLeafListTest[i].value)
+			if (err != nil) != roLeafListTest[i].wantDeleteErr {
+				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, roLeafListTest[i].wantDeleteErr, roLeafListTest[i].path)
+			}
+		})
+	}
 }
