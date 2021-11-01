@@ -812,6 +812,9 @@ func TestAnyData(t *testing.T) {
 		t.Fatal(err)
 	}
 	nodes, err := Find(root1, "sample/any")
+	if err != nil {
+		t.Fatal(err)
+	}
 	any := nodes[0]
 	nodes, err = Find(root2, "sample/non-key-list")
 	if err != nil {
@@ -866,36 +869,3 @@ non-key-list:
 	// y, _ = MarshalYAML(collector)
 	// fmt.Println(string(y))
 }
-
-// func BenchmarkFindPaths(b *testing.B) {
-// 	schema, err := Load([]string{"testdata/sample"}, nil, nil)
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	root, err := NewDataNode(schema)
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	file, err := os.Open(fmt.Sprint("testdata/yaml/sample1.yaml"))
-// 	if err != nil {
-// 		b.Errorf("file open err: %v\n", err)
-// 	}
-// 	f, err := ioutil.ReadAll(file)
-// 	if err != nil {
-// 		b.Errorf("file read error: %v\n", err)
-// 	}
-// 	file.Close()
-// 	if err := root.UnmarshalYAML(f); err != nil {
-// 		b.Errorf("unmarshalling error: %v\n", err)
-// 	}
-
-// 	// b.StartTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		ss := Edit(Ed, path[i%3])
-// 		if len(ss) == 0 {
-// 			b.Errorf("not found path %s", path[i%3])
-// 		}
-// 	}
-// 	m = nil
-
-// }
