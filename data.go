@@ -395,7 +395,7 @@ func mergeChildren(dest DataNode, mergedChildren []DataNode, edit *EditOption) (
 	d := dest.(*DataBranch)
 	for i := range mergedChildren {
 		schema := mergedChildren[i].Schema()
-		if schema.IsDuplicatableList() {
+		if schema.IsDuplicatable() {
 			n = Clone(mergedChildren[i])
 			_, err = d.insert(n, edit.GetInsertOption())
 			if err != nil {
