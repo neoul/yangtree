@@ -197,7 +197,7 @@ func (branch *DataBranch) GetOrNew(id string, insert InsertOption) (DataNode, bo
 		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
 	var children []DataNode
-	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
 	children = branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	if cschema.IsDuplicatableList() {
 		switch insert.(type) {

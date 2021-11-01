@@ -612,7 +612,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value []str
 		}
 	}
 	reachToEnd := len(pathnode) == 1
-	id, nodeGroup, valueSearch := GenerateID(cschema, pmap)
+	id, nodeGroup, valueSearch := cschema.GenerateID(pmap)
 	children := branch.find(cschema, &id, nodeGroup, valueSearch, pmap)
 	if len(children) == 0 {
 		switch op {
@@ -761,7 +761,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return nil
 	}
 
-	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
 	children := branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	if len(children) == 0 { // create
 		child, err := NewDataNode(cschema)
@@ -915,7 +915,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	if err != nil {
 		return nil
 	}
-	id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
 	if _, ok := pmap["@evaluate-xpath"]; ok {
 		first, last := indexRangeBySchema(branch, &id)
 		node, err = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
@@ -1299,7 +1299,7 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 			break
 		}
 		var children []DataNode
-		id, groupSearch, valueSearch := GenerateID(cschema, pmap)
+		id, groupSearch, valueSearch := cschema.GenerateID(pmap)
 		children = branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 		if cschema.IsDuplicatableList() {
 			children = nil // clear found nodes to create a new one.

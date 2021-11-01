@@ -1213,3 +1213,59 @@ func (schema *SchemaNode) ValueToYAMLBytes(typ *yang.YangType, value interface{}
 	}
 	return out, err
 }
+
+// GenerateID generates the node ID of the schema using the value in the pmap.
+// It also returns a boolean value to true if the ID is used for the access of multiple data nodes.
+func (schema *SchemaNode) GenerateID(pmap map[string]interface{}) (string, bool, bool) {
+	if _, ok := pmap["@index"]; ok {
+		return schema.Name, false, false
+	}
+	if _, ok := pmap["@last"]; ok {
+		return schema.Name, false, false
+	}
+	switch {
+	case schema.IsList():
+		if schema.Key == "" { // non-key list
+			return schema.Name, true, false
+		}
+		// key list
+		var id bytes.Buffer
+		id.WriteString(schema.Name)
+		keyname := schema.Keyname
+		for i := range keyname {
+			v, ok := pmap[keyname[i]]
+			if !ok {
+				return id.String(), true, false
+			}
+			value := v.(string)
+			switch value {
+			case "*":
+				return id.String(), true, false
+			default:
+				id.WriteString("[")
+				id.WriteString(keyname[i])
+				id.WriteString("=")
+				id.WriteString(value)
+				id.WriteString("]")
+			}
+		}
+		return id.String(), false, false
+	case schema.IsSingleLeafList(): // single leaf-list
+		if _, ok := pmap["."]; ok {
+			return schema.Name, false, true
+		}
+		return schema.Name, false, false
+	case schema.IsLeafList(): // multiple leaf-list
+		v, ok := pmap["."]
+		if ok {
+			var id bytes.Buffer
+			id.WriteString(schema.Name)
+			id.WriteString("[.=")
+			id.WriteString(v.(string))
+			id.WriteString("]")
+			return id.String(), false, false
+		}
+		return schema.Name, true, false
+	}
+	return schema.Name, false, false // container, leaf
+}
