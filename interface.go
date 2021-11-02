@@ -4,8 +4,8 @@ package yangtree
 type DataNode interface {
 	IsDataNode()
 	IsNil() bool              // IsNil() is used to check the data node is null.
-	IsBranchNode() bool       // IsBranchNode() returns true if the data node is a DataBranch.
-	IsLeafNode() bool         // IsLeafNode() returns true if the data node is a DataLeaf.
+	IsBranchNode() bool       // IsBranchNode() returns true if the data node is a DataBranch (a container or a list node).
+	IsLeafNode() bool         // IsLeafNode() returns true if the data node is a DataLeaf (a leaf or a multiple leaf-list node) or DataLeafList (a single leaf-list node).
 	IsDuplicatableNode() bool // IsDuplicatable() returns true if multiple nodes having the same ID can exist in the tree.
 	IsListableNode() bool     // IsListable() returns true if the nodes that has the same schema are listed in the tree.
 	IsStateNode() bool        // IsStateNode() returns true if the node is a config=false node.

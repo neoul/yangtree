@@ -597,10 +597,10 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value []str
 		if cschema.Option.SingleLeafList {
 			delete(pmap, ".")
 		}
-		if cschema.Option.LeafListValueAsKey && len(pathnode) == 2 {
-			value = nil
+		if cschema.Option.LeafListValueAsKey && len(pathnode) > 1 {
 			pmap["."] = pathnode[1].Name
 			pathnode = pathnode[:1]
+			value = nil
 		}
 		if len(value) > 0 {
 			if v, ok := pmap["."]; ok {
@@ -742,7 +742,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	}
 	switch {
 	case cschema.IsLeafList():
-		if cschema.Option.LeafListValueAsKey && len(pathnode) == 2 {
+		if cschema.Option.LeafListValueAsKey && len(pathnode) > 1 {
 			pmap["."] = pathnode[1].Name
 			pathnode = pathnode[:1]
 		}
@@ -891,15 +891,6 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 		return children
 	}
 
-	// [FIXME]
-	if root.IsLeafNode() {
-		if root.Schema().Option.LeafListValueAsKey {
-			if pathnode[0].Name == root.ValueString() {
-				return []DataNode{root}
-			}
-			return nil
-		}
-	}
 	branch, ok := root.(*DataBranch)
 	if !ok {
 		return nil
@@ -911,6 +902,13 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	pmap, err := pathnode[0].PredicatesToMap()
 	if err != nil {
 		return nil
+	}
+	switch {
+	case root.IsLeafList():
+		if root.Schema().Option.LeafListValueAsKey && len(pathnode) > 1 {
+			pmap["."] = pathnode[1].Name
+			pathnode = pathnode[:1]
+		}
 	}
 	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
 	if _, ok := pmap["@evaluate-xpath"]; ok {
