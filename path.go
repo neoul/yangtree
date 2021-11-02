@@ -218,6 +218,9 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	if begin < end {
 		pathnode.Name = (*path)[begin:end]
 	}
+	if pathnode.Name == "" && pathnode.Value == "" && len(pathnode.Predicates) == 0 {
+		return node, nil
+	}
 	node = append(node, updateNodeSelect(pathnode))
 	return node, nil
 }

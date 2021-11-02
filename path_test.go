@@ -42,7 +42,6 @@ func TestParsePath(t *testing.T) {
 				&PathNode{Name: "library", Select: NodeSelectFromRoot},
 				&PathNode{Name: "book", Select: NodeSelectChild},
 				&PathNode{Name: "isbn", Select: NodeSelectChild},
-				&PathNode{Name: "", Select: NodeSelectChild},
 			},
 		},
 		{
@@ -90,14 +89,13 @@ func TestParsePath(t *testing.T) {
 				&PathNode{Name: "isbn", Select: NodeSelectChild},
 			},
 		},
-		// {
-		// 	path: "library/.../",
-		// 	want: []*PathNode{
-		// 		&PathNode{Name: "library", Select: NodeSelectChild},
-		// 		&PathNode{Name: "...", Select: NodeSelectAll},
-		// 		&PathNode{Name: "isbn", Select: NodeSelectChild},
-		// 	},
-		// },
+		{
+			path: "library/.../",
+			want: []*PathNode{
+				&PathNode{Name: "library", Select: NodeSelectChild},
+				&PathNode{Name: "...", Select: NodeSelectAll},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
