@@ -30,13 +30,13 @@ type DataNode interface {
 	Replace(src DataNode) error                                   // Replace() replaces itself to the src node.
 	Merge(src DataNode) error                                     // Merge() merges the src node including all children to the current data node.
 
-	Set(value ...string) error     // Set() writes the values to the data node. The value must be string.
-	SetSafe(value ...string) error // SetSafe() writes the values to the data node. It will recover the value if failed.
-	Unset(value ...string) error   // Unset() clear the value of the data node to the default.
+	SetString(value ...string) error     // SetString() writes the values to the data node. The value must be string.
+	SetStringSafe(value ...string) error // SetStringSafe() writes the values to the data node. It will recover the value if failed.
+	UnsetString(value ...string) error   // UnsetString() clear the value of the data node to the default.
 
 	Remove() error // Remove() removes itself.
 
-	// GetOrNew() gets or creates a node having the id and returns
+	// GetOrNew() gets or creates a node having the id (NODE[KEY=VALUE]) and returns
 	// the found or created node with the boolean value that
 	// indicates the returned node is created.
 	GetOrNew(id string, insert InsertOption) (DataNode, bool, error)

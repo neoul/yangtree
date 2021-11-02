@@ -144,15 +144,15 @@ func (leaflist *DataLeafList) set(safe bool, value []string) error {
 	return nil
 }
 
-func (leaflist *DataLeafList) Set(value ...string) error {
+func (leaflist *DataLeafList) SetString(value ...string) error {
 	return leaflist.set(false, value)
 }
 
-func (leaflist *DataLeafList) SetSafe(value ...string) error {
+func (leaflist *DataLeafList) SetStringSafe(value ...string) error {
 	return leaflist.set(true, value)
 }
 
-func (leaflist *DataLeafList) Unset(value ...string) error {
+func (leaflist *DataLeafList) UnsetString(value ...string) error {
 	if leaflist.parent != nil {
 		if leaflist.schema.IsKey {
 			// ignore id update
@@ -254,7 +254,7 @@ func (leaflist *DataLeafList) CreateByMap(pmap map[string]interface{}) error {
 				return nil
 			}
 		}
-		if err := leaflist.Set(v.(string)); err != nil {
+		if err := leaflist.SetString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -269,7 +269,7 @@ func (leaflist *DataLeafList) UpdateByMap(pmap map[string]interface{}) error {
 				return nil
 			}
 		}
-		if err := leaflist.Set(v.(string)); err != nil {
+		if err := leaflist.SetString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -346,7 +346,7 @@ func (leaflist *DataLeafList) UnmarshalXML(d *xml.Decoder, start xml.StartElemen
 	}
 	var value string
 	d.DecodeElement(&value, &start)
-	return leaflist.Set(value)
+	return leaflist.SetString(value)
 }
 
 func (leaflist *DataLeafList) MarshalYAML() (interface{}, error) {

@@ -103,7 +103,7 @@ func TestSingleLeafList(t *testing.T) {
 		}
 	}
 	`
-	if err := Set(root, "sample", jcontainer); err != nil {
+	if err := SetString(root, "sample", jcontainer); err != nil {
 		t.Fatalf("sample set failed: %v", err)
 	}
 	if j, err := MarshalJSON(root, RFC7951Format{}); err != nil {
@@ -143,7 +143,7 @@ func TestSingleLeafList(t *testing.T) {
 	for _, tt := range testItem2 {
 		t.Run(fmt.Sprint("single-leaf-list test", tt.values), func(t *testing.T) {
 			// Set each values
-			if err := Set(root, "sample/container-val/leaf-list-val", tt.values...); err != nil {
+			if err := SetString(root, "sample/container-val/leaf-list-val", tt.values...); err != nil {
 				t.Fatalf("sample set failed: %v", err)
 			}
 			j, err = MarshalJSON(found[0], RFC7951Format{})

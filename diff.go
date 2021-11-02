@@ -140,7 +140,7 @@ func SetDiff(root DataNode, path string, value ...string) ([]DataNode, []DataNod
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = Set(new, path, value...); err != nil {
+	if err = SetString(new, path, value...); err != nil {
 		return nil, nil, err
 	}
 	c, d := DiffUpdated(root, new, true)

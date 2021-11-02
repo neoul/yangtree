@@ -88,7 +88,7 @@ func TestNewDataNode(t *testing.T) {
 	}
 
 	// Set
-	err = Set(root1, "/sample/container-val/enum-val", "enum1")
+	err = SetString(root1, "/sample/container-val/enum-val", "enum1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -150,7 +150,7 @@ func TestChildDataNodeListing(t *testing.T) {
 		"/sample/multiple-key-list[str=first][integer=1]/ok",
 	}
 	for i := range input {
-		Set(RootData, input[i], "")
+		SetString(RootData, input[i], "")
 	}
 	// sort.Strings(input)
 	// pretty.Print(input)
@@ -240,10 +240,10 @@ func TestDataNode(t *testing.T) {
 		{wantInsertErr: true, path: "/sample/single-key-list[list-key=AAA]/int8-range", value: "500"},
 	}
 	for _, tt := range tests {
-		t.Run("Set."+tt.path, func(t *testing.T) {
-			err := Set(RootData, tt.path, tt.value)
+		t.Run("SetString."+tt.path, func(t *testing.T) {
+			err := SetString(RootData, tt.path, tt.value)
 			if (err != nil) != tt.wantInsertErr {
-				t.Errorf("Set() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				t.Errorf("SetString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
 		})
 	}

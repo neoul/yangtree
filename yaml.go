@@ -229,13 +229,13 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 				return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", entry, node.ID())
 			}
 			for i := range entry {
-				if err := node.Set(ValueToString(entry[i])); err != nil {
+				if err := node.SetString(ValueToString(entry[i])); err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
 			}
 			return nil
 		default:
-			return Error(EAppTagYAMLParsing, node.Set(ValueToString(yval)))
+			return Error(EAppTagYAMLParsing, node.SetString(ValueToString(yval)))
 		}
 	}
 }

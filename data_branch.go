@@ -287,7 +287,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	return n, nil
 }
 
-func (branch *DataBranch) Set(value ...string) error {
+func (branch *DataBranch) SetString(value ...string) error {
 	if IsCreatedWithDefault(branch.schema) {
 		for _, s := range branch.schema.Children {
 			if !s.IsDir() && s.Default != "" {
@@ -317,7 +317,7 @@ func (branch *DataBranch) Set(value ...string) error {
 	return nil
 }
 
-func (branch *DataBranch) SetSafe(value ...string) error {
+func (branch *DataBranch) SetStringSafe(value ...string) error {
 	var err error
 	backup := Clone(branch)
 	if IsCreatedWithDefault(branch.schema) {
@@ -355,7 +355,7 @@ func (branch *DataBranch) SetSafe(value ...string) error {
 	return nil
 }
 
-func (branch *DataBranch) Unset(value ...string) error {
+func (branch *DataBranch) UnsetString(value ...string) error {
 	return Errorf(ETagOperationNotSupported, "branch data node doesn't support unset")
 }
 
@@ -658,7 +658,7 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 						return err
 					}
 				} else {
-					if err := found.Set(vstr); err != nil {
+					if err := found.SetString(vstr); err != nil {
 						return err
 					}
 				}

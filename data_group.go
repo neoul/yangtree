@@ -196,15 +196,15 @@ func (group *DataNodeGroup) Update(id string, value ...string) (DataNode, error)
 	return nil, fmt.Errorf("data node group doesn't support Update")
 }
 
-func (group *DataNodeGroup) Set(value ...string) error {
+func (group *DataNodeGroup) SetString(value ...string) error {
 	return fmt.Errorf("data node group doesn't support Set")
 }
 
-func (group *DataNodeGroup) SetSafe(value ...string) error {
+func (group *DataNodeGroup) SetStringSafe(value ...string) error {
 	return fmt.Errorf("data node group doesn't support SetSafe")
 }
 
-func (group *DataNodeGroup) Unset(value ...string) error {
+func (group *DataNodeGroup) UnsetString(value ...string) error {
 	return fmt.Errorf("data node group doesn't support Unset")
 }
 

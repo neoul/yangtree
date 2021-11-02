@@ -82,7 +82,7 @@ func (leaf *DataLeaf) Update(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("update is not supported %q", leaf)
 }
 
-func (leaf *DataLeaf) Set(value ...string) error {
+func (leaf *DataLeaf) SetString(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -106,7 +106,7 @@ func (leaf *DataLeaf) Set(value ...string) error {
 	return nil
 }
 
-func (leaf *DataLeaf) SetSafe(value ...string) error {
+func (leaf *DataLeaf) SetStringSafe(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -129,7 +129,7 @@ func (leaf *DataLeaf) SetSafe(value ...string) error {
 	return nil
 }
 
-func (leaf *DataLeaf) Unset(value ...string) error {
+func (leaf *DataLeaf) UnsetString(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -245,7 +245,7 @@ func (leaf *DataLeaf) CreateByMap(pmap map[string]interface{}) error {
 		if leaf.ValueString() == v.(string) {
 			return nil
 		}
-		if err := leaf.Set(v.(string)); err != nil {
+		if err := leaf.SetString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -258,7 +258,7 @@ func (leaf *DataLeaf) UpdateByMap(pmap map[string]interface{}) error {
 		if leaf.ValueString() == v.(string) {
 			return nil
 		}
-		if err := leaf.Set(v.(string)); err != nil {
+		if err := leaf.SetString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -337,7 +337,7 @@ func (leaf *DataLeaf) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 	}
 	var value string
 	d.DecodeElement(&value, &start)
-	return leaf.Set(value)
+	return leaf.SetString(value)
 }
 
 func (leaf *DataLeaf) MarshalYAML() (interface{}, error) {
