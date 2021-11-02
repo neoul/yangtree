@@ -16,7 +16,7 @@ func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string,
 		if yamlHash == nil {
 			return nil
 		}
-		return fmt.Errorf("unexpected yaml value %q (%T) for %q", yamlHash, yamlHash, cschema.Name)
+		return fmt.Errorf("unexpected value %q (%T) for %q", yamlHash, yamlHash, cschema.Name)
 	}
 
 	if len(kname) != len(kval) {
@@ -86,7 +86,7 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 	for i := range sequnce {
 		entry, ok := sequnce[i].(map[interface{}]interface{})
 		if !ok {
-			return fmt.Errorf("unexpected yaml value %T for %s", sequnce[i], cschema.Name)
+			return fmt.Errorf("unexpected value %T for %s", sequnce[i], cschema.Name)
 		}
 		// check existent DataNode
 		var err error
@@ -189,7 +189,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 							return Error(EAppTagYAMLParsing, err)
 						}
 					default:
-						return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q for %q", vv, cschema.Name)
+						return Errorf(EAppTagYAMLParsing, "unexpected value %q for %q", vv, cschema.Name)
 					}
 				} else {
 					if child := node.Get(keystr); child == nil {
@@ -218,24 +218,27 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 			}
 			return nil
 		default:
-			return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", yval, node)
+			return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", yval, node)
 		}
 	} else {
 		switch entry := yval.(type) {
 		case map[interface{}]interface{}:
-			return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", entry, node.ID())
+			return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", entry, node.ID())
 		case []interface{}:
 			if !node.HasMultipleValues() {
-				return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", entry, node.ID())
+				return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", entry, node.ID())
 			}
 			for i := range entry {
-				if err := node.SetValueString(ValueToValueString(entry[i])); err != nil {
+				if err := node.SetValue(entry[i]); err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
 			}
 			return nil
 		default:
-			return Error(EAppTagYAMLParsing, node.SetValueString(ValueToValueString(yval)))
+			if err := node.SetValue(yval); err != nil {
+				return Error(EAppTagYAMLParsing, err)
+			}
+			return nil
 		}
 	}
 }

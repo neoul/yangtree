@@ -58,9 +58,9 @@ type DataNode interface {
 	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
 
 	// [TBD]
-	// SetValue(value ...interface{}) error
-	// SetValueSafe(value ...interface{}) error
-	// UnsetValue(value ...interface{}) error
+	SetValue(value ...interface{}) error     // SetValue() writes the values to the data node.
+	SetValueSafe(value ...interface{}) error // SetValueSafe() writes the values to the data node. It will recover the value if failed.
+	UnsetValue(value ...interface{}) error   // UnsetValue() clear the value of the data node to the default.
 
 	SetValueString(value ...string) error     // SetValueString() writes the values to the data node. The value must be string.
 	SetValueStringSafe(value ...string) error // SetValueStringSafe() writes the values to the data node. It will recover the value if failed.

@@ -287,18 +287,43 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	return n, nil
 }
 
-func (branch *DataBranch) Set(value ...interface{}) error {
+func (branch *DataBranch) SetValue(value ...interface{}) error {
+	var err error
 	for i := range value {
 		switch v := value[i].(type) {
 		case map[interface{}]interface{}:
-			return unmarshalYAML(branch, v)
+			err = unmarshalYAML(branch, v)
 		case map[string]interface{}:
-			return unmarshalJSON(branch, branch.schema, v)
+			err = unmarshalJSON(branch, branch.schema, v)
 		default:
 			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %q", branch)
 		}
 	}
+	return err
+}
+
+func (branch *DataBranch) SetValueSafe(value ...interface{}) error {
+	var err error
+	backup := Clone(branch)
+	for i := range value {
+		switch v := value[i].(type) {
+		case map[interface{}]interface{}:
+			err = unmarshalYAML(branch, v)
+		case map[string]interface{}:
+			err = unmarshalJSON(branch, branch.schema, v)
+		default:
+			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %q", branch)
+		}
+	}
+	if err != nil {
+		recover(branch, backup)
+		return err
+	}
 	return nil
+}
+
+func (branch *DataBranch) UnsetValue(value ...interface{}) error {
+	return Errorf(ETagOperationNotSupported, "branch data node doesn't support unset")
 }
 
 func (branch *DataBranch) SetValueString(value ...string) error {
@@ -365,6 +390,7 @@ func (branch *DataBranch) SetValueStringSafe(value ...string) error {
 	}
 	if err != nil {
 		recover(branch, backup)
+		return err
 	}
 	return nil
 }

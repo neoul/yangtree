@@ -82,7 +82,7 @@ func (leaf *DataLeaf) Update(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("update is not supported %q", leaf)
 }
 
-func (leaf *DataLeaf) Set(value ...string) error {
+func (leaf *DataLeaf) SetValue(value ...interface{}) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -97,13 +97,45 @@ func (leaf *DataLeaf) Set(value ...string) error {
 		return fmt.Errorf("data node %q is single value node", leaf)
 	}
 	for i := range value {
-		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, value[i])
+		err := ValidateValue(leaf.schema, leaf.schema.Type, value[i])
+		if err != nil {
+			return err
+		}
+		leaf.value = value[i]
+	}
+	return nil
+}
+
+func (leaf *DataLeaf) SetValueSafe(value ...interface{}) error {
+	return leaf.SetValue(value...)
+}
+
+func (leaf *DataLeaf) unsetValue() error {
+	if leaf.parent != nil {
+		if leaf.IsLeafList() {
+			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
+		}
+		if leaf.schema.IsKey {
+			// ignore id update
+			// return fmt.Errorf("unable to update id node %q if used", leaf)
+			return nil
+		}
+	}
+
+	if IsCreatedWithDefault(leaf.schema) && leaf.schema.Default != "" {
+		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, leaf.schema.Default)
 		if err != nil {
 			return err
 		}
 		leaf.value = v
+	} else {
+		leaf.value = nil
 	}
 	return nil
+}
+
+func (leaf *DataLeaf) UnsetValue(value ...interface{}) error {
+	return leaf.unsetValue()
 }
 
 func (leaf *DataLeaf) SetValueString(value ...string) error {
@@ -131,50 +163,11 @@ func (leaf *DataLeaf) SetValueString(value ...string) error {
 }
 
 func (leaf *DataLeaf) SetValueStringSafe(value ...string) error {
-	if leaf.parent != nil {
-		if leaf.IsLeafList() {
-			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
-		}
-		if leaf.schema.IsKey {
-			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaf)
-			return nil
-		}
-	}
-	backup := leaf.value
-	for i := range value {
-		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, value[i])
-		if err != nil {
-			leaf.value = backup
-			return err
-		}
-		leaf.value = v
-	}
-	return nil
+	return leaf.SetValueString(value...)
 }
 
 func (leaf *DataLeaf) UnsetValueString(value ...string) error {
-	if leaf.parent != nil {
-		if leaf.IsLeafList() {
-			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
-		}
-		if leaf.schema.IsKey {
-			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaf)
-			return nil
-		}
-	}
-
-	if IsCreatedWithDefault(leaf.schema) && leaf.schema.Default != "" {
-		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, leaf.schema.Default)
-		if err != nil {
-			return err
-		}
-		leaf.value = v
-	} else {
-		leaf.value = nil
-	}
-	return nil
+	return leaf.unsetValue()
 }
 
 func (leaf *DataLeaf) Remove() error {

@@ -90,7 +90,7 @@ func (leaflist *DataLeafList) Update(id string, value ...string) (DataNode, erro
 	return nil, fmt.Errorf("update is not supported %q", leaflist)
 }
 
-func (leaflist *DataLeafList) set(safe bool, value []string) error {
+func (leaflist *DataLeafList) setValueString(safe bool, value []string) error {
 	if leaflist.parent != nil {
 		// leaflist allows the set operation
 		// if leaflist.IsLeafList() {
@@ -144,12 +144,96 @@ func (leaflist *DataLeafList) set(safe bool, value []string) error {
 	return nil
 }
 
+func (leaflist *DataLeafList) setValue(safe bool, value []interface{}) error {
+	if leaflist.parent != nil {
+		// leaflist allows the set operation
+		// if leaflist.IsLeafList() {
+		// 	return fmt.Errorf("leaflist-list %q must be inserted or deleted", leaflist)
+		// }
+		if leaflist.schema.IsKey {
+			// ignore id update
+			// return fmt.Errorf("unable to update id node %q if used", leaflist)
+			return nil
+		}
+	}
+	var backup []interface{}
+	if safe && len(leaflist.value) > 0 {
+		backup = make([]interface{}, len(leaflist.value))
+		copy(backup, leaflist.value)
+	}
+	for i := range value {
+		if vv, ok := value[i].([]interface{}); ok {
+			if err := unmarshalYAML(leaflist, vv); err != nil {
+				if safe {
+					leaflist.value = backup
+				}
+				return err
+			}
+		} else {
+			var index int
+			err := ValidateValue(leaflist.schema, leaflist.schema.Type, value[i])
+			if err != nil {
+				if safe {
+					leaflist.value = backup
+				}
+				return err
+			}
+			if leaflist.schema.IsOrderedByUser() || leaflist.schema.IsState {
+				index = len(leaflist.value)
+			} else {
+				v := ValueToValueString(value[i])
+				index = sort.Search(len(leaflist.value),
+					func(j int) bool {
+						return ValueToValueString(leaflist.value[j]) >= v
+					})
+				if index < len(leaflist.value) && ValueToValueString(leaflist.value[index]) == v {
+					continue
+				}
+			}
+			leaflist.value = append(leaflist.value, nil)
+			copy(leaflist.value[index+1:], leaflist.value[index:])
+			leaflist.value[index] = value[i]
+		}
+	}
+	return nil
+}
+
+func (leaflist *DataLeafList) SetValue(value ...interface{}) error {
+	return leaflist.setValue(false, value)
+}
+
+func (leaflist *DataLeafList) SetValueSafe(value ...interface{}) error {
+	return leaflist.setValue(true, value)
+}
+
+func (leaflist *DataLeafList) UnsetValue(value ...interface{}) error {
+	if leaflist.parent != nil {
+		if leaflist.schema.IsKey {
+			// ignore id update
+			// return fmt.Errorf("unable to update id node %q if used", leaflist)
+			return nil
+		}
+	}
+	for i := range value {
+		v := ValueToValueString(value[i])
+		length := len(leaflist.value)
+		index := sort.Search(length,
+			func(j int) bool {
+				return ValueToValueString(leaflist.value[j]) >= v
+			})
+		if index < length && ValueToValueString(leaflist.value[index]) == v {
+			leaflist.value = append(leaflist.value[:index], leaflist.value[index+1:]...)
+		}
+	}
+	return nil
+}
+
 func (leaflist *DataLeafList) SetValueString(value ...string) error {
-	return leaflist.set(false, value)
+	return leaflist.setValueString(false, value)
 }
 
 func (leaflist *DataLeafList) SetValueStringSafe(value ...string) error {
-	return leaflist.set(true, value)
+	return leaflist.setValueString(true, value)
 }
 
 func (leaflist *DataLeafList) UnsetValueString(value ...string) error {

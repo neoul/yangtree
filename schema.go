@@ -801,7 +801,7 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 	case yang.Ystring, yang.Ybinary:
 		v, ok := value.(string)
 		if !ok {
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		if len(typ.Range) > 0 {
 			length := yang.FromInt(int64(len(v)))
@@ -838,12 +838,12 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 	case yang.Ybool:
 		_, ok := value.(bool)
 		if !ok {
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		return nil
 	case yang.Yempty:
 		if value != nil {
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		return nil
 	case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64:
@@ -859,8 +859,18 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 			number = yang.FromInt(int64(v))
 		case int64:
 			number = yang.FromInt(int64(v))
+		case uint:
+			number = yang.FromInt(int64(v))
+		case uint8:
+			number = yang.FromInt(int64(v))
+		case uint16:
+			number = yang.FromInt(int64(v))
+		case uint32:
+			number = yang.FromInt(int64(v))
+		case uint64:
+			number = yang.FromInt(int64(v))
 		default:
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		if len(typ.Range) > 0 {
 			inrange := false
@@ -873,6 +883,7 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 				return fmt.Errorf("%q is out of the range, %v", value, typ.Range)
 			}
 		}
+		return nil
 	case yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
 		var number yang.Number
 		switch v := value.(type) {
@@ -886,8 +897,18 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 			number = yang.FromUint(uint64(v))
 		case uint64:
 			number = yang.FromUint(uint64(v))
+		case int:
+			number = yang.FromUint(uint64(v))
+		case int8:
+			number = yang.FromUint(uint64(v))
+		case int16:
+			number = yang.FromUint(uint64(v))
+		case int32:
+			number = yang.FromUint(uint64(v))
+		case int64:
+			number = yang.FromUint(uint64(v))
 		default:
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		if len(typ.Range) > 0 {
 			inrange := false
@@ -900,18 +921,20 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 				return fmt.Errorf("%q is out of the range, %v", value, typ.Range)
 			}
 		}
+		return nil
 	case yang.Ybits, yang.Yenum:
 		v, ok := value.(string)
 		if !ok {
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		if _, ok := schema.Enum[v]; ok {
 			return nil
 		}
+		return fmt.Errorf("enum or bits %q not found", value)
 	case yang.Yidentityref:
 		v, ok := value.(string)
 		if !ok {
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		if i := strings.Index(v, ":"); i >= 0 {
 			iref := v[i+1:]
@@ -927,7 +950,7 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 	case yang.Yleafref:
 		_, ok := value.(string)
 		if !ok {
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		// [FIXME] Check the schema ? or data ?
 		// [FIXME] check the path refered
@@ -940,7 +963,7 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 		case float64:
 			number = yang.FromFloat(float64(v))
 		default:
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		if len(typ.Range) > 0 {
 			inrange := false
@@ -953,6 +976,7 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 				return fmt.Errorf("%q is out of the range, %v", value, typ.Range)
 			}
 		}
+		return nil
 	case yang.Yunion:
 		for i := range typ.Type {
 			err := ValidateValue(schema, typ.Type[i], value)
@@ -963,13 +987,13 @@ func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) er
 	case yang.YinstanceIdentifier:
 		_, ok := value.(string)
 		if !ok {
-			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+			return fmt.Errorf("an invalid type value %T inserted for %q", value, schema)
 		}
 		return nil
 	case yang.Ynone:
 		break
 	}
-	return fmt.Errorf("invalid value %q inserted for %q", value, schema)
+	return fmt.Errorf("invalid value %v (%T) inserted for %q", value, value, schema)
 }
 
 // ValueStringToValue() converts a string value to an yangtree value
