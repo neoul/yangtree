@@ -671,27 +671,10 @@ func setString(root DataNode, pathnode []*PathNode, eopt *EditOption, value []st
 	}
 }
 
-// Set sets a value to the target DataNode in the path.
+// SetValueString sets a value to the target DataNode in the path.
 // If the target DataNode is a branch node, the value must be json or json_ietf bytes.
 // If the target data node is a leaf or a leaf-list node, the value should be string.
-func SetValueString(root DataNode, path string, value ...string) error {
-	if !IsValid(root) {
-		return fmt.Errorf("invalid root data node")
-	}
-	pathnode, err := ParsePath(&path)
-	if err != nil {
-		return err
-	}
-	if err := setString(root, pathnode, nil, value); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Edit sets a value to the target DataNode in the path.
-// If the target DataNode is a branch node, the value must be json or json_ietf bytes.
-// If the target data node is a leaf or a leaf-list node, the value should be string.
-func Edit(opt *EditOption, root DataNode, path string, value ...string) error {
+func SetValueString(root DataNode, path string, opt *EditOption, value ...string) error {
 	if !IsValid(root) {
 		return fmt.Errorf("invalid root data node")
 	}
@@ -1213,7 +1196,7 @@ func Merge(root DataNode, path string, src DataNode) error {
 	switch len(node) {
 	case 0:
 		editopt := &EditOption{EditOp: EditMerge}
-		err = Edit(editopt, root, path)
+		err = SetValueString(root, path, editopt)
 		if err != nil {
 			return err
 		}

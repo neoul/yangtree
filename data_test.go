@@ -88,7 +88,7 @@ func TestNewDataNode(t *testing.T) {
 	}
 
 	// Set
-	err = SetValueString(root1, "/sample/container-val/enum-val", "enum1")
+	err = SetValueString(root1, "/sample/container-val/enum-val", nil, "enum1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -150,7 +150,7 @@ func TestChildDataNodeListing(t *testing.T) {
 		"/sample/multiple-key-list[str=first][integer=1]/ok",
 	}
 	for i := range input {
-		SetValueString(RootData, input[i], "")
+		SetValueString(RootData, input[i], nil, "")
 	}
 	// sort.Strings(input)
 	// pretty.Print(input)
@@ -241,7 +241,7 @@ func TestDataNode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("SetValueString."+tt.path, func(t *testing.T) {
-			err := SetValueString(RootData, tt.path, tt.value)
+			err := SetValueString(RootData, tt.path, nil, tt.value)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("SetValueString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
@@ -648,9 +648,9 @@ func TestEdit(t *testing.T) {
 			}
 			deleted = nil
 			updated = nil
-			err := Edit(&tt.opt, root, tt.path, val...)
+			err := SetValueString(root, tt.path, &tt.opt, val...)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Edit(%s) error = %v, wantErr %v", name, err, tt.wantErr)
+				t.Errorf("SetValueString(%s) error = %v, wantErr %v", name, err, tt.wantErr)
 				return
 			}
 			var got []DataNode
@@ -674,7 +674,7 @@ func TestEdit(t *testing.T) {
 
 			if !tt.wantErr {
 				if len(got) != tt.expected {
-					t.Errorf("Edit(%s) num = %v, expected %v", name, len(got), tt.expected)
+					t.Errorf("SetValueString(%s) num = %v, expected %v", name, len(got), tt.expected)
 					for i := range updated {
 						t.Logf("updated %s\n", updated[i].Path())
 					}
@@ -695,7 +695,7 @@ func TestEdit(t *testing.T) {
 				case EditRemove, EditDelete:
 					return
 					// if len(found) > 0 {
-					// 	t.Errorf("Edit(%s) error: %v", name, fmt.Errorf("deleting data node %q found", tt.path))
+					// 	t.Errorf("SetValueString(%s) error: %v", name, fmt.Errorf("deleting data node %q found", tt.path))
 					// 	return
 					// }
 				}
@@ -703,23 +703,23 @@ func TestEdit(t *testing.T) {
 				case got[0].IsLeafList():
 					group, err := ConvertToDataNodeGroup(nil, got)
 					if err != nil {
-						t.Errorf("Edit() error: %v", fmt.Errorf("converting to data node group failed: %v", err))
+						t.Errorf("SetValueString() error: %v", fmt.Errorf("converting to data node group failed: %v", err))
 						return
 					}
 					b, err := group.MarshalJSON()
 					if err != nil {
-						t.Errorf("Edit() error: %v", fmt.Errorf("marshalling json for %q failed: %v", tt.path, err))
+						t.Errorf("SetValueString() error: %v", fmt.Errorf("marshalling json for %q failed: %v", tt.path, err))
 						return
 					}
 					if string(b) != tt.value {
-						t.Errorf("Edit() error: %v", fmt.Errorf(
+						t.Errorf("SetValueString() error: %v", fmt.Errorf(
 							"the value %q of the editing data %q is not equal to %q",
 							string(b), tt.path, tt.value))
 						return
 					}
 				case got[0].IsLeaf():
 					if tt.value != nil && got[0].ValueString() != tt.value {
-						t.Errorf("Edit() error: %v", fmt.Errorf(
+						t.Errorf("SetValueString() error: %v", fmt.Errorf(
 							"the value %q of the editing data %q is not equal to %q",
 							got[0].ValueString(), tt.path, tt.value))
 						return
@@ -808,7 +808,7 @@ func TestAnyData(t *testing.T) {
 	j, _ = MarshalJSON(root2)
 	t.Log(string(j))
 
-	if err := Edit(&EditOption{}, root1, "sample/any"); err != nil {
+	if err := SetValueString(root1, "sample/any", &EditOption{}); err != nil {
 		t.Fatal(err)
 	}
 	nodes, err := Find(root1, "sample/any")

@@ -103,7 +103,7 @@ func TestSingleLeafList(t *testing.T) {
 		}
 	}
 	`
-	if err := SetValueString(root, "sample", jcontainer); err != nil {
+	if err := SetValueString(root, "sample", nil, jcontainer); err != nil {
 		t.Fatalf("sample set failed: %v", err)
 	}
 	if j, err := MarshalJSON(root, RFC7951Format{}); err != nil {
@@ -143,7 +143,7 @@ func TestSingleLeafList(t *testing.T) {
 	for _, tt := range testItem2 {
 		t.Run(fmt.Sprint("single-leaf-list test", tt.values), func(t *testing.T) {
 			// Set each values
-			if err := SetValueString(root, "sample/container-val/leaf-list-val", tt.values...); err != nil {
+			if err := SetValueString(root, "sample/container-val/leaf-list-val", nil, tt.values...); err != nil {
 				t.Fatalf("sample set failed: %v", err)
 			}
 			j, err = MarshalJSON(found[0], RFC7951Format{})
@@ -186,16 +186,16 @@ func TestMultipleLeafList(t *testing.T) {
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "leaf-list-5", numOfNodes: 5},
 	}
 	for _, tt := range rwLeafListTest {
-		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
+		t.Run(fmt.Sprintf("SetValueString.%s %v", tt.path, tt.value), func(t *testing.T) {
 			editopt := &EditOption{EditOp: EditMerge}
-			err := Edit(editopt, RootData, tt.path, tt.value)
+			err := SetValueString(RootData, tt.path, editopt, tt.value)
 			if (err != nil) != tt.wantInsertErr {
-				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				t.Errorf("SetValueString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 				return
 			}
 			if sample := RootData.Get("sample"); sample != nil {
 				if sample.Len() != tt.numOfNodes {
-					t.Errorf("Edit() error = unexpected number of nodes in %s, expected num %d, got %d", tt.path, tt.numOfNodes, sample.Len())
+					t.Errorf("SetValueString() error = unexpected number of nodes in %s, expected num %d, got %d", tt.path, tt.numOfNodes, sample.Len())
 					return
 				}
 			}
@@ -205,7 +205,7 @@ func TestMultipleLeafList(t *testing.T) {
 		t.Run(fmt.Sprintf("Delete.%s", rwLeafListTest[i].path), func(t *testing.T) {
 			// err := Delete(RootData, rwLeafListTest[i].path)
 			editopt := &EditOption{EditOp: EditRemove}
-			err := Edit(editopt, RootData, rwLeafListTest[i].path, rwLeafListTest[i].value)
+			err := SetValueString(RootData, rwLeafListTest[i].path, editopt, rwLeafListTest[i].value)
 			if (err != nil) != rwLeafListTest[i].wantDeleteErr {
 				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, rwLeafListTest[i].wantDeleteErr, rwLeafListTest[i].path)
 			}
@@ -230,16 +230,16 @@ func TestMultipleLeafList(t *testing.T) {
 		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5", numOfNodes: 7},
 	}
 	for _, tt := range roLeafListTest {
-		t.Run(fmt.Sprintf("Edit.%s %v", tt.path, tt.value), func(t *testing.T) {
+		t.Run(fmt.Sprintf("SetValueString.%s %v", tt.path, tt.value), func(t *testing.T) {
 			editopt := &EditOption{EditOp: EditMerge}
-			err := Edit(editopt, RootData, tt.path, tt.value)
+			err := SetValueString(RootData, tt.path, editopt, tt.value)
 			if (err != nil) != tt.wantInsertErr {
-				t.Errorf("Edit() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				t.Errorf("SetValueString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 				return
 			}
 			if sample := RootData.Get("sample"); sample != nil {
 				if sample.Len() != tt.numOfNodes {
-					t.Errorf("Edit() error = unexpected number of nodes in %s, expected num %d, got %d", tt.path, tt.numOfNodes, sample.Len())
+					t.Errorf("SetValueString() error = unexpected number of nodes in %s, expected num %d, got %d", tt.path, tt.numOfNodes, sample.Len())
 					return
 				}
 			}
@@ -249,7 +249,7 @@ func TestMultipleLeafList(t *testing.T) {
 		t.Run(fmt.Sprintf("Delete.%s", roLeafListTest[i].path), func(t *testing.T) {
 			// err := Delete(RootData, roLeafListTest[i].path)
 			editopt := &EditOption{EditOp: EditRemove}
-			err := Edit(editopt, RootData, roLeafListTest[i].path, roLeafListTest[i].value)
+			err := SetValueString(RootData, roLeafListTest[i].path, editopt, roLeafListTest[i].value)
 			if (err != nil) != roLeafListTest[i].wantDeleteErr {
 				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, roLeafListTest[i].wantDeleteErr, roLeafListTest[i].path)
 			}

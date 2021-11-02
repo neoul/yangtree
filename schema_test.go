@@ -77,7 +77,7 @@ func TestYANGMetaData(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("SetValueString."+tt.path, func(t *testing.T) {
-			err := SetValueString(RootData, tt.path, tt.value)
+			err := SetValueString(RootData, tt.path, nil, tt.value)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("SetValueString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
