@@ -494,7 +494,7 @@ func setGroupValue(branch *DataBranch, cschema *SchemaNode, oldnodes []DataNode,
 //  // - EditOption (remove): delete the node. It doesn't return data-missing error.
 func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value []string) error {
 	op := eopt.GetOperation()
-	if len(pathnode) == 0 || pathnode[0].Name == "" {
+	if len(pathnode) == 0 {
 		switch op {
 		case EditCreate:
 			return Errorf(ETagDataExists, "data node %q already exists", root.ID())
@@ -891,9 +891,6 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 		return children
 	}
 
-	if pathnode[0].Name == "" {
-		return returnFound(root, option...)
-	}
 	// [FIXME]
 	if root.IsLeafNode() {
 		if root.Schema().Option.LeafListValueAsKey {

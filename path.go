@@ -165,6 +165,7 @@ func ParsePath(path *string) ([]*PathNode, error) {
 			if insideBrackets <= 0 {
 				if (*path)[end-1] == '/' {
 					pathnode.Select = NodeSelectAll
+					pathnode.Name = "..."
 				} else {
 					if begin < end {
 						pathnode.Name = (*path)[begin:end]

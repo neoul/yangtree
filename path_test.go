@@ -3,8 +3,6 @@ package yangtree
 import (
 	"reflect"
 	"testing"
-
-	"github.com/neoul/gdump"
 )
 
 func TestParsePath(t *testing.T) {
@@ -76,7 +74,7 @@ func TestParsePath(t *testing.T) {
 			path: "library//isbn",
 			want: []*PathNode{
 				&PathNode{Name: "library", Select: NodeSelectChild},
-				&PathNode{Name: "", Select: NodeSelectAll},
+				&PathNode{Name: "...", Select: NodeSelectAll},
 				&PathNode{Name: "isbn", Select: NodeSelectChild},
 			},
 		},
@@ -106,8 +104,6 @@ func TestParsePath(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ParsePath() = %v, want %v", got, tt.want)
-				gdump.Print(got)
-				gdump.Print(tt.want)
 			}
 		})
 	}
