@@ -210,7 +210,7 @@ func (branch *DataBranch) GetOrNew(id string, insert InsertOption) (DataNode, bo
 	if len(children) > 0 {
 		return children[0], false, nil
 	}
-	child, err := NewDataNode(cschema)
+	child, err := NewWithValueString(cschema)
 	if err != nil {
 		return nil, false, err
 	}
@@ -242,7 +242,7 @@ func (branch *DataBranch) Create(id string, value ...string) (DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	n, err := NewDataNode(cschema, value...)
+	n, err := NewWithValueString(cschema, value...)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	n, err := NewDataNode(cschema, value...)
+	n, err := NewWithValueString(cschema, value...)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func (branch *DataBranch) SetValueString(value ...string) error {
 				if branch.Get(s.Name) != nil {
 					continue
 				}
-				c, err := NewDataNode(s)
+				c, err := NewWithValueString(s)
 				if err != nil {
 					return err
 				}
@@ -366,7 +366,7 @@ func (branch *DataBranch) SetValueStringSafe(value ...string) error {
 					continue
 				}
 				var c DataNode
-				c, err = NewDataNode(s)
+				c, err = NewWithValueString(s)
 				if err != nil {
 					break
 				}
@@ -478,7 +478,7 @@ func (branch *DataBranch) SetMeta(meta ...map[string]string) error {
 	// 			branch.metadata = map[string]DataNode{}
 	// 		}
 
-	// 		metanode, err := NewDataNode(schema, value)
+	// 		metanode, err := NewWithValueString(schema, value)
 	// 		if err != nil {
 	// 			return fmt.Errorf("error in seting metadata: %v", err)
 	// 		}
@@ -666,7 +666,7 @@ func (branch *DataBranch) CreateByMap(pmap map[string]interface{}) error {
 				if k == "." {
 					continue
 				} else if found := branch.Get(k); found == nil {
-					newnode, err := NewDataNode(branch.Schema().GetSchema(k), vstr)
+					newnode, err := NewWithValueString(branch.Schema().GetSchema(k), vstr)
 					if err != nil {
 						return err
 					}
@@ -690,7 +690,7 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 				}
 				found := branch.Get(k)
 				if found == nil {
-					newnode, err := NewDataNode(branch.Schema().GetSchema(k), vstr)
+					newnode, err := NewWithValueString(branch.Schema().GetSchema(k), vstr)
 					if err != nil {
 						return err
 					}

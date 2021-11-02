@@ -41,7 +41,7 @@ func TestYANGMetaData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}
-	RootData, err := NewDataNode(RootSchema)
+	RootData, err := NewWithValueString(RootSchema)
 	if err != nil {
 		t.Fatalf("error in new yangtree: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestYANGExtension(t *testing.T) {
 	}
 
 	lastmodifiedSchema := schema.Extension["last-modified"]
-	node, err := NewDataNode(lastmodifiedSchema, "2021-11-02T12:56:00Z")
+	node, err := NewWithValueString(lastmodifiedSchema, "2021-11-02T12:56:00Z")
 	if err != nil {
 		t.Fatalf("error in creating an last-modified extension data node: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestYANGExtension(t *testing.T) {
 		t.Fatalf("error in storing an last-modified extension data node: %v", err)
 	}
 	yangapiSchema := schema.Extension["yang-api"]
-	node, err = NewDataNode(yangapiSchema)
+	node, err = NewWithValueString(yangapiSchema)
 	if err != nil {
 		t.Fatalf("error in creating an last-modified extension data node: %v", err)
 	}

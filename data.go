@@ -281,17 +281,25 @@ func (branch *DataBranch) insert(child DataNode, iopt InsertOption) (DataNode, e
 	return nil, nil
 }
 
-// NewDataNodeCollector() creates a fake node that can be used to collect all kindes of data nodes.
+// NewCollector() creates a fake node that can be used to collect all kindes of data nodes.
 // Any of data nodes can be contained to the collector data node.
-func NewDataNodeCollector() DataNode {
-	node, _ := NewDataNode(collector)
+func NewCollector() DataNode {
+	node, _ := NewWithValueString(collector)
 	return node
 }
 
-// NewDataNode() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
+// New() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema.
+func New(schema *SchemaNode) (DataNode, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+	return newDataNode(schema)
+}
+
+// NewByValue() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
 // with its values. The values should be a string if the new DataNode is *DataLeaf, *DataLeafList.
 // The values should be JSON encoded bytes if the node is *DataBranch.
-func NewDataNode(schema *SchemaNode, value ...string) (DataNode, error) {
+func NewByValue(schema *SchemaNode, value ...string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
@@ -307,8 +315,27 @@ func NewDataNode(schema *SchemaNode, value ...string) (DataNode, error) {
 	return node, err
 }
 
-// NewDataNodeByID() creates a new DataNode using id
-func NewDataNodeByID(schema *SchemaNode, id string) (DataNode, error) {
+// NewWithValueString() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
+// with its values. The values should be a string if the new DataNode is *DataLeaf, *DataLeafList.
+// The values should be JSON encoded bytes if the node is *DataBranch.
+func NewWithValueString(schema *SchemaNode, value ...string) (DataNode, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+	node, err := newDataNode(schema)
+	if err != nil {
+		return nil, err
+	}
+	for i := range value {
+		if err = node.SetValueString(value[i]); err != nil {
+			return nil, err
+		}
+	}
+	return node, err
+}
+
+// NewWithID() creates a new DataNode using id (NODE_NAME or NODE_NAME[KEY=VALUE])
+func NewWithID(schema *SchemaNode, id string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
@@ -368,7 +395,7 @@ func newDataNode(schema *SchemaNode) (DataNode, error) {
 		if soption.CreatedWithDefault {
 			for _, s := range schema.Children {
 				if !s.IsDir() && s.Default != "" {
-					c, err := NewDataNode(s)
+					c, err := NewWithValueString(s)
 					if err != nil {
 						return nil, err
 					}
@@ -631,7 +658,7 @@ func setString(root DataNode, pathnode []*PathNode, eopt *EditOption, value []st
 
 	switch len(children) {
 	case 0:
-		child, err := NewDataNode(cschema)
+		child, err := NewWithValueString(cschema)
 		if err != nil {
 			return err
 		}
@@ -745,7 +772,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
 	children := branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	if len(children) == 0 { // create
-		child, err := NewDataNode(cschema)
+		child, err := NewWithValueString(cschema)
 		if err != nil {
 			return err
 		}
@@ -1283,7 +1310,7 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 
 		switch len(children) {
 		case 0:
-			child, err := NewDataNode(cschema)
+			child, err := NewWithValueString(cschema)
 			if err != nil {
 				return nil, nil, err
 			}

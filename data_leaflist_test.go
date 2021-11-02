@@ -52,9 +52,9 @@ func TestSingleLeafList(t *testing.T) {
 	for _, tt := range testItem1 {
 		t.Run("Set."+tt.path, func(t *testing.T) {
 			singleLeafListSchema := schema.FindSchema(tt.path)
-			singleLeafList, err := NewDataNode(singleLeafListSchema, tt.input)
+			singleLeafList, err := NewWithValueString(singleLeafListSchema, tt.input)
 			if err != nil {
-				t.Errorf("NewDataNode() error = %v, path = %s", err, tt.path)
+				t.Errorf("NewWithValueString() error = %v, path = %s", err, tt.path)
 				return
 			}
 			// check the values of the single leaf-list (ordered-by system)
@@ -86,7 +86,7 @@ func TestSingleLeafList(t *testing.T) {
 		})
 	}
 
-	root, err := NewDataNode(schema)
+	root, err := NewWithValueString(schema)
 	if err != nil {
 		t.Fatalf("root creation failed: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestMultipleLeafList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := NewDataNode(RootSchema)
+	RootData, err := NewWithValueString(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -303,7 +303,7 @@ func unmarshalJSONListNode(parent DataNode, cschema *SchemaNode, kname []string,
 	var child, found DataNode
 	id := idBuilder.String()
 	if found = parent.Get(id); found == nil {
-		child, err = NewDataNodeByID(cschema, id)
+		child, err = NewWithID(cschema, id)
 		if err != nil {
 			return err
 		}
@@ -325,7 +325,7 @@ func unmarshalJSONListNode(parent DataNode, cschema *SchemaNode, kname []string,
 func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []string, arrary []interface{}) error {
 	if cschema.IsLeafList() {
 		for i := range arrary {
-			child, err := NewDataNode(cschema)
+			child, err := NewWithValueString(cschema)
 			if err != nil {
 				return err
 			}
@@ -370,7 +370,7 @@ func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []str
 			child = found
 		}
 		if child == nil {
-			child, err = NewDataNodeByID(cschema, id)
+			child, err = NewWithID(cschema, id)
 			if err != nil {
 				return err
 			}
@@ -416,7 +416,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 				default:
 					var err error
 					if child := node.Get(k); child == nil {
-						if child, err = NewDataNode(cschema); err != nil {
+						if child, err = NewWithValueString(cschema); err != nil {
 							return Error(EAppTagYAMLParsing, err)
 						}
 						if err = unmarshalJSON(child, cschema, v); err != nil {

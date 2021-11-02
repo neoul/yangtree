@@ -63,7 +63,7 @@ func TestTraverse(t *testing.T) {
 		}
 	   }
 	`
-	root1, err := NewDataNode(RootSchema, jbyte)
+	root1, err := NewWithValueString(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}

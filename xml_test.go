@@ -27,7 +27,7 @@ func TestXML(t *testing.T) {
 		t.Fatalf("failed to get yang library")
 	}
 	xmlstr, _ := xml.MarshalIndent(yanglib, "", " ")
-	newyanglib, err := NewDataNode(yanglib.Schema())
+	newyanglib, err := NewWithValueString(yanglib.Schema())
 	if err != nil {
 		t.Fatalf("error in new: %v", err)
 	}

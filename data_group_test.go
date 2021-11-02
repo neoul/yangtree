@@ -21,7 +21,7 @@ func TestNewDataGroup(t *testing.T) {
 		values := []string{"first", "fourth", "second", "third"}
 		expected := []DataNode{}
 		for _, value := range values {
-			n, _ := NewDataNode(schema, value)
+			n, _ := NewWithValueString(schema, value)
 			expected = append(expected, n)
 		}
 		for i := 0; i < 4; i++ {
@@ -77,7 +77,7 @@ func TestNewDataGroup(t *testing.T) {
 		}
 		expected := []DataNode{}
 		for _, value := range values {
-			n, _ := NewDataNode(schema, value)
+			n, _ := NewWithValueString(schema, value)
 			expected = append(expected, n)
 		}
 		for i := 0; i < 3; i++ {

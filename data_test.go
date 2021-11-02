@@ -62,14 +62,14 @@ func TestNewDataNode(t *testing.T) {
 		}
 	   }
 	`
-	root1, err := NewDataNode(RootSchema, jbyte)
+	root1, err := NewWithValueString(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
 	j, _ := MarshalJSON(root1)
 	t.Log(string(j))
 
-	root2, err := NewDataNode(RootSchema, jbyte)
+	root2, err := NewWithValueString(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestNewDataNode(t *testing.T) {
 	if s == nil {
 		t.Error("schema multiple-key-list not found")
 	}
-	mnode, err := NewDataNode(s, mergingData)
+	mnode, err := NewWithValueString(s, mergingData)
 	if err != nil {
 		t.Error("new failed", err)
 	}
@@ -129,7 +129,7 @@ func TestChildDataNodeListing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := NewDataNode(RootSchema)
+	RootData, err := NewWithValueString(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestDataNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := NewDataNode(RootSchema)
+	RootData, err := NewWithValueString(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -385,7 +385,7 @@ func TestComplexModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rootdata, err := NewDataNode(rootschema)
+	rootdata, err := NewWithValueString(rootschema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,7 +463,7 @@ func TestCreatedWithDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rootdata, err := NewDataNode(rootschema)
+	rootdata, err := NewWithValueString(rootschema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -515,14 +515,14 @@ func TestReplace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, err := NewDataNode(rootschema)
+	root, err := NewWithValueString(rootschema)
 	if err != nil {
 		t.Fatal(err)
 	}
 	schema := rootschema.FindSchema("interfaces/interface")
 	for i := 1; i < 5; i++ {
 		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
-		new, err := NewDataNode(schema, v)
+		new, err := NewWithValueString(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -533,7 +533,7 @@ func TestReplace(t *testing.T) {
 	}
 	for i := 3; i < 7; i++ {
 		v := `{ "config": {"enabled":"true"}, "state": {"admin-status":"UP"}}`
-		new, err := NewDataNode(schema, v)
+		new, err := NewWithValueString(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -559,7 +559,7 @@ func TestEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, err := NewDataNode(schema)
+	root, err := NewWithValueString(schema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -794,14 +794,14 @@ func TestAnyData(t *testing.T) {
 		}
 	   }
 	`
-	root1, err := NewDataNode(RootSchema, jbyte)
+	root1, err := NewWithValueString(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
 	j, _ := MarshalJSON(root1)
 	t.Log(string(j))
 
-	root2, err := NewDataNode(RootSchema, jbyte)
+	root2, err := NewWithValueString(RootSchema, jbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -864,7 +864,7 @@ non-key-list:
 		t.Errorf("any has different values: %v", string(y))
 	}
 
-	// collector := NewDataNodeCollector()
+	// collector := NewCollector()
 	// collector.Insert(root2)
 	// y, _ = MarshalYAML(collector)
 	// fmt.Println(string(y))

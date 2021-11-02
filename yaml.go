@@ -47,7 +47,7 @@ func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string,
 	id := idBuilder.String()
 	var child, found DataNode
 	if found = parent.Get(id); found == nil {
-		child, err = NewDataNodeByID(cschema, id)
+		child, err = NewWithID(cschema, id)
 		if err != nil {
 			return err
 		}
@@ -70,7 +70,7 @@ func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string,
 func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []string, sequnce []interface{}) error {
 	if cschema.IsLeafList() {
 		for i := range sequnce {
-			child, err := NewDataNode(cschema)
+			child, err := NewWithValueString(cschema)
 			if err != nil {
 				return err
 			}
@@ -115,7 +115,7 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 			child = found
 		}
 		if child == nil {
-			child, err = NewDataNodeByID(cschema, id)
+			child, err = NewWithID(cschema, id)
 			if err != nil {
 				return err
 			}
@@ -193,7 +193,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 					}
 				} else {
 					if child := node.Get(keystr); child == nil {
-						if child, err = NewDataNode(cschema); err != nil {
+						if child, err = NewWithValueString(cschema); err != nil {
 							return Error(EAppTagYAMLParsing, err)
 						}
 						if err = unmarshalYAML(child, v); err != nil {

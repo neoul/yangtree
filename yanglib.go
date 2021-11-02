@@ -193,7 +193,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 		if rootschema.Option != nil && rootschema.Option.SchemaSetName != "" {
 			moduleSetName = rootschema.Option.SchemaSetName
 		}
-		top, err = NewDataNode(rootschema.GetSchema("yang-library"))
+		top, err = NewWithValueString(rootschema.GetSchema("yang-library"))
 		if err != nil {
 			return fmt.Errorf(`yanglib: %q not found`, "yang-library")
 		}
@@ -304,7 +304,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 			return fmt.Errorf("yanglib: content-id generation error: %v", err)
 		}
 	case "2016-06-21":
-		top, err = NewDataNode(rootschema.GetSchema("modules-state"))
+		top, err = NewWithValueString(rootschema.GetSchema("modules-state"))
 		if err != nil {
 			return fmt.Errorf(`yanglib: %q not found`, "modules-state")
 		}

@@ -31,23 +31,23 @@ type DataNode interface {
 	Merge(src DataNode) error                                // Merge() merges the src node including all children to the current data node.
 	Remove() error                                           // Remove() removes itself.
 
-	// GetOrNew() gets or creates a node having the id (NODE[KEY=VALUE]) and returns
+	// GetOrNew() gets or creates a node having the id (NODE_NAME or NODE_NAME[KEY=VALUE]) and returns
 	// the found or created node with the boolean value that
 	// indicates the returned node is created.
 	GetOrNew(id string, i InsertOption) (DataNode, bool, error)
 
-	Create(id string, value ...string) (DataNode, error) // Create() creates a child using the node id (NODE_NAME[KEY=VALUE]).
-	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id using the input values.
+	Create(id string, value ...string) (DataNode, error) // Create() creates a child using the node id (NODE_NAME or NODE_NAME[KEY=VALUE]).
+	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id (NODE_NAME or NODE_NAME[KEY=VALUE]) using the input values.
 
 	CreateByMap(pmap map[string]interface{}) error // CreateByMap() updates the data node using pmap (path predicate map) and string values.
 	UpdateByMap(pmap map[string]interface{}) error // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 
 	Exist(id string) bool              // Exist() is used to check a data node is present.
 	Get(id string) DataNode            // Get() is used to get the first child has the id.
-	GetValue(id string) interface{}    // GetValue() is used to get the value of the child that has the ID.
-	GetValueString(id string) string   // GetValueString() is used to get the value, converted to string, of the child that has the ID.
+	GetValue(id string) interface{}    // GetValue() is used to get the value of the child that has the id.
+	GetValueString(id string) string   // GetValueString() is used to get the value, converted to string, of the child that has the id.
 	GetAll(id string) []DataNode       // GetAll() is used to get all children that have the id.
-	Lookup(idPrefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix string of the node ID.
+	Lookup(idPrefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix string of the node id.
 
 	Len() int                 // Len() returns the number of children or the number of values.
 	Index(id string) int      // Index() finds all children by the node id and returns the position.
@@ -57,7 +57,6 @@ type DataNode interface {
 	Path() string                      // Path() returns the path from the root to the current data node.
 	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
 
-	// [TBD]
 	SetValue(value ...interface{}) error     // SetValue() writes the values to the data node.
 	SetValueSafe(value ...interface{}) error // SetValueSafe() writes the values to the data node. It will recover the value if failed.
 	UnsetValue(value ...interface{}) error   // UnsetValue() clear the value of the data node to the default.

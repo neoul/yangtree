@@ -29,7 +29,7 @@ func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, erro
 	case schema.IsSingleLeafList():
 		break
 	case schema.IsLeafList():
-		collector := NewDataNodeCollector().(*DataBranch)
+		collector := NewCollector().(*DataBranch)
 		if len(value) == 1 {
 			if strings.HasPrefix(value[0], "[") && strings.HasSuffix(value[0], "]") {
 				var jval interface{}
@@ -50,7 +50,7 @@ func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, erro
 			}
 		}
 		for i := range value {
-			node, err := NewDataNode(schema, value[i])
+			node, err := NewWithValueString(schema, value[i])
 			if err != nil {
 				return nil, err
 			}
@@ -63,7 +63,7 @@ func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, erro
 			Nodes:  copyDataNodeList(collector.children),
 		}, nil
 	case schema.IsList():
-		collector := NewDataNodeCollector().(*DataBranch)
+		collector := NewCollector().(*DataBranch)
 		for i := range value {
 			var jval interface{}
 			if err := json.Unmarshal([]byte(value[i]), &jval); err != nil {
@@ -92,7 +92,7 @@ func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, erro
 			Nodes:  copyDataNodeList(collector.children),
 		}, nil
 	}
-	node, err := NewDataNode(schema, value...)
+	node, err := NewWithValueString(schema, value...)
 	if err != nil {
 		return nil, err
 	}
