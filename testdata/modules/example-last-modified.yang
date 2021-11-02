@@ -1,4 +1,5 @@
 module example-last-modified {
+    revision "2021-11-02";
     namespace "http://example.org/example-last-modified";
     prefix "elm";
     import ietf-yang-types {

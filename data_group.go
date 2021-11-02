@@ -365,7 +365,7 @@ func (group *DataNodeGroup) MarshalYAML() (interface{}, error) {
 	ynode := &yamlNode{
 		DataNode: group,
 	}
-	return ynode.marshalYAML2(true)
+	return ynode.toMap(true)
 }
 
 func (group *DataNodeGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {

@@ -546,8 +546,8 @@ func (ynode *yamlNode) skip(node DataNode) bool {
 	return false
 }
 
-// marshalYAML2() encodes the data node using golang yaml marshaler interface.
-func (ynode *yamlNode) marshalYAML2(skipRootMarshalling bool) (interface{}, error) {
+// toMap() encodes the data node using golang yaml marshaler interface.
+func (ynode *yamlNode) toMap(skipRootMarshalling bool) (interface{}, error) {
 	top := make(map[interface{}]interface{})
 	curkeys := make([]interface{}, 0, 8)
 	parent := top
@@ -736,7 +736,7 @@ func (ynode *yamlNode) marshalYAML2(skipRootMarshalling bool) (interface{}, erro
 }
 
 func (ynode *yamlNode) MarshalYAML() (interface{}, error) {
-	return ynode.marshalYAML2(false)
+	return ynode.toMap(false)
 }
 
 // InternalFormat is an option to marshal a data node to an internal YAML format.

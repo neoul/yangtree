@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -95,8 +96,35 @@ func TestYANGExtension(t *testing.T) {
 	}
 	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
-	_, err := Load(yangfiles, dir, excluded)
+	schema, err := Load(yangfiles, dir, excluded, SchemaOption{YANGLibrary2016: true})
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}
+	for key, extschema := range schema.Extension {
+		fmt.Println(key, extschema.Name)
+	}
+
+	lastmodifiedSchema := schema.Extension["last-modified"]
+	node, err := NewDataNode(lastmodifiedSchema, "2021-11-02T12:56:00Z")
+	if err != nil {
+		t.Fatalf("error in creating an last-modified extension data node: %v", err)
+	}
+	if node.ValueString() != "2021-11-02T12:56:00Z" {
+		t.Fatalf("error in storing an last-modified extension data node: %v", err)
+	}
+	yangapiSchema := schema.Extension["yang-api"]
+	node, err = NewDataNode(yangapiSchema)
+	if err != nil {
+		t.Fatalf("error in creating an last-modified extension data node: %v", err)
+	}
+	// node.CreateByMap(map[string]interface{}{"restconf": })
+
+	fmt.Println(node.ValueString(), node.Value())
+
+	yanglib := schema.GetYangLibrary()
+	if yanglib == nil {
+		t.Fatalf("failed to get yang library")
+	}
+	y, _ := MarshalYAML(yanglib)
+	fmt.Println(string(y))
 }

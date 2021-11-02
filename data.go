@@ -289,7 +289,7 @@ func NewDataNodeCollector() DataNode {
 }
 
 // NewDataNode() creates a new DataNode (*DataBranch or *DataLeaf) according to the schema
-// with its values. The values should be a string if the new DataNode is *DataLeaf.
+// with its values. The values should be a string if the new DataNode is *DataLeaf, *DataLeafList.
 // The values should be JSON encoded bytes if the node is *DataBranch.
 func NewDataNode(schema *SchemaNode, value ...string) (DataNode, error) {
 	if schema == nil {
@@ -307,9 +307,7 @@ func NewDataNode(schema *SchemaNode, value ...string) (DataNode, error) {
 	return node, err
 }
 
-// NewDataNodeByID() creates a new DataNode according to the schema
-// with its values. The values should be a string if the new DataNode is *DataLeaf.
-// The values should be JSON encoded bytes if the node is *DataBranch.
+// NewDataNodeByID() creates a new DataNode using id
 func NewDataNodeByID(schema *SchemaNode, id string) (DataNode, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
@@ -1236,8 +1234,8 @@ func Merge(root DataNode, path string, src DataNode) error {
 	}
 }
 
-// Map converts the data node list to a map using the path.
-func Map(node []DataNode) map[string]DataNode {
+// PathMap converts the data node list to a map using the path.
+func PathMap(node []DataNode) map[string]DataNode {
 	m := map[string]DataNode{}
 	for i := range node {
 		m[node[i].Path()] = node[i]
