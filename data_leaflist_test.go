@@ -8,7 +8,7 @@ import (
 
 // Test single leaf-list node operation
 func TestSingleLeafList(t *testing.T) {
-	schema, err := Load([]string{"testdata/sample"}, nil, nil, SchemaOption{SingleLeafList: true})
+	schema, err := Load([]string{"testdata/sample"}, nil, nil, YANGTreeOption{SingleLeafList: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestSingleLeafList(t *testing.T) {
 
 // Test multiple leaf-list node operation
 func TestMultipleLeafList(t *testing.T) {
-	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil, SchemaOption{LeafListValueAsKey: true})
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil, YANGTreeOption{LeafListValueAsKey: true})
 	if err != nil {
 		t.Fatal(err)
 	}

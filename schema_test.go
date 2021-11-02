@@ -96,7 +96,7 @@ func TestYANGExtension(t *testing.T) {
 	}
 	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
-	schema, err := Load(yangfiles, dir, excluded, SchemaOption{YANGLibrary2016: true})
+	schema, err := Load(yangfiles, dir, excluded, YANGTreeOption{YANGLibrary2016: true})
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}

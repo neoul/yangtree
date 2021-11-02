@@ -11,7 +11,7 @@ import (
 
 // DataLeafList - The node structure of yangtree for leaf-list nodes.
 // By default, it is not used for the data node representation of the leaf-list nodes.
-// It will be only used when SchemaOption.SingleLeafList is enabled.
+// It will be only used when YANGTreeOption.SingleLeafList is enabled.
 type DataLeafList struct {
 	schema *SchemaNode
 	parent *DataBranch

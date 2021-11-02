@@ -76,3 +76,22 @@ type DataNode interface {
 type Option interface {
 	IsOption()
 }
+
+// SetValueString(node, editopt, valuestring ...)
+// SetValue(node, editopt, value ...)
+// New YANGTreeOption
+
+// YANGTreeOption is used to store yangtree options.
+type YANGTreeOption struct {
+	// If SingleLeafList is enabled, leaf-list data represents to a single leaf-list node that contains several values.
+	// If disabled, leaf-list data represents to multiple leaf-list nodes that contains each single value.
+	SingleLeafList     bool
+	LeafListValueAsKey bool   // leaf-list value can be represented to the xpath if it is set to true.
+	CreatedWithDefault bool   // DataNode (data node) is created with the default value of the schema if set.
+	YANGLibrary2016    bool   // Load ietf-yang-library@2016-06-21
+	YANGLibrary2019    bool   // Load ietf-yang-library@2019-01-04
+	SchemaSetName      string // The name of the schema set
+	// DefaultValueString [json, yaml, xml]
+}
+
+func (schemaoption YANGTreeOption) IsOption() {}

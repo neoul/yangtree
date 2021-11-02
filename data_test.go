@@ -187,7 +187,7 @@ func TestChildDataNodeListing(t *testing.T) {
 }
 
 func TestDataNode(t *testing.T) {
-	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil, SchemaOption{LeafListValueAsKey: true})
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil, YANGTreeOption{LeafListValueAsKey: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestCreatedWithDefault(t *testing.T) {
 	rootschema, err := Load(
 		[]string{
 			"testdata/modules/default.yang",
-		}, nil, nil, SchemaOption{CreatedWithDefault: true})
+		}, nil, nil, YANGTreeOption{CreatedWithDefault: true})
 	if err != nil {
 		t.Fatal(err)
 	}

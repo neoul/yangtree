@@ -18,7 +18,7 @@ func TestXML(t *testing.T) {
 	}
 	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
 	excluded := []string{}
-	schema, err := Load(file, dir, excluded, SchemaOption{YANGLibrary2019: true})
+	schema, err := Load(file, dir, excluded, YANGTreeOption{YANGLibrary2019: true})
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}

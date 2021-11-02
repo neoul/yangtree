@@ -22,7 +22,7 @@ func main() {
 	}
 	dir := []string{"../../../openconfig/public/", "../../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
-	schema, err := yangtree.Load(file, dir, excluded, yangtree.SchemaOption{YANGLibrary2019: true})
+	schema, err := yangtree.Load(file, dir, excluded, yangtree.YANGTreeOption{YANGLibrary2019: true})
 	if err != nil {
 		if merr, ok := err.(yangtree.MultipleError); ok {
 			for i := range merr {

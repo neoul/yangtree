@@ -18,20 +18,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// SchemaOption is used to store global yangtree schema options.
-type SchemaOption struct {
-	// If SingleLeafList is enabled, leaf-list data represents to a single leaf-list node that contains several values.
-	// If disabled, leaf-list data represents to multiple leaf-list nodes that contains each single value.
-	SingleLeafList     bool
-	LeafListValueAsKey bool   // leaf-list value can be represented to the xpath if it is set to true.
-	CreatedWithDefault bool   // DataNode (data node) is created with the default value of the schema if set.
-	YANGLibrary2016    bool   // Load ietf-yang-library@2016-06-21
-	YANGLibrary2019    bool   // Load ietf-yang-library@2019-01-04
-	SchemaSetName      string // The name of the schema set
-}
-
-func (schemaoption SchemaOption) IsOption() {}
-
 // SchemaNode - The node structure of yangtree schema.
 type SchemaNode struct {
 	*yang.Entry
@@ -49,7 +35,7 @@ type SchemaNode struct {
 	IsState       bool // used to indicate the schema node is state node.
 	HasState      bool // used to indicate the schema node has a state node at least.
 	OrderedByUser bool // used to indicate the ordering of the list or the leaf-list nodes.
-	Option        *SchemaOption
+	Option        *YANGTreeOption
 	Extension     map[string]*SchemaNode
 	Modules       *yang.Modules
 }
@@ -58,7 +44,7 @@ func (schema *SchemaNode) String() string {
 	return schema.Name
 }
 
-func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *SchemaOption, ext map[string]*SchemaNode, ms *yang.Modules) (*SchemaNode, error) {
+func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *YANGTreeOption, ext map[string]*SchemaNode, ms *yang.Modules) (*SchemaNode, error) {
 	n := &SchemaNode{
 		Entry:     e,
 		Parent:    parent,
@@ -327,7 +313,7 @@ func updatType(schema *SchemaNode, typ *yang.YangType) error {
 var collector *SchemaNode
 
 // buildRootSchema() builds the fake root schema node of the loaded yangtree.
-func buildRootSchema(module *yang.Module, option *SchemaOption, ext map[string]*SchemaNode, ms *yang.Modules) *SchemaNode {
+func buildRootSchema(module *yang.Module, option *YANGTreeOption, ext map[string]*SchemaNode, ms *yang.Modules) *SchemaNode {
 	me := yang.ToEntry(module)
 	e := me.Dir["root"]
 	root, err := buildSchemaNode(e, module, nil, option, ext, ms)
@@ -448,7 +434,7 @@ func getNameAndModule(n yang.Node, base *yang.Module) (string, *yang.Module) {
 	}
 }
 
-func collectExtension(module *yang.Module, option *SchemaOption, ext map[string]*SchemaNode, ms *yang.Modules) error {
+func collectExtension(module *yang.Module, option *YANGTreeOption, ext map[string]*SchemaNode, ms *yang.Modules) error {
 	// yang-metadadta
 	for _, extstatement := range module.Extensions {
 		name, mod := getNameAndModule(extstatement, module)
@@ -529,10 +515,10 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*SchemaNode, error)
 	}
 
 	ms := yang.NewModules()
-	var schemaOption SchemaOption
+	var schemaOption YANGTreeOption
 	for i := range option {
 		switch o := option[i].(type) {
-		case SchemaOption:
+		case YANGTreeOption:
 			schemaOption = o
 		}
 	}

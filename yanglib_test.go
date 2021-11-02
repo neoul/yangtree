@@ -23,7 +23,7 @@ func TestYANGLibrary(t *testing.T) {
 	}
 	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
-	schema, err := Load(file, dir, excluded, SchemaOption{YANGLibrary2019: true, SchemaSetName: "mySchema"})
+	schema, err := Load(file, dir, excluded, YANGTreeOption{YANGLibrary2019: true, SchemaSetName: "mySchema"})
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}
