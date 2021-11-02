@@ -49,7 +49,7 @@ func (branch *DataBranch) ValueString() string {
 	}
 	return string(b)
 }
-func (branch *DataBranch) HasValue(value string) bool {
+func (branch *DataBranch) HasValueString(value string) bool {
 	return false
 }
 
@@ -142,7 +142,7 @@ func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch, val
 			return nil
 		}
 		matched = func() bool {
-			return branch.children[max].HasValue(v.(string))
+			return branch.children[max].HasValueString(v.(string))
 		}
 	case groupSearch:
 		matched = func() bool {
@@ -287,7 +287,21 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	return n, nil
 }
 
-func (branch *DataBranch) SetString(value ...string) error {
+func (branch *DataBranch) Set(value ...interface{}) error {
+	for i := range value {
+		switch v := value[i].(type) {
+		case map[interface{}]interface{}:
+			return unmarshalYAML(branch, v)
+		case map[string]interface{}:
+			return unmarshalJSON(branch, branch.schema, v)
+		default:
+			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %q", branch)
+		}
+	}
+	return nil
+}
+
+func (branch *DataBranch) SetValueString(value ...string) error {
 	if IsCreatedWithDefault(branch.schema) {
 		for _, s := range branch.schema.Children {
 			if !s.IsDir() && s.Default != "" {
@@ -317,7 +331,7 @@ func (branch *DataBranch) SetString(value ...string) error {
 	return nil
 }
 
-func (branch *DataBranch) SetStringSafe(value ...string) error {
+func (branch *DataBranch) SetValueStringSafe(value ...string) error {
 	var err error
 	backup := Clone(branch)
 	if IsCreatedWithDefault(branch.schema) {
@@ -355,7 +369,7 @@ func (branch *DataBranch) SetStringSafe(value ...string) error {
 	return nil
 }
 
-func (branch *DataBranch) UnsetString(value ...string) error {
+func (branch *DataBranch) UnsetValueString(value ...string) error {
 	return Errorf(ETagOperationNotSupported, "branch data node doesn't support unset")
 }
 
@@ -658,7 +672,7 @@ func (branch *DataBranch) UpdateByMap(pmap map[string]interface{}) error {
 						return err
 					}
 				} else {
-					if err := found.SetString(vstr); err != nil {
+					if err := found.SetValueString(vstr); err != nil {
 						return err
 					}
 				}

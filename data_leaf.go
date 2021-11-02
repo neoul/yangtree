@@ -43,7 +43,7 @@ func (leaf *DataLeaf) String() string {
 	if leaf.schema.IsLeaf() {
 		return leaf.schema.Name
 	}
-	return leaf.schema.Name + `[.=` + ValueToString(leaf.value) + `]`
+	return leaf.schema.Name + `[.=` + ValueToValueString(leaf.value) + `]`
 }
 
 func (leaf *DataLeaf) Path() string {
@@ -62,9 +62,9 @@ func (leaf *DataLeaf) PathTo(descendant DataNode) string {
 
 func (leaf *DataLeaf) Value() interface{}    { return leaf.value }
 func (leaf *DataLeaf) Values() []interface{} { return []interface{}{leaf.value} }
-func (leaf *DataLeaf) ValueString() string   { return ValueToString(leaf.value) }
-func (leaf *DataLeaf) HasValue(value string) bool {
-	v := ValueToString(leaf.value)
+func (leaf *DataLeaf) ValueString() string   { return ValueToValueString(leaf.value) }
+func (leaf *DataLeaf) HasValueString(value string) bool {
+	v := ValueToValueString(leaf.value)
 	return v == value
 }
 
@@ -82,7 +82,7 @@ func (leaf *DataLeaf) Update(id string, value ...string) (DataNode, error) {
 	return nil, fmt.Errorf("update is not supported %q", leaf)
 }
 
-func (leaf *DataLeaf) SetString(value ...string) error {
+func (leaf *DataLeaf) Set(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -97,7 +97,7 @@ func (leaf *DataLeaf) SetString(value ...string) error {
 		return fmt.Errorf("data node %q is single value node", leaf)
 	}
 	for i := range value {
-		v, err := StringToValue(leaf.schema, leaf.schema.Type, value[i])
+		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,31 @@ func (leaf *DataLeaf) SetString(value ...string) error {
 	return nil
 }
 
-func (leaf *DataLeaf) SetStringSafe(value ...string) error {
+func (leaf *DataLeaf) SetValueString(value ...string) error {
+	if leaf.parent != nil {
+		if leaf.IsLeafList() {
+			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
+		}
+		if leaf.schema.IsKey {
+			// ignore id update
+			// return fmt.Errorf("unable to update id node %q if used", leaf)
+			return nil
+		}
+	}
+	if len(value) > 1 {
+		return fmt.Errorf("data node %q is single value node", leaf)
+	}
+	for i := range value {
+		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, value[i])
+		if err != nil {
+			return err
+		}
+		leaf.value = v
+	}
+	return nil
+}
+
+func (leaf *DataLeaf) SetValueStringSafe(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -119,7 +143,7 @@ func (leaf *DataLeaf) SetStringSafe(value ...string) error {
 	}
 	backup := leaf.value
 	for i := range value {
-		v, err := StringToValue(leaf.schema, leaf.schema.Type, value[i])
+		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
 			leaf.value = backup
 			return err
@@ -129,7 +153,7 @@ func (leaf *DataLeaf) SetStringSafe(value ...string) error {
 	return nil
 }
 
-func (leaf *DataLeaf) UnsetString(value ...string) error {
+func (leaf *DataLeaf) UnsetValueString(value ...string) error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
 			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
@@ -142,7 +166,7 @@ func (leaf *DataLeaf) UnsetString(value ...string) error {
 	}
 
 	if IsCreatedWithDefault(leaf.schema) && leaf.schema.Default != "" {
-		v, err := StringToValue(leaf.schema, leaf.schema.Type, leaf.schema.Default)
+		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, leaf.schema.Default)
 		if err != nil {
 			return err
 		}
@@ -236,7 +260,7 @@ func (leaf *DataLeaf) ID() string {
 		return leaf.schema.Name
 	}
 	// leaf-list id format: LEAF[.=VALUE]
-	return leaf.schema.Name + `[.=` + ValueToString(leaf.value) + `]`
+	return leaf.schema.Name + `[.=` + ValueToValueString(leaf.value) + `]`
 }
 
 // CreateByMap() updates the data node using pmap (path predicate map) and string values.
@@ -245,7 +269,7 @@ func (leaf *DataLeaf) CreateByMap(pmap map[string]interface{}) error {
 		if leaf.ValueString() == v.(string) {
 			return nil
 		}
-		if err := leaf.SetString(v.(string)); err != nil {
+		if err := leaf.SetValueString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -258,7 +282,7 @@ func (leaf *DataLeaf) UpdateByMap(pmap map[string]interface{}) error {
 		if leaf.ValueString() == v.(string) {
 			return nil
 		}
-		if err := leaf.SetString(v.(string)); err != nil {
+		if err := leaf.SetValueString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -337,7 +361,7 @@ func (leaf *DataLeaf) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 	}
 	var value string
 	d.DecodeElement(&value, &start)
-	return leaf.SetString(value)
+	return leaf.SetValueString(value)
 }
 
 func (leaf *DataLeaf) MarshalYAML() (interface{}, error) {

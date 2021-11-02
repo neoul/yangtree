@@ -171,7 +171,7 @@ func (group *DataNodeGroup) Values() []interface{} {
 	return nil
 }
 func (group *DataNodeGroup) ValueString() string { return "" }
-func (group *DataNodeGroup) HasValue(value string) bool {
+func (group *DataNodeGroup) HasValueString(value string) bool {
 	if !group.schema.IsDir() {
 		for i := range group.Nodes {
 			if group.Nodes[i].ValueString() == value {
@@ -196,16 +196,20 @@ func (group *DataNodeGroup) Update(id string, value ...string) (DataNode, error)
 	return nil, fmt.Errorf("data node group doesn't support Update")
 }
 
-func (group *DataNodeGroup) SetString(value ...string) error {
+func (group *DataNodeGroup) Set(value ...interface{}) error {
 	return fmt.Errorf("data node group doesn't support Set")
 }
 
-func (group *DataNodeGroup) SetStringSafe(value ...string) error {
-	return fmt.Errorf("data node group doesn't support SetSafe")
+func (group *DataNodeGroup) SetValueString(value ...string) error {
+	return fmt.Errorf("data node group doesn't support SetValueString")
 }
 
-func (group *DataNodeGroup) UnsetString(value ...string) error {
-	return fmt.Errorf("data node group doesn't support Unset")
+func (group *DataNodeGroup) SetValueStringSafe(value ...string) error {
+	return fmt.Errorf("data node group doesn't support SetValueStringSafe")
+}
+
+func (group *DataNodeGroup) UnsetValueString(value ...string) error {
+	return fmt.Errorf("data node group doesn't support UnsetValueString")
 }
 
 func (group *DataNodeGroup) Remove() error {

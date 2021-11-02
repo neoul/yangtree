@@ -300,7 +300,7 @@ func NewDataNode(schema *SchemaNode, value ...string) (DataNode, error) {
 		return nil, err
 	}
 	for i := range value {
-		if err = node.SetString(value[i]); err != nil {
+		if err = node.SetValueString(value[i]); err != nil {
 			return nil, err
 		}
 	}
@@ -344,7 +344,7 @@ func newDataNode(schema *SchemaNode) (DataNode, error) {
 				schema: schema,
 			}
 			if schema.Default != "" && soption.CreatedWithDefault {
-				if err := leaflist.SetString(schema.Default); err != nil {
+				if err := leaflist.SetValueString(schema.Default); err != nil {
 					return nil, err
 				}
 			}
@@ -354,7 +354,7 @@ func newDataNode(schema *SchemaNode) (DataNode, error) {
 				schema: schema,
 			}
 			if schema.Default != "" && soption.CreatedWithDefault {
-				if err := leaf.SetString(schema.Default); err != nil {
+				if err := leaf.SetValueString(schema.Default); err != nil {
 					return nil, err
 				}
 			}
@@ -512,7 +512,7 @@ func setString(root DataNode, pathnode []*PathNode, eopt *EditOption, value []st
 			if cb := eopt.GetCallback(); cb != nil {
 				var err error
 				backup := Clone(root)
-				err = root.SetString(value...)
+				err = root.SetValueString(value...)
 				if err == nil {
 					err = cb(op, []DataNode{backup}, []DataNode{root})
 				}
@@ -522,9 +522,9 @@ func setString(root DataNode, pathnode []*PathNode, eopt *EditOption, value []st
 				return err
 			} else { // without callback
 				if eopt.GetFailureRecovery() {
-					return root.SetStringSafe(value...)
+					return root.SetValueStringSafe(value...)
 				}
-				return root.SetString(value...)
+				return root.SetValueString(value...)
 			}
 		}
 		return nil
@@ -639,7 +639,7 @@ func setString(root DataNode, pathnode []*PathNode, eopt *EditOption, value []st
 			return err
 		}
 		if reachToEnd && len(value) > 0 {
-			if err = child.SetString(value...); err != nil {
+			if err = child.SetValueString(value...); err != nil {
 				return err
 			}
 		}
@@ -674,7 +674,7 @@ func setString(root DataNode, pathnode []*PathNode, eopt *EditOption, value []st
 // Set sets a value to the target DataNode in the path.
 // If the target DataNode is a branch node, the value must be json or json_ietf bytes.
 // If the target data node is a leaf or a leaf-list node, the value should be string.
-func SetString(root DataNode, path string, value ...string) error {
+func SetValueString(root DataNode, path string, value ...string) error {
 	if !IsValid(root) {
 		return fmt.Errorf("invalid root data node")
 	}

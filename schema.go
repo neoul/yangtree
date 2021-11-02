@@ -54,6 +54,10 @@ type SchemaNode struct {
 	Modules       *yang.Modules
 }
 
+func (schema *SchemaNode) String() string {
+	return schema.Name
+}
+
 func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *SchemaOption, ext map[string]*SchemaNode, ms *yang.Modules) (*SchemaNode, error) {
 	n := &SchemaNode{
 		Entry:     e,
@@ -805,9 +809,186 @@ func extractKeyValues(keys []string, keystr *string) ([]string, error) {
 	return keyval, nil
 }
 
-// StringToValue() converts a string value to an yangtree value
+// ValidateValue() check the range, length and pattern of the schema.
+func ValidateValue(schema *SchemaNode, typ *yang.YangType, value interface{}) error {
+	switch typ.Kind {
+	case yang.Ystring, yang.Ybinary:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		if len(typ.Range) > 0 {
+			length := yang.FromInt(int64(len(v)))
+			inrange := false
+			for i := range typ.Range {
+				if !(typ.Range[i].Max.Less(length) || length.Less(typ.Range[i].Min)) {
+					inrange = true
+				}
+			}
+			if inrange {
+				return nil
+			}
+			return fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+		}
+
+		// Check that the value satisfies any regex patterns.
+		patterns, isPOSIX := util.SanitizedPattern(typ)
+		for _, p := range patterns {
+			var r *regexp.Regexp
+			var err error
+			if isPOSIX {
+				r, err = regexp.CompilePOSIX(p)
+			} else {
+				r, err = regexp.Compile(p)
+			}
+			if err != nil {
+				return fmt.Errorf("pattern compile error: %v", err)
+			}
+			if !r.MatchString(v) {
+				return fmt.Errorf("invalid pattern %q inserted for %q: %v", value, schema.Name, r)
+			}
+		}
+		return nil
+	case yang.Ybool:
+		_, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		return nil
+	case yang.Yempty:
+		if value != nil {
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		return nil
+	case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64:
+		var number yang.Number
+		switch v := value.(type) {
+		case int:
+			number = yang.FromInt(int64(v))
+		case int8:
+			number = yang.FromInt(int64(v))
+		case int16:
+			number = yang.FromInt(int64(v))
+		case int32:
+			number = yang.FromInt(int64(v))
+		case int64:
+			number = yang.FromInt(int64(v))
+		default:
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		if len(typ.Range) > 0 {
+			inrange := false
+			for i := range typ.Range {
+				if !(typ.Range[i].Max.Less(number) || number.Less(typ.Range[i].Min)) {
+					inrange = true
+				}
+			}
+			if !inrange {
+				return fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+			}
+		}
+	case yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
+		var number yang.Number
+		switch v := value.(type) {
+		case uint:
+			number = yang.FromUint(uint64(v))
+		case uint8:
+			number = yang.FromUint(uint64(v))
+		case uint16:
+			number = yang.FromUint(uint64(v))
+		case uint32:
+			number = yang.FromUint(uint64(v))
+		case uint64:
+			number = yang.FromUint(uint64(v))
+		default:
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		if len(typ.Range) > 0 {
+			inrange := false
+			for i := range typ.Range {
+				if !(typ.Range[i].Max.Less(number) || number.Less(typ.Range[i].Min)) {
+					inrange = true
+				}
+			}
+			if !inrange {
+				return fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+			}
+		}
+	case yang.Ybits, yang.Yenum:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		if _, ok := schema.Enum[v]; ok {
+			return nil
+		}
+	case yang.Yidentityref:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		if i := strings.Index(v, ":"); i >= 0 {
+			iref := v[i+1:]
+			if _, ok := schema.Identityref[iref]; ok {
+				return nil
+			}
+		} else {
+			if _, ok := schema.Identityref[v]; ok {
+				return nil
+			}
+		}
+		return fmt.Errorf("identityref %q not found", value)
+	case yang.Yleafref:
+		_, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		// [FIXME] Check the schema ? or data ?
+		// [FIXME] check the path refered
+		return nil
+	case yang.Ydecimal64:
+		var number yang.Number
+		switch v := value.(type) {
+		case float32:
+			number = yang.FromFloat(float64(v))
+		case float64:
+			number = yang.FromFloat(float64(v))
+		default:
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		if len(typ.Range) > 0 {
+			inrange := false
+			for i := range typ.Range {
+				if !(typ.Range[i].Max.Less(number) || number.Less(typ.Range[i].Min)) {
+					inrange = true
+				}
+			}
+			if !inrange {
+				return fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+			}
+		}
+	case yang.Yunion:
+		for i := range typ.Type {
+			err := ValidateValue(schema, typ.Type[i], value)
+			if err == nil {
+				return nil
+			}
+		}
+	case yang.YinstanceIdentifier:
+		_, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("a value of invalid type %T inserted for %q", value, schema)
+		}
+		return nil
+	case yang.Ynone:
+		break
+	}
+	return fmt.Errorf("invalid value %q inserted for %q", value, schema)
+}
+
+// ValueStringToValue() converts a string value to an yangtree value
 // It also check the range, length and pattern of the schema.
-func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interface{}, error) {
+func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interface{}, error) {
 	switch typ.Kind {
 	case yang.Ystring, yang.Ybinary:
 		if len(typ.Range) > 0 {
@@ -936,7 +1117,7 @@ func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interf
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := StringToValue(schema, typ.Type[i], value)
+			v, err := ValueStringToValue(schema, typ.Type[i], value)
 			if err == nil {
 				return v, nil
 			}
@@ -949,8 +1130,8 @@ func StringToValue(schema *SchemaNode, typ *yang.YangType, value string) (interf
 	return nil, fmt.Errorf("invalid value %q inserted for %q", value, schema.Name)
 }
 
-// ValueToString() converts a golang value to the string value.
-func ValueToString(value interface{}) string {
+// ValueToValueString() converts a golang value to the string value.
+func ValueToValueString(value interface{}) string {
 	switch v := value.(type) {
 	case string:
 		return v

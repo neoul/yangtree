@@ -297,7 +297,7 @@ func unmarshalJSONListNode(parent DataNode, cschema *SchemaNode, kname []string,
 		idBuilder.WriteString("[")
 		idBuilder.WriteString(kname[i])
 		idBuilder.WriteString("=")
-		idBuilder.WriteString(ValueToString(kval[i]))
+		idBuilder.WriteString(ValueToValueString(kval[i]))
 		idBuilder.WriteString("]")
 	}
 	var child, found DataNode
@@ -449,7 +449,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 			return Errorf(EAppTagJSONParsing, "unexpected json value %q inserted for %q", entry, node.ID())
 		case []interface{}:
 			if len(entry) == 1 && entry[0] == nil { // empty type
-				return Error(EAppTagJSONParsing, node.UnsetString(""))
+				return Error(EAppTagJSONParsing, node.UnsetValueString(""))
 			}
 			if !node.HasMultipleValues() {
 				return Errorf(EAppTagJSONParsing, "*unexpected json value %q inserted for %q", entry, node.ID())
@@ -459,7 +459,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 				if err != nil {
 					return err
 				}
-				if err := node.SetString(valstr); err != nil {
+				if err := node.SetValueString(valstr); err != nil {
 					return Error(EAppTagJSONParsing, err)
 				}
 			}
@@ -469,7 +469,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 			if err != nil {
 				return err
 			}
-			return Error(EAppTagJSONParsing, node.SetString(valstr))
+			return Error(EAppTagJSONParsing, node.SetValueString(valstr))
 		}
 	}
 }

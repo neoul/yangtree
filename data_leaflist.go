@@ -44,7 +44,7 @@ func (leaflist *DataLeafList) String() string {
 	if leaflist.schema.IsLeaf() {
 		return leaflist.schema.Name
 	}
-	return leaflist.schema.Name + `[.=` + ValueToString(leaflist.value) + `]`
+	return leaflist.schema.Name + `[.=` + ValueToValueString(leaflist.value) + `]`
 }
 
 func (leaflist *DataLeafList) Path() string {
@@ -64,12 +64,12 @@ func (leaflist *DataLeafList) PathTo(descendant DataNode) string {
 func (leaflist *DataLeafList) Value() interface{}    { return leaflist.value }
 func (leaflist *DataLeafList) Values() []interface{} { return leaflist.value }
 func (leaflist *DataLeafList) ValueString() string {
-	return ValueToString(leaflist.value)
+	return ValueToValueString(leaflist.value)
 }
 
-func (leaflist *DataLeafList) HasValue(value string) bool {
+func (leaflist *DataLeafList) HasValueString(value string) bool {
 	for i := range leaflist.value {
-		if v := ValueToString(leaflist.value[i]); v == value {
+		if v := ValueToValueString(leaflist.value[i]); v == value {
 			return true
 		}
 	}
@@ -123,13 +123,13 @@ func (leaflist *DataLeafList) set(safe bool, value []string) error {
 			} else {
 				index = sort.Search(len(leaflist.value),
 					func(j int) bool {
-						return ValueToString(leaflist.value[j]) >= value[i]
+						return ValueToValueString(leaflist.value[j]) >= value[i]
 					})
-				if index < len(leaflist.value) && ValueToString(leaflist.value[index]) == value[i] {
+				if index < len(leaflist.value) && ValueToValueString(leaflist.value[index]) == value[i] {
 					continue
 				}
 			}
-			v, err := StringToValue(leaflist.schema, leaflist.schema.Type, value[i])
+			v, err := ValueStringToValue(leaflist.schema, leaflist.schema.Type, value[i])
 			if err != nil {
 				if safe {
 					leaflist.value = backup
@@ -144,15 +144,15 @@ func (leaflist *DataLeafList) set(safe bool, value []string) error {
 	return nil
 }
 
-func (leaflist *DataLeafList) SetString(value ...string) error {
+func (leaflist *DataLeafList) SetValueString(value ...string) error {
 	return leaflist.set(false, value)
 }
 
-func (leaflist *DataLeafList) SetStringSafe(value ...string) error {
+func (leaflist *DataLeafList) SetValueStringSafe(value ...string) error {
 	return leaflist.set(true, value)
 }
 
-func (leaflist *DataLeafList) UnsetString(value ...string) error {
+func (leaflist *DataLeafList) UnsetValueString(value ...string) error {
 	if leaflist.parent != nil {
 		if leaflist.schema.IsKey {
 			// ignore id update
@@ -164,9 +164,9 @@ func (leaflist *DataLeafList) UnsetString(value ...string) error {
 		length := len(leaflist.value)
 		index := sort.Search(length,
 			func(j int) bool {
-				return ValueToString(leaflist.value[j]) >= value[i]
+				return ValueToValueString(leaflist.value[j]) >= value[i]
 			})
-		if index < length && ValueToString(leaflist.value[index]) == value[i] {
+		if index < length && ValueToValueString(leaflist.value[index]) == value[i] {
 			leaflist.value = append(leaflist.value[:index], leaflist.value[index+1:]...)
 		}
 	}
@@ -254,7 +254,7 @@ func (leaflist *DataLeafList) CreateByMap(pmap map[string]interface{}) error {
 				return nil
 			}
 		}
-		if err := leaflist.SetString(v.(string)); err != nil {
+		if err := leaflist.SetValueString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -269,7 +269,7 @@ func (leaflist *DataLeafList) UpdateByMap(pmap map[string]interface{}) error {
 				return nil
 			}
 		}
-		if err := leaflist.SetString(v.(string)); err != nil {
+		if err := leaflist.SetValueString(v.(string)); err != nil {
 			return err
 		}
 	}
@@ -331,7 +331,7 @@ func (leaflist *DataLeafList) MarshalXML(e *xml.Encoder, start xml.StartElement)
 	// 	return err
 	// }
 	for i := range leaflist.value {
-		if err := e.EncodeElement(ValueToString(leaflist.value[i]), start); err != nil {
+		if err := e.EncodeElement(ValueToValueString(leaflist.value[i]), start); err != nil {
 			return err
 		}
 	}
@@ -346,7 +346,7 @@ func (leaflist *DataLeafList) UnmarshalXML(d *xml.Decoder, start xml.StartElemen
 	}
 	var value string
 	d.DecodeElement(&value, &start)
-	return leaflist.SetString(value)
+	return leaflist.SetValueString(value)
 }
 
 func (leaflist *DataLeafList) MarshalYAML() (interface{}, error) {

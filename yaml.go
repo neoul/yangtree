@@ -41,7 +41,7 @@ func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string,
 		idBuilder.WriteString("[")
 		idBuilder.WriteString(kname[i])
 		idBuilder.WriteString("=")
-		idBuilder.WriteString(ValueToString(kval[i]))
+		idBuilder.WriteString(ValueToValueString(kval[i]))
 		idBuilder.WriteString("]")
 	}
 	id := idBuilder.String()
@@ -140,7 +140,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 		case map[interface{}]interface{}:
 			schema := node.Schema()
 			for k, v := range entry {
-				keystr := ValueToString(k)
+				keystr := ValueToValueString(k)
 				name, haskey, err := extractSchemaName(&keystr)
 				if err != nil {
 					return Error(EAppTagYAMLParsing, err)
@@ -229,13 +229,13 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 				return Errorf(EAppTagYAMLParsing, "unexpected yaml value %q inserted for %q", entry, node.ID())
 			}
 			for i := range entry {
-				if err := node.SetString(ValueToString(entry[i])); err != nil {
+				if err := node.SetValueString(ValueToValueString(entry[i])); err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
 			}
 			return nil
 		default:
-			return Error(EAppTagYAMLParsing, node.SetString(ValueToString(yval)))
+			return Error(EAppTagYAMLParsing, node.SetValueString(ValueToValueString(yval)))
 		}
 	}
 }

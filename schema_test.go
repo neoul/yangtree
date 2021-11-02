@@ -76,10 +76,10 @@ func TestYANGMetaData(t *testing.T) {
 		{wantInsertErr: false, path: "/sample/@last-modified", value: "2015-06-18T17:01:14+02:00"},
 	}
 	for _, tt := range tests {
-		t.Run("SetString."+tt.path, func(t *testing.T) {
-			err := SetString(RootData, tt.path, tt.value)
+		t.Run("SetValueString."+tt.path, func(t *testing.T) {
+			err := SetValueString(RootData, tt.path, tt.value)
 			if (err != nil) != tt.wantInsertErr {
-				t.Errorf("SetString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
+				t.Errorf("SetValueString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 			}
 		})
 	}
