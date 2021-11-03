@@ -13,15 +13,86 @@ type DataNodeGroup struct {
 	Nodes  []DataNode
 }
 
-// NewDataNodeGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
+// NewGroupWithValue() creates a set of new data nodes (*DataNodeGroup) having the same schema.
 // To create a set of data nodes, the value must be encoded to a JSON object or a JSON array of the data.
 // It is useful to create multiple list or leaf-list nodes.
 //    // e.g.
-//    groups, err := NewDataNodeGroup(schema, `["leaf-list-value1", "leaf-list-value2"]`)
+//    groups, err := NewGroupWithValue(schema, `["leaf-list-value1", "leaf-list-value2"]`)
 //    for _, node := range groups.Nodes {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
-func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, error) {
+func NewGroupWithValue(schema *SchemaNode, value ...interface{}) (*DataNodeGroup, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("schema is nil")
+	}
+	switch {
+	case schema.IsSingleLeafList():
+		break
+	case schema.IsLeafList(): // multiple leaf-list node
+		collector := NewCollector().(*DataBranch)
+		// if len(value) == 1 {
+		// 	if v, ok := value[0].([]interface{}); ok {
+		// 		for i := range v {
+		// 			node, err := NewWithValue(schema, v[i])
+		// 			if err != nil {
+		// 				return nil, err
+		// 			}
+		// 			collector.insert(node, nil)
+		// 		}
+		// 		return &DataNodeGroup{
+		// 			schema: schema,
+		// 			Nodes:  copyDataNodeList(collector.children),
+		// 		}, nil
+		// 	}
+		// }
+		for i := range value {
+			node, err := NewWithValue(schema, value[i])
+			if err != nil {
+				return nil, err
+			}
+			if _, err := collector.insert(node, nil); err != nil {
+				return nil, err
+			}
+		}
+		return &DataNodeGroup{
+			schema: schema,
+			Nodes:  copyDataNodeList(collector.children),
+		}, nil
+	case schema.IsList():
+		collector := NewCollector().(*DataBranch)
+		for i := range value {
+			node, err := NewWithValue(schema, value[i])
+			if err != nil {
+				return nil, err
+			}
+			if _, err := collector.insert(node, nil); err != nil {
+				return nil, err
+			}
+		}
+		return &DataNodeGroup{
+			schema: schema,
+			Nodes:  copyDataNodeList(collector.children),
+		}, nil
+	}
+	node, err := NewWithValue(schema, value...)
+	if err != nil {
+		return nil, err
+	}
+	return &DataNodeGroup{
+		schema: schema,
+		Nodes:  []DataNode{node},
+	}, nil
+}
+
+// NewGroupWithValueString() creates a set of new data nodes (*DataNodeGroup) having the same schema.
+// To create a set of data nodes, the value must be encoded to a JSON object or a JSON array of the data.
+// It is useful to create multiple list or leaf-list nodes.
+//    // e.g.
+//    groups, err := NewGroupWithValueString(schema, `["leaf-list-value1", "leaf-list-value2"]`)
+//    for _, node := range groups.Nodes {
+//         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
+//    }
+func NewGroupWithValueString(schema *SchemaNode, value ...string) (*DataNodeGroup, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
@@ -102,15 +173,15 @@ func NewDataNodeGroup(schema *SchemaNode, value ...string) (*DataNodeGroup, erro
 	}, nil
 }
 
-// ConvertToDataNodeGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
+// ConvertToGroup() creates a set of new data nodes (DataNodeGroup) having the same schema.
 // To create a set of data nodes, the value must be encoded to a JSON object or a JSON array of the data.
 // It is useful to create multiple list or leaf-list nodes.
 //    // e.g.
-//    groups, err := NewDataNodeGroup(schema, `["leaf-list-value1", "leaf-list-value2"]`)
+//    groups, err := NewGroupWithValueString(schema, `["leaf-list-value1", "leaf-list-value2"]`)
 //    for _, node := range groups {
 //         // Process the created nodes ("leaf-list-value1" and "leaf-list-value2") here.
 //    }
-func ConvertToDataNodeGroup(schema *SchemaNode, nodes []DataNode) (*DataNodeGroup, error) {
+func ConvertToGroup(schema *SchemaNode, nodes []DataNode) (*DataNodeGroup, error) {
 	if len(nodes) == 0 {
 		if schema == nil {
 			return nil, fmt.Errorf("nil schema")

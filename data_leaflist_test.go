@@ -170,25 +170,28 @@ func TestMultipleLeafList(t *testing.T) {
 
 	rwLeafListTest := []struct {
 		path          string
-		value         string
+		value         []string
 		wantInsertErr bool
 		wantDeleteErr bool
 		numOfNodes    int
 	}{
 		// Read-write leaf-list
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: "[]", numOfNodes: 0},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-1", "leaf-list-2"]`, numOfNodes: 2},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-2"]`, numOfNodes: 2},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`, numOfNodes: 3},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: `["leaf-list-3"]`, numOfNodes: 3},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/leaf-list-4", value: "", numOfNodes: 4},
-		{wantInsertErr: true, wantDeleteErr: true, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "", numOfNodes: 4},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=leaf-list-5]", value: "leaf-list-5", numOfNodes: 5},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: []string{}, numOfNodes: 0},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: []string{"[]"}, numOfNodes: 0},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: []string{`["1","2"]`}, numOfNodes: 2},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: []string{`["2"]`}, numOfNodes: 2},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: []string{`["3"]`}, numOfNodes: 3},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw", value: []string{"4", "5"}, numOfNodes: 5},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/4", value: []string{}, numOfNodes: 5},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw/6", value: []string{}, numOfNodes: 6},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=6]", value: []string{"6"}, numOfNodes: 6},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=7]", value: []string{"7"}, numOfNodes: 7},
+		{wantInsertErr: true, wantDeleteErr: false, path: "/sample/leaf-list-rw[.=7]", value: []string{"6"}, numOfNodes: 7},
 	}
 	for _, tt := range rwLeafListTest {
 		t.Run(fmt.Sprintf("SetValueString.%s %v", tt.path, tt.value), func(t *testing.T) {
 			editopt := &EditOption{EditOp: EditMerge}
-			err := SetValueString(RootData, tt.path, editopt, tt.value)
+			err := SetValueString(RootData, tt.path, editopt, tt.value...)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("SetValueString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 				return
@@ -201,11 +204,13 @@ func TestMultipleLeafList(t *testing.T) {
 			}
 		})
 	}
+	// y, _ := MarshalYAML(RootData)
+	// fmt.Println(string(y))
 	for i := len(rwLeafListTest) - 1; i >= 0; i-- {
 		t.Run(fmt.Sprintf("Delete.%s", rwLeafListTest[i].path), func(t *testing.T) {
 			// err := Delete(RootData, rwLeafListTest[i].path)
 			editopt := &EditOption{EditOp: EditRemove}
-			err := SetValueString(RootData, rwLeafListTest[i].path, editopt, rwLeafListTest[i].value)
+			err := SetValueString(RootData, rwLeafListTest[i].path, editopt, rwLeafListTest[i].value...)
 			if (err != nil) != rwLeafListTest[i].wantDeleteErr {
 				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, rwLeafListTest[i].wantDeleteErr, rwLeafListTest[i].path)
 			}
@@ -214,25 +219,28 @@ func TestMultipleLeafList(t *testing.T) {
 
 	roLeafListTest := []struct {
 		path          string
-		value         string
+		value         []string
 		wantInsertErr bool
 		wantDeleteErr bool
 		numOfNodes    int
 	}{
 		// // Read-only leaf-list
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: "[]", numOfNodes: 0}, // do nothing
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-1", "leaf-list-2"]`, numOfNodes: 2},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-2"]`, numOfNodes: 3},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`, numOfNodes: 4},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: `["leaf-list-3"]`, numOfNodes: 5},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro/leaf-list-4", value: "", numOfNodes: 6},
-		{wantInsertErr: true, wantDeleteErr: true, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "", numOfNodes: 6},
-		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=leaf-list-5]", value: "leaf-list-5", numOfNodes: 7},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: []string{}, numOfNodes: 0},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: []string{"[]"}, numOfNodes: 0},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: []string{`["1","2"]`}, numOfNodes: 2},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: []string{`["2"]`}, numOfNodes: 3},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: []string{`["3"]`}, numOfNodes: 4},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro", value: []string{"4", "5"}, numOfNodes: 6},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro/4", value: []string{}, numOfNodes: 6},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro/6", value: []string{}, numOfNodes: 7},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=6]", value: []string{"6"}, numOfNodes: 7},
+		{wantInsertErr: false, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=7]", value: []string{"7"}, numOfNodes: 8},
+		{wantInsertErr: true, wantDeleteErr: false, path: "/sample/leaf-list-ro[.=7]", value: []string{"6"}, numOfNodes: 8},
 	}
 	for _, tt := range roLeafListTest {
 		t.Run(fmt.Sprintf("SetValueString.%s %v", tt.path, tt.value), func(t *testing.T) {
 			editopt := &EditOption{EditOp: EditMerge}
-			err := SetValueString(RootData, tt.path, editopt, tt.value)
+			err := SetValueString(RootData, tt.path, editopt, tt.value...)
 			if (err != nil) != tt.wantInsertErr {
 				t.Errorf("SetValueString() error = %v, wantInsertErr = %v path = %s", err, tt.wantInsertErr, tt.path)
 				return
@@ -249,10 +257,12 @@ func TestMultipleLeafList(t *testing.T) {
 		t.Run(fmt.Sprintf("Delete.%s", roLeafListTest[i].path), func(t *testing.T) {
 			// err := Delete(RootData, roLeafListTest[i].path)
 			editopt := &EditOption{EditOp: EditRemove}
-			err := SetValueString(RootData, roLeafListTest[i].path, editopt, roLeafListTest[i].value)
+			err := SetValueString(RootData, roLeafListTest[i].path, editopt, roLeafListTest[i].value...)
 			if (err != nil) != roLeafListTest[i].wantDeleteErr {
 				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, roLeafListTest[i].wantDeleteErr, roLeafListTest[i].path)
 			}
+			// y, _ := MarshalYAML(RootData)
+			// fmt.Println(string(y))
 		})
 	}
 }

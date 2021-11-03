@@ -14,7 +14,7 @@ func TestNewDataGroup(t *testing.T) {
 		// multiple leaf-list node
 		jleaflist := `["first","fourth","second","third"]`
 		schema := RootSchema.FindSchema("sample/container-val/leaf-list-val")
-		jleaflistnodes, err := NewDataNodeGroup(schema, jleaflist)
+		jleaflistnodes, err := NewGroupWithValueString(schema, jleaflist)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -65,7 +65,7 @@ func TestNewDataGroup(t *testing.T) {
 		]`
 
 		schema := RootSchema.FindSchema("sample/single-key-list")
-		jlistnodes, err := NewDataNodeGroup(schema, jlist)
+		jlistnodes, err := NewGroupWithValueString(schema, jlist)
 		if err != nil {
 			t.Fatal(err)
 		}

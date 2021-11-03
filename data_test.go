@@ -17,8 +17,8 @@ func TestSetValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = root.SetValue(
-		map[string]interface{}{"sample": map[string]interface{}{
-			"container-val": map[string]interface{}{
+		map[interface{}]interface{}{"sample": map[interface{}]interface{}{
+			"container-val": map[interface{}]interface{}{
 				"a":        "A",
 				"enum-val": "enum2",
 				"leaf-list-val": []interface{}{
@@ -31,18 +31,18 @@ func TestSetValue(t *testing.T) {
 			},
 			"empty-val": nil,
 			"multiple-key-list": []interface{}{
-				map[string]interface{}{
+				map[interface{}]interface{}{
 					"integer": 1,
 					"ok":      true,
 					"str":     "first",
 				},
-				map[string]interface{}{
+				map[interface{}]interface{}{
 					"integer": 2,
 					"str":     "first",
 				},
 			},
 			"non-key-list": []interface{}{
-				map[string]interface{}{
+				map[interface{}]interface{}{
 					"strval":  "XYZ",
 					"uintval": 10,
 				},
@@ -752,7 +752,7 @@ func TestEdit(t *testing.T) {
 				}
 				switch {
 				case got[0].IsLeafList():
-					group, err := ConvertToDataNodeGroup(nil, got)
+					group, err := ConvertToGroup(nil, got)
 					if err != nil {
 						t.Errorf("SetValueString() error: %v", fmt.Errorf("converting to data node group failed: %v", err))
 						return

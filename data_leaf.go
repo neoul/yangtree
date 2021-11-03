@@ -83,9 +83,12 @@ func (leaf *DataLeaf) Update(id string, value ...string) (DataNode, error) {
 }
 
 func (leaf *DataLeaf) SetValue(value ...interface{}) error {
+	if len(value) > 1 {
+		return fmt.Errorf("more than one value cannot be set to a leaf node %q", leaf)
+	}
 	if leaf.parent != nil {
-		if leaf.IsLeafList() {
-			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
+		if leaf.IsLeafList() && value[0] != leaf.value {
+			return fmt.Errorf("value update is not supported for multiple leaf-list")
 		}
 		if leaf.schema.IsKey {
 			// ignore id update
@@ -93,9 +96,7 @@ func (leaf *DataLeaf) SetValue(value ...interface{}) error {
 			return nil
 		}
 	}
-	if len(value) > 1 {
-		return fmt.Errorf("data node %q is single value node", leaf)
-	}
+
 	for i := range value {
 		err := ValidateValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
@@ -139,18 +140,18 @@ func (leaf *DataLeaf) UnsetValue(value ...interface{}) error {
 }
 
 func (leaf *DataLeaf) SetValueString(value ...string) error {
+	if len(value) > 1 {
+		return fmt.Errorf("more than one value cannot be set to a leaf node %q", leaf)
+	}
 	if leaf.parent != nil {
-		if leaf.IsLeafList() {
-			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
+		if leaf.IsLeafList() && value[0] != ValueToValueString(leaf.value) {
+			return fmt.Errorf("value update is not supported for multiple leaf-list")
 		}
 		if leaf.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %q if used", leaf)
 			return nil
 		}
-	}
-	if len(value) > 1 {
-		return fmt.Errorf("data node %q is single value node", leaf)
 	}
 	for i := range value {
 		v, err := ValueStringToValue(leaf.schema, leaf.schema.Type, value[i])

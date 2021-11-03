@@ -324,39 +324,12 @@ func (branch *DataBranch) UnsetValue(value ...interface{}) error {
 	return Errorf(ETagOperationNotSupported, "branch data node doesn't support unset")
 }
 
-func (branch *DataBranch) SetValueString(value ...string) error {
-	if IsCreatedWithDefault(branch.schema) {
-		for _, s := range branch.schema.Children {
-			if !s.IsDir() && s.Default != "" {
-				if branch.Get(s.Name) != nil {
-					continue
-				}
-				c, err := NewWithValueString(s)
-				if err != nil {
-					return err
-				}
-				_, err = branch.insert(c, nil)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-	for i := range value {
-		if value[i] == "" {
-			continue
-		}
-		err := branch.UnmarshalJSON([]byte(value[i]))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (branch *DataBranch) SetValueStringSafe(value ...string) error {
+func (branch *DataBranch) setValueString(safe bool, value []string) error {
 	var err error
-	backup := Clone(branch)
+	var backup DataNode
+	if safe {
+		backup = Clone(branch)
+	}
 	if IsCreatedWithDefault(branch.schema) {
 		for _, s := range branch.schema.Children {
 			if !s.IsDir() && s.Default != "" {
@@ -387,10 +360,20 @@ func (branch *DataBranch) SetValueStringSafe(value ...string) error {
 		}
 	}
 	if err != nil {
-		recover(branch, backup)
+		if safe {
+			recover(branch, backup)
+		}
 		return err
 	}
 	return nil
+}
+
+func (branch *DataBranch) SetValueString(value ...string) error {
+	return branch.setValueString(false, value)
+}
+
+func (branch *DataBranch) SetValueStringSafe(value ...string) error {
+	return branch.setValueString(true, value)
 }
 
 func (branch *DataBranch) UnsetValueString(value ...string) error {
