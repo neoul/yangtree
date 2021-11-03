@@ -7,7 +7,58 @@ import (
 	"testing"
 )
 
-func TestNewDataNode(t *testing.T) {
+func TestSetValue(t *testing.T) {
+	schema, err := Load([]string{"testdata/sample"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := New(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = root.SetValue(
+		map[string]interface{}{"sample": map[string]interface{}{
+			"container-val": map[string]interface{}{
+				"a":        "A",
+				"enum-val": "enum2",
+				"leaf-list-val": []interface{}{
+					"leaf-list-first",
+					"leaf-list-fourth",
+					"leaf-list-second",
+					"leaf-list-third",
+				},
+				"test-default": 11,
+			},
+			"empty-val": nil,
+			"multiple-key-list": []interface{}{
+				map[string]interface{}{
+					"integer": 1,
+					"ok":      true,
+					"str":     "first",
+				},
+				map[string]interface{}{
+					"integer": 2,
+					"str":     "first",
+				},
+			},
+			"non-key-list": []interface{}{
+				map[string]interface{}{
+					"strval":  "XYZ",
+					"uintval": 10,
+				},
+			},
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	yb, err := MarshalYAML(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(string(yb))
+}
+
+func TestNewWithValueString(t *testing.T) {
 	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)

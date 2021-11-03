@@ -291,10 +291,8 @@ func (branch *DataBranch) SetValue(value ...interface{}) error {
 	var err error
 	for i := range value {
 		switch v := value[i].(type) {
-		case map[interface{}]interface{}:
+		case map[interface{}]interface{}, map[string]interface{}, []interface{}:
 			err = unmarshalYAML(branch, v)
-		case map[string]interface{}:
-			err = unmarshalJSON(branch, branch.schema, v)
 		default:
 			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %q", branch)
 		}
