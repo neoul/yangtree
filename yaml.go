@@ -70,7 +70,7 @@ func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string,
 	} else {
 		child = found
 	}
-	if err := unmarshalYAML(child, yamlHash); err != nil {
+	if err := unmarshalYAML(child, cschema, yamlHash); err != nil {
 		if found == nil {
 			parent.Delete(child)
 		}
@@ -98,7 +98,7 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 			if err != nil {
 				return err
 			}
-			if err = unmarshalYAML(child, sequnce[i]); err != nil {
+			if err = unmarshalYAML(child, cschema, sequnce[i]); err != nil {
 				return err
 			}
 			if _, err = parent.Insert(child, nil); err != nil {
@@ -151,7 +151,7 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 				return err
 			}
 		}
-		if err := unmarshalYAML(child, sequnce[i]); err != nil {
+		if err := unmarshalYAML(child, cschema, sequnce[i]); err != nil {
 			if found == nil {
 				parent.Delete(child)
 			}
@@ -161,8 +161,7 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 	return nil
 }
 
-func unmarshalYAMLkeyval(node DataNode, keystr *string, v interface{}) error {
-	schema := node.Schema()
+func unmarshalYAMLkeyval(parent DataNode, schema *SchemaNode, keystr *string, v interface{}) error {
 	name, haskey, err := extractSchemaName(keystr)
 	if err != nil {
 		return Error(EAppTagYAMLParsing, err)
@@ -201,31 +200,31 @@ func unmarshalYAMLkeyval(node DataNode, keystr *string, v interface{}) error {
 	if cschema.IsListable() {
 		switch vv := v.(type) {
 		case []interface{}:
-			if err := unmarshalYAMLListableNode(node, cschema, cschema.Keyname, vv); err != nil {
+			if err := unmarshalYAMLListableNode(parent, cschema, cschema.Keyname, vv); err != nil {
 				return Error(EAppTagYAMLParsing, err)
 			}
 		case map[interface{}]interface{}, map[string]interface{}:
 			kname := cschema.Keyname
 			kval := make([]interface{}, 0, len(kname))
-			if err := unmarshalYAMLListNode(node, cschema, kname, kval, v); err != nil {
+			if err := unmarshalYAMLListNode(parent, cschema, kname, kval, v); err != nil {
 				return Error(EAppTagYAMLParsing, err)
 			}
 		default:
 			return Errorf(EAppTagYAMLParsing, "unexpected value %q for %q", vv, cschema.Name)
 		}
 	} else {
-		if child := node.Get(*keystr); child == nil {
+		if child := parent.Get(*keystr); child == nil {
 			if child, err = New(cschema); err != nil {
 				return Error(EAppTagYAMLParsing, err)
 			}
-			if err = unmarshalYAML(child, v); err != nil {
+			if err = unmarshalYAML(child, cschema, v); err != nil {
 				return Error(EAppTagYAMLParsing, err)
 			}
-			if _, err = node.Insert(child, nil); err != nil {
+			if _, err = parent.Insert(child, nil); err != nil {
 				return Error(EAppTagYAMLParsing, err)
 			}
 		} else {
-			if err := unmarshalYAML(child, v); err != nil {
+			if err := unmarshalYAML(child, cschema, v); err != nil {
 				return Error(EAppTagYAMLParsing, err)
 			}
 		}
@@ -234,13 +233,13 @@ func unmarshalYAMLkeyval(node DataNode, keystr *string, v interface{}) error {
 }
 
 // unmarshalYAML updates a data node using YAML values.
-func unmarshalYAML(node DataNode, yval interface{}) error {
-	if node.IsBranchNode() {
+func unmarshalYAML(node DataNode, schema *SchemaNode, yval interface{}) error {
+	if schema.IsDir() {
 		switch entry := yval.(type) {
 		case map[interface{}]interface{}:
 			for k, v := range entry {
 				kstr := ValueToValueString(k)
-				err := unmarshalYAMLkeyval(node, &kstr, v)
+				err := unmarshalYAMLkeyval(node, schema, &kstr, v)
 				if err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
@@ -248,7 +247,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 			return nil
 		case map[string]interface{}:
 			for k, v := range entry {
-				err := unmarshalYAMLkeyval(node, &k, v)
+				err := unmarshalYAMLkeyval(node, schema, &k, v)
 				if err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
@@ -256,7 +255,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 			return nil
 		case []interface{}:
 			for i := range entry {
-				if err := unmarshalYAML(node, entry[i]); err != nil {
+				if err := unmarshalYAML(node, schema, entry[i]); err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
 			}
@@ -269,7 +268,7 @@ func unmarshalYAML(node DataNode, yval interface{}) error {
 		case map[interface{}]interface{}, map[string]interface{}:
 			return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", entry, node.ID())
 		case []interface{}:
-			if !node.HasMultipleValues() {
+			if !schema.IsSingleLeafList() {
 				return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", entry, node.ID())
 			}
 			for i := range entry {
@@ -294,7 +293,7 @@ func UnmarshalYAML(node DataNode, in []byte) error {
 	if err != nil {
 		return err
 	}
-	return unmarshalYAML(node, ydata)
+	return unmarshalYAML(node, node.Schema(), ydata)
 }
 
 type yamlNode struct {

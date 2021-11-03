@@ -292,7 +292,7 @@ func (branch *DataBranch) SetValue(value ...interface{}) error {
 	for i := range value {
 		switch v := value[i].(type) {
 		case map[interface{}]interface{}, map[string]interface{}, []interface{}:
-			err = unmarshalYAML(branch, v)
+			err = unmarshalYAML(branch, branch.schema, v)
 		default:
 			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %q", branch)
 		}
@@ -306,7 +306,7 @@ func (branch *DataBranch) SetValueSafe(value ...interface{}) error {
 	for i := range value {
 		switch v := value[i].(type) {
 		case map[interface{}]interface{}:
-			err = unmarshalYAML(branch, v)
+			err = unmarshalYAML(branch, branch.schema, v)
 		case map[string]interface{}:
 			err = unmarshalJSON(branch, branch.schema, v)
 		default:
@@ -812,5 +812,5 @@ func (branch *DataBranch) UnmarshalYAML(unmarshal func(interface{}) error) error
 	if err != nil {
 		return err
 	}
-	return unmarshalYAML(branch, ydata)
+	return unmarshalYAML(branch, branch.schema, ydata)
 }

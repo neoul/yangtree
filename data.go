@@ -1216,9 +1216,17 @@ func Equal(node1, node2 DataNode) bool {
 	case *DataLeaf:
 		d2 := node2.(*DataLeaf)
 		if _, ok := d2.value.(yang.Number); ok {
-			return cmp.Equal(d1.value, d2.value)
+			r := cmp.Equal(d1.value, d2.value)
+			if r {
+				return r
+			}
+			return false
 		}
-		return d1.value == d2.value
+		r := d1.value == d2.value
+		if r {
+			return r
+		}
+		return false
 	}
 	return false
 }

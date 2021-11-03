@@ -163,7 +163,7 @@ func (leaflist *DataLeafList) setValue(safe bool, value []interface{}) error {
 	}
 	for i := range value {
 		if vv, ok := value[i].([]interface{}); ok {
-			if err := unmarshalYAML(leaflist, vv); err != nil {
+			if err := unmarshalYAML(leaflist, leaflist.schema, vv); err != nil {
 				if safe {
 					leaflist.value = backup
 				}
@@ -171,7 +171,7 @@ func (leaflist *DataLeafList) setValue(safe bool, value []interface{}) error {
 			}
 		} else {
 			var index int
-			err := ValidateValue(leaflist.schema, leaflist.schema.Type, value[i])
+			val, err := ValueToValidTypeValue(leaflist.schema, leaflist.schema.Type, value[i])
 			if err != nil {
 				if safe {
 					leaflist.value = backup
@@ -192,7 +192,7 @@ func (leaflist *DataLeafList) setValue(safe bool, value []interface{}) error {
 			}
 			leaflist.value = append(leaflist.value, nil)
 			copy(leaflist.value[index+1:], leaflist.value[index:])
-			leaflist.value[index] = value[i]
+			leaflist.value[index] = val
 		}
 	}
 	return nil
@@ -446,5 +446,5 @@ func (leaflist *DataLeafList) UnmarshalYAML(unmarshal func(interface{}) error) e
 	if err != nil {
 		return err
 	}
-	return unmarshalYAML(leaflist, ydata)
+	return unmarshalYAML(leaflist, leaflist.schema, ydata)
 }

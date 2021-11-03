@@ -98,11 +98,11 @@ func (leaf *DataLeaf) SetValue(value ...interface{}) error {
 	}
 
 	for i := range value {
-		err := ValidateValue(leaf.schema, leaf.schema.Type, value[i])
+		v, err := ValueToValidTypeValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
 			return err
 		}
-		leaf.value = value[i]
+		leaf.value = v
 	}
 	return nil
 }
@@ -371,5 +371,5 @@ func (leaf *DataLeaf) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err != nil {
 		return err
 	}
-	return unmarshalYAML(leaf, ydata)
+	return unmarshalYAML(leaf, leaf.schema, ydata)
 }

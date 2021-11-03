@@ -30,21 +30,21 @@ func NewGroupWithValue(schema *SchemaNode, value ...interface{}) (*DataNodeGroup
 		break
 	case schema.IsLeafList(): // multiple leaf-list node
 		collector := NewCollector().(*DataBranch)
-		// if len(value) == 1 {
-		// 	if v, ok := value[0].([]interface{}); ok {
-		// 		for i := range v {
-		// 			node, err := NewWithValue(schema, v[i])
-		// 			if err != nil {
-		// 				return nil, err
-		// 			}
-		// 			collector.insert(node, nil)
-		// 		}
-		// 		return &DataNodeGroup{
-		// 			schema: schema,
-		// 			Nodes:  copyDataNodeList(collector.children),
-		// 		}, nil
-		// 	}
-		// }
+		if len(value) == 1 {
+			if v, ok := value[0].([]interface{}); ok {
+				for i := range v {
+					node, err := NewWithValue(schema, v[i])
+					if err != nil {
+						return nil, err
+					}
+					collector.insert(node, nil)
+				}
+				return &DataNodeGroup{
+					schema: schema,
+					Nodes:  copyDataNodeList(collector.children),
+				}, nil
+			}
+		}
 		for i := range value {
 			node, err := NewWithValue(schema, value[i])
 			if err != nil {
@@ -61,12 +61,24 @@ func NewGroupWithValue(schema *SchemaNode, value ...interface{}) (*DataNodeGroup
 	case schema.IsList():
 		collector := NewCollector().(*DataBranch)
 		for i := range value {
-			node, err := NewWithValue(schema, value[i])
-			if err != nil {
-				return nil, err
-			}
-			if _, err := collector.insert(node, nil); err != nil {
-				return nil, err
+			switch entry := value[i].(type) {
+			case map[interface{}]interface{}, map[string]interface{}:
+				kval := make([]interface{}, 0, len(schema.Keyname))
+				if err := unmarshalYAMLListNode(collector, schema, schema.Keyname, kval, entry); err != nil {
+					return nil, Error(EAppTagYAMLParsing, err)
+				}
+			case []interface{}:
+				for i := range entry {
+					node, err := NewWithValue(schema, entry[i])
+					if err != nil {
+						return nil, err
+					}
+					if _, err := collector.insert(node, nil); err != nil {
+						return nil, err
+					}
+				}
+			default:
+				return nil, Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", value[i], schema)
 			}
 		}
 		return &DataNodeGroup{
@@ -457,5 +469,5 @@ func (group *DataNodeGroup) UnmarshalYAML(unmarshal func(interface{}) error) err
 	if err != nil {
 		return err
 	}
-	return unmarshalYAML(group, ydata)
+	return unmarshalYAML(group, group.schema, ydata)
 }

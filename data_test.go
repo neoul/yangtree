@@ -1,7 +1,10 @@
 package yangtree
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -16,46 +19,121 @@ func TestSetValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = root.SetValue(
-		map[interface{}]interface{}{"sample": map[interface{}]interface{}{
-			"container-val": map[interface{}]interface{}{
-				"a":        "A",
-				"enum-val": "enum2",
-				"leaf-list-val": []interface{}{
-					"leaf-list-first",
-					"leaf-list-fourth",
-					"leaf-list-second",
-					"leaf-list-third",
-				},
-				"test-default": 11,
-			},
-			"empty-val": nil,
-			"multiple-key-list": []interface{}{
-				map[interface{}]interface{}{
+	tests := []struct {
+		path    string
+		value   interface{}
+		wantErr bool
+	}{
+		{path: "sample"},
+		{path: "sample/container-val"},
+		{path: "sample/container-val/a", value: "A"}, // SetValue(root, "sample/container-val/a", nil, "A")
+		{path: "sample/container-val/enum-val", value: "enum1"},
+		{path: "sample/container-val/enum-val", value: "enum2"},
+		{path: "sample/container-val/test-default", value: 11},
+		{path: "sample/container-val/leaf-list-val", value: []interface{}{"leaf-list-first", "leaf-list-fourth", "leaf-list-second", "leaf-list-third"}},
+		{path: "sample/empty-val"},
+		{path: "sample/non-key-list", value: []interface{}{map[interface{}]interface{}{"strval": "XYZ", "uintval": 10}}},
+		{path: "sample/multiple-key-list[integer=1][str=first]", value: map[interface{}]interface{}{"integer": 1, "str": "first"}},
+		{path: "sample/multiple-key-list", value: map[interface{}]interface{}{
+			"first": map[interface{}]interface{}{
+				1: map[interface{}]interface{}{
 					"integer": 1,
 					"ok":      true,
 					"str":     "first",
 				},
-				map[interface{}]interface{}{
+				2: map[interface{}]interface{}{
 					"integer": 2,
 					"str":     "first",
 				},
-			},
-			"non-key-list": []interface{}{
-				map[interface{}]interface{}{
-					"strval":  "XYZ",
-					"uintval": 10,
-				},
-			},
-		}})
+			}},
+		},
+		{path: "sample/single-key-list", value: []interface{}{
+			map[interface{}]interface{}{"country-code": "KR", "decimal-range": 1.01, "empty-node": nil, "list-key": "AAA", "uint32-range": 100, "uint64-node": 1234567890}},
+		},
+		{path: "sample/str-val", value: "abc"},
+	}
+	for _, tt := range tests {
+		t.Run("SetValue."+tt.path, func(t *testing.T) {
+			if tt.value == nil {
+				err = SetValue(root, tt.path, nil)
+			} else {
+				err = SetValue(root, tt.path, nil, tt.value)
+			}
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SetValue() error = %v, wantErr = %v path = %s", err, tt.wantErr, tt.path)
+			}
+		})
+	}
+
+	f, err := os.Open("testdata/json/sample.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	yb, err := MarshalYAML(root)
+	jbyte, err := ioutil.ReadAll(f)
 	if err != nil {
+		t.Fatalf("err in file read: %v", err)
+	}
+	f.Close()
+	refroot, err := New(schema)
+	if err := json.Unmarshal(jbyte, refroot); err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(string(yb))
+	if !Equal(root, refroot) {
+		t.Errorf("an yangtree instance built by SetValue is not equal to expected one")
+		yb, err := MarshalYAML(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Error(string(yb))
+
+		yb, err = MarshalYAML(refroot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Error(string(yb))
+	}
+	// err = root.SetValue(
+	// 	map[interface{}]interface{}{"sample": map[interface{}]interface{}{
+	// 		"container-val": map[interface{}]interface{}{
+	// 			"a":        "A",
+	// 			"enum-val": "enum2",
+	// 			"leaf-list-val": []interface{}{
+	// 				"leaf-list-first",
+	// 				"leaf-list-fourth",
+	// 				"leaf-list-second",
+	// 				"leaf-list-third",
+	// 			},
+	// 			"test-default": 11,
+	// 		},
+	// 		"empty-val": nil,
+	// 		"non-key-list": []interface{}{
+	// map[interface{}]interface{}{
+	// 	"strval":  "XYZ",
+	// 	"uintval": 10,
+	// },
+	// 		},
+	// 	}})
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// yb, err := MarshalYAML(root)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// fmt.Println(string(yb))
+	// SetValue(root, "sample/multiple-key-list", nil,
+	// 	[]interface{}{
+	// 		map[interface{}]interface{}{
+	// 			"integer": 1,
+	// 			"ok":      true,
+	// 			"str":     "first",
+	// 		},
+	// 		map[interface{}]interface{}{
+	// 			"integer": 2,
+	// 			"str":     "first",
+	// 		},
+	// 	})
+
 }
 
 func TestNewWithValueString(t *testing.T) {
@@ -63,64 +141,24 @@ func TestNewWithValueString(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	jbyte := `
-	{
-		"sample:sample": {
-		 "container-val": {
-		  "a": "A",
-		  "enum-val": "enum2",
-		  "leaf-list-val": [
-		   "leaf-list-first",
-		   "leaf-list-fourth",
-		   "leaf-list-second",
-		   "leaf-list-third"
-		  ],
-		  "test-default": 11
-		 },
-		 "empty-val": [
-		  null
-		 ],
-		 "multiple-key-list": [
-		  {
-		   "integer": 1,
-		   "ok": true,
-		   "str": "first"
-		  },
-		  {
-		   "integer": 2,
-		   "str": "first"
-		  }
-		 ],
-		 "non-key-list": [
-		  {
-		   "strval": "XYZ",
-		   "uintval": 10
-		  }
-		 ],
-		 "single-key-list": [
-		  {
-		   "country-code": "KR",
-		   "decimal-range": 1.01,
-		   "empty-node": [
-			null
-		   ],
-		   "list-key": "AAA",
-		   "uint32-range": 100,
-		   "uint64-node": "1234567890"
-		  }
-		 ],
-		 "str-val": "abc"
-		}
-	   }
-	`
-	root1, err := NewWithValueString(RootSchema, jbyte)
+	f, err := os.Open("testdata/json/sample.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jbyte, err := ioutil.ReadAll(f)
+	if err != nil {
+		t.Fatalf("err in file read: %v", err)
+	}
+	f.Close()
+
+	root1, err := NewWithValueString(RootSchema, string(jbyte))
 	if err != nil {
 		t.Fatal(err)
 	}
 	j, _ := MarshalJSON(root1)
 	t.Log(string(j))
 
-	root2, err := NewWithValueString(RootSchema, jbyte)
+	root2, err := NewWithValueString(RootSchema, string(jbyte))
 	if err != nil {
 		t.Fatal(err)
 	}
