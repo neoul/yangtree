@@ -92,6 +92,7 @@ func TestSetValue(t *testing.T) {
 		}
 		t.Error(string(yb))
 	}
+	// pretty.Print(root.Value(), root.Values())
 	// err = root.SetValue(
 	// 	map[interface{}]interface{}{"sample": map[interface{}]interface{}{
 	// 		"container-val": map[interface{}]interface{}{

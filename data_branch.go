@@ -39,9 +39,24 @@ func (branch *DataBranch) Parent() DataNode {
 	}
 	return branch.parent
 }
-func (branch *DataBranch) Children() []DataNode  { return branch.children }
-func (branch *DataBranch) Value() interface{}    { return nil }
-func (branch *DataBranch) Values() []interface{} { return nil }
+func (branch *DataBranch) Children() []DataNode { return branch.children }
+func (branch *DataBranch) Value() interface{} {
+	ynode := &yamlNode{
+		DataNode: branch,
+	}
+	m, err := ynode.toMap(false)
+	if err != nil {
+		return nil
+	}
+	return m
+}
+func (branch *DataBranch) Values() []interface{} {
+	m := branch.Value()
+	if m != nil {
+		return []interface{}{m}
+	}
+	return nil
+}
 func (branch *DataBranch) ValueString() string {
 	b, err := branch.MarshalJSON()
 	if err != nil {
