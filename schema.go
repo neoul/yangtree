@@ -21,30 +21,34 @@ import (
 // SchemaNode - The node structure of yangtree schema.
 type SchemaNode struct {
 	*yang.Entry
-	Parent      *SchemaNode             // The parent schema node of the schema node
-	Module      *yang.Module            // The module of the schema node
-	Children    []*SchemaNode           // The child schema nodes of the schema node
-	Directory   map[string]*SchemaNode  // used to store the children of the schema node with all schema node's aliases
-	Enum        map[string]int64        // used to store all enumeration string
-	Identityref map[string]*yang.Module // used to store all identity values of the schema node
-	Keyname     []string                // used to store key list
-	// QName         string                  // The namespace-qualified name of RFC7951
-	Qboundary     bool // used to indicate the boundary of the namespace-qualified name of RFC7951
-	IsRoot        bool // used to indicate the schema is the root of the schema tree.
-	IsKey         bool // used to indicate the schema node is a key node of a list.
-	IsState       bool // used to indicate the schema node is state node.
-	HasState      bool // used to indicate the schema node has a state node at least.
-	OrderedByUser bool // used to indicate the ordering of the list or the leaf-list nodes.
+	Parent        *SchemaNode             // The parent schema node of the schema node
+	Module        *yang.Module            // The module of the schema node
+	Children      []*SchemaNode           // The child schema nodes of the schema node
+	Directory     map[string]*SchemaNode  // used to store the children of the schema node with all schema node's aliases
+	Enum          map[string]int64        // used to store all enumeration string
+	Identityref   map[string]*yang.Module // used to store all identity values of the schema node
+	Keyname       []string                // used to store key list
+	Qboundary     bool                    // used to indicate the boundary of the namespace-qualified name of RFC7951
+	IsRoot        bool                    // used to indicate the schema is the root of the schema tree.
+	IsKey         bool                    // used to indicate the schema node is a key node of a list.
+	IsState       bool                    // used to indicate the schema node is state node.
+	HasState      bool                    // used to indicate the schema node has a state node at least.
+	OrderedByUser bool                    // used to indicate the ordering of the list or the leaf-list nodes.
 	Option        *YANGTreeOption
-	Extension     map[string]*SchemaNode
 	Modules       *yang.Modules
+	*Extension
+}
+
+type Extension struct {
+	ExtSchema      map[string]*SchemaNode
+	MetadataSchema map[string]*SchemaNode
 }
 
 func (schema *SchemaNode) String() string {
 	return schema.Name
 }
 
-func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *YANGTreeOption, ext map[string]*SchemaNode, ms *yang.Modules) (*SchemaNode, error) {
+func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *YANGTreeOption, ext *Extension, ms *yang.Modules) (*SchemaNode, error) {
 	n := &SchemaNode{
 		Entry:     e,
 		Parent:    parent,
@@ -64,10 +68,6 @@ func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode,
 		}
 		n.OrderedByUser = orderedByUser
 	}
-
-	// namespace-qualified name of RFC 7951
-	// qname := strings.Join([]string{n.Module.Name, ":", e.Name}, "")
-	// n.QName = qname
 	n.Qboundary = true
 
 	// set keyname
@@ -313,7 +313,7 @@ func updatType(schema *SchemaNode, typ *yang.YangType) error {
 var collector *SchemaNode
 
 // buildRootSchema() builds the fake root schema node of the loaded yangtree.
-func buildRootSchema(module *yang.Module, option *YANGTreeOption, ext map[string]*SchemaNode, ms *yang.Modules) *SchemaNode {
+func buildRootSchema(module *yang.Module, option *YANGTreeOption, ext *Extension, ms *yang.Modules) *SchemaNode {
 	me := yang.ToEntry(module)
 	e := me.Dir["root"]
 	root, err := buildSchemaNode(e, module, nil, option, ext, ms)
@@ -434,12 +434,22 @@ func getNameAndModule(n yang.Node, base *yang.Module) (string, *yang.Module) {
 	}
 }
 
-func collectExtension(module *yang.Module, option *YANGTreeOption, ext map[string]*SchemaNode, ms *yang.Modules) error {
+func collectExtension(module *yang.Module, option *YANGTreeOption, ext *Extension, ms *yang.Modules) error {
 	// yang-metadadta
 	for _, extstatement := range module.Extensions {
 		name, mod := getNameAndModule(extstatement, module)
 		if mod == nil {
 			mod = module
+		}
+		isMetadata := false
+		if mod != nil {
+			keyword := strings.SplitN(extstatement.Keyword, ":", 2)
+			if len(keyword) == 2 {
+				extRootModule := yang.FindModuleByPrefix(module, keyword[0])
+				if extRootModule != nil && extRootModule.Name == "ietf-yang-metadata" && keyword[1] == "annotation" {
+					isMetadata = true
+				}
+			}
 		}
 		extEntry := &yang.Entry{
 			Node:   extstatement,
@@ -493,7 +503,10 @@ func collectExtension(module *yang.Module, option *YANGTreeOption, ext map[strin
 			if err != nil {
 				panic(err)
 			}
-			ext[name] = extNode
+			ext.ExtSchema[name] = extNode
+			if isMetadata {
+				ext.MetadataSchema["@"+name] = extNode
+			}
 		}
 	}
 	return nil
@@ -522,7 +535,10 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*SchemaNode, error)
 			schemaOption = o
 		}
 	}
-	ext := make(map[string]*SchemaNode)
+	ext := &Extension{
+		ExtSchema:      make(map[string]*SchemaNode),
+		MetadataSchema: make(map[string]*SchemaNode),
+	}
 
 	// built-in data model loading
 	if yfile, err := Unzip(builtInYangtreeRoot); err == nil {
@@ -668,6 +684,9 @@ func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 
 // GetSchema() returns a child of the schema node. The namespace-qualified name is used for the name.
 func (schema *SchemaNode) GetSchema(name string) *SchemaNode {
+	if strings.HasPrefix(name, "@") {
+		return schema.MetadataSchema[name]
+	}
 	// if schema == nil {
 	// 	return nil
 	// }
@@ -700,6 +719,12 @@ func (schema *SchemaNode) FindSchema(path string) *SchemaNode {
 			return nil
 		}
 		if pathnode[i].Name != "" {
+			if strings.HasPrefix(pathnode[i].Name, "@") {
+				if len(pathnode)-1 != i {
+					return nil
+				}
+				return target.MetadataSchema[pathnode[i].Name]
+			}
 			target = target.Directory[pathnode[i].Name]
 		}
 	}

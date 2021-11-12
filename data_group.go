@@ -300,26 +300,36 @@ func (group *DataNodeGroup) SetValueStringSafe(value ...string) error {
 }
 
 func (group *DataNodeGroup) UnsetValueString(value ...string) error {
-	return fmt.Errorf("data node group doesn't support UnsetValueString")
+	return fmt.Errorf("data node group doesn't support to unset a value")
 }
 
 func (group *DataNodeGroup) Remove() error {
-	return fmt.Errorf("data node group doesn't support Remove")
+	return fmt.Errorf("data node group doesn't support to remove a node itself")
 }
 
 func (group *DataNodeGroup) Insert(child DataNode, insert InsertOption) (DataNode, error) {
-	return nil, fmt.Errorf("data node group doesn't support Insert")
+	return nil, fmt.Errorf("data node group doesn't support child insertion")
 }
 
 func (group *DataNodeGroup) Delete(child DataNode) error {
-	return fmt.Errorf("data node group doesn't support Delete")
+	return fmt.Errorf("data node group doesn't support child deletion")
 }
 
-// [FIXME] - metadata
-// SetMeta() sets metadata key-value pairs.
-//   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
-func (group *DataNodeGroup) SetMeta(meta ...map[string]string) error {
-	return nil
+// SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
+//   node.SetMetadata("last-modified", "2015-06-18T17:01:14+02:00")
+func (group *DataNodeGroup) SetMetadata(name string, value ...interface{}) error {
+	return fmt.Errorf("data node group doesn't support metadata")
+}
+
+// SetMetadataString() sets a metadata. for example, the following last-modified is set to the node as a metadata.
+//   node.SetMetadataString("last-modified", "2015-06-18T17:01:14+02:00")
+func (group *DataNodeGroup) SetMetadataString(name string, value ...string) error {
+	return fmt.Errorf("data node group doesn't support metadata")
+}
+
+// UnsetMetadata() remove a metadata.
+func (group *DataNodeGroup) UnsetMetadata(name string) error {
+	return fmt.Errorf("data node group doesn't support metadata")
 }
 
 func (group *DataNodeGroup) Exist(id string) bool {

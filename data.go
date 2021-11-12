@@ -3,6 +3,7 @@ package yangtree
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openconfig/goyang/pkg/yang"
@@ -633,10 +634,16 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 		return nil
 	}
 
-	// [FIXME] - metadata
-	// if strings.HasPrefix(pathnode[0].Name, "@") {
-	// 	return root.SetMeta(value)
-	// }
+	reachToEnd := len(pathnode) == 1
+	if strings.HasPrefix(pathnode[0].Name, "@") {
+		if !reachToEnd {
+			return fmt.Errorf("longtail path for metadata %q", pathnode[0].Name)
+		}
+		if isValueString {
+			return root.SetMetadataString(pathnode[0].Name, value.([]string)...)
+		}
+		return root.SetMetadata(pathnode[0].Name, value)
+	}
 
 	branch, ok := root.(*DataBranch)
 	if !ok {
@@ -675,7 +682,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 			}
 		}
 	}
-	reachToEnd := len(pathnode) == 1
+
 	id, nodeGroup, valueSearch := cschema.GenerateID(pmap)
 	children := branch.find(cschema, &id, nodeGroup, valueSearch, pmap)
 	if len(children) == 0 {

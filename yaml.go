@@ -260,6 +260,8 @@ func unmarshalYAML(node DataNode, schema *SchemaNode, yval interface{}) error {
 				}
 			}
 			return nil
+		case nil:
+			return nil
 		default:
 			return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", yval, node)
 		}

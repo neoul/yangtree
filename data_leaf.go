@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
 // DataLeaf - The node structure of yangtree for list or leaf-list nodes.
 type DataLeaf struct {
-	schema *SchemaNode
-	parent *DataBranch
-	value  interface{}
-	id     string
+	schema   *SchemaNode
+	parent   *DataBranch
+	value    interface{}
+	id       string
+	metadata map[string]DataNode
 }
 
 func (leaf *DataLeaf) IsDataNode()              {}
@@ -189,10 +191,60 @@ func (leaf *DataLeaf) Delete(child DataNode) error {
 	return fmt.Errorf("delete is not supported on %q", leaf)
 }
 
-// [FIXME] - metadata
-// SetMeta() sets metadata key-value pairs.
-//   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
-func (leaf *DataLeaf) SetMeta(meta ...map[string]string) error {
+// SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
+//   node.SetMetadata("last-modified", "2015-06-18T17:01:14+02:00")
+func (leaf *DataLeaf) SetMetadata(name string, value ...interface{}) error {
+	if !strings.HasPrefix(name, "@") {
+		name = "@" + name
+	}
+	mschema := leaf.schema.MetadataSchema[name]
+	if mschema == nil {
+		return fmt.Errorf("no schema of metadata for %q", name)
+	}
+	meta, err := NewWithValue(mschema, value...)
+	if err != nil {
+		return err
+	}
+	if leaf.metadata == nil {
+		leaf.metadata = map[string]DataNode{}
+	}
+	leaf.metadata[name] = meta
+	return nil
+}
+
+// SetMetadataString() sets a metadata. for example, the following last-modified is set to the node as a metadata.
+//   node.SetMetadataString("last-modified", "2015-06-18T17:01:14+02:00")
+func (leaf *DataLeaf) SetMetadataString(name string, value ...string) error {
+	if !strings.HasPrefix(name, "@") {
+		name = "@" + name
+	}
+	mschema := leaf.schema.MetadataSchema[name]
+	if mschema == nil {
+		return fmt.Errorf("no schema of metadata for %q", name)
+	}
+	meta, err := NewWithValueString(mschema, value...)
+	if err != nil {
+		return err
+	}
+	if leaf.metadata == nil {
+		leaf.metadata = map[string]DataNode{}
+	}
+	leaf.metadata[name] = meta
+	return nil
+}
+
+// UnsetMetadata() remove a metadata.
+func (leaf *DataLeaf) UnsetMetadata(name string) error {
+	if !strings.HasPrefix(name, "@") {
+		name = "@" + name
+	}
+	// mschema := leaf.schema.MetadataSchema[name]
+	// if mschema == nil {
+	// 	return fmt.Errorf("no schema of metadata for %q", name)
+	// }
+	if leaf.metadata != nil {
+		delete(leaf.metadata, name)
+	}
 	return nil
 }
 

@@ -455,32 +455,61 @@ func (branch *DataBranch) Delete(child DataNode) error {
 	return fmt.Errorf("%q not found on %q", child, branch)
 }
 
-// [FIXME] - metadata
-// SetMeta() sets metadata key-value pairs.
-//   e.g. node.SetMeta(map[string]string{"operation": "replace", "last-modified": "2015-06-18T17:01:14+02:00"})
-func (branch *DataBranch) SetMeta(meta ...map[string]string) error {
-	// sm := GetSchemaMeta(branch.schema)
-	// if sm.Option == nil {
-	// 	return fmt.Errorf("no metadata schema")
-	// }
-	// metaschema := sm.Option.ExtensionSchema
-	// for i := range meta {
-	// 	for name, value := range meta[i] {
-	// 		schema := metaschema[name]
-	// 		if schema == nil {
-	// 			return fmt.Errorf("metadata schema %q not found", name)
-	// 		}
-	// 		if branch.metadata == nil {
-	// 			branch.metadata = map[string]DataNode{}
-	// 		}
+// SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
+//   node.SetMetadata("last-modified", "2015-06-18T17:01:14+02:00")
+func (branch *DataBranch) SetMetadata(name string, value ...interface{}) error {
+	if !strings.HasPrefix(name, "@") {
+		name = "@" + name
+	}
+	mschema := branch.schema.MetadataSchema[name]
+	if mschema == nil {
+		return fmt.Errorf("no schema of metadata for %q", name)
+	}
 
-	// 		metanode, err := NewWithValueString(schema, value)
-	// 		if err != nil {
-	// 			return fmt.Errorf("error in seting metadata: %v", err)
-	// 		}
-	// 		branch.metadata[name] = metanode
-	// 	}
+	meta, err := NewWithValue(mschema, value...)
+	if err != nil {
+		return err
+	}
+	if branch.metadata == nil {
+		branch.metadata = map[string]DataNode{}
+	}
+	branch.metadata[name] = meta
+	return nil
+}
+
+// SetMetadataString() sets a metadata. for example, the following last-modified is set to the node as a metadata.
+//   node.SetMetadataString("last-modified", "2015-06-18T17:01:14+02:00")
+func (branch *DataBranch) SetMetadataString(name string, value ...string) error {
+	if !strings.HasPrefix(name, "@") {
+		name = "@" + name
+	}
+	mschema := branch.schema.MetadataSchema[name]
+	if mschema == nil {
+		return fmt.Errorf("no schema of metadata for %q", name)
+	}
+	meta, err := NewWithValueString(mschema, value...)
+	if err != nil {
+		return err
+	}
+	if branch.metadata == nil {
+		branch.metadata = map[string]DataNode{}
+	}
+	branch.metadata[name] = meta
+	return nil
+}
+
+// UnsetMetadata() remove a metadata.
+func (branch *DataBranch) UnsetMetadata(name string) error {
+	if !strings.HasPrefix(name, "@") {
+		name = "@" + name
+	}
+	// mschema := branch.schema.MetadataSchema[name]
+	// if mschema == nil {
+	// 	return fmt.Errorf("no schema of metadata for %q", name)
 	// }
+	if branch.metadata != nil {
+		delete(branch.metadata, name)
+	}
 	return nil
 }
 

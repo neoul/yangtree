@@ -69,6 +69,14 @@ type DataNode interface {
 	Value() interface{}    // Value() returns the raw data of the data node.
 	Values() []interface{} // Values() returns its values using []interface{} slice
 	ValueString() string   // ValueString() returns the string value of the data node.
+
+	SetMetadata(name string, value ...interface{}) error  // SetMetadata() sets a metadata.
+	SetMetadataString(name string, value ...string) error // SetMetadataString() sets a metadata using string values.
+	UnsetMetadata(name string) error                      // UnsetMetadata() remove a metadata.
+
+	// Metadata(name string) interface{}
+	// Metadatas(name string) []interface{}
+	// GetAllMetadata() map[string]DataNode
 }
 
 // yangtree Option
