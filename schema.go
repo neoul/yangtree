@@ -505,7 +505,7 @@ func collectExtension(module *yang.Module, option *YANGTreeOption, ext *Extensio
 			}
 			ext.ExtSchema[name] = extNode
 			if isMetadata {
-				ext.MetadataSchema["@"+name] = extNode
+				ext.MetadataSchema[name] = extNode
 			}
 		}
 	}
@@ -685,7 +685,7 @@ func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 // GetSchema() returns a child of the schema node. The namespace-qualified name is used for the name.
 func (schema *SchemaNode) GetSchema(name string) *SchemaNode {
 	if strings.HasPrefix(name, "@") {
-		return schema.MetadataSchema[name]
+		return schema.MetadataSchema[name[1:]]
 	}
 	// if schema == nil {
 	// 	return nil
@@ -723,7 +723,7 @@ func (schema *SchemaNode) FindSchema(path string) *SchemaNode {
 				if len(pathnode)-1 != i {
 					return nil
 				}
-				return target.MetadataSchema[pathnode[i].Name]
+				return target.MetadataSchema[pathnode[i].Name[1:]]
 			}
 			target = target.Directory[pathnode[i].Name]
 		}

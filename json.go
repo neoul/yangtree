@@ -42,6 +42,7 @@ type jsonNode struct {
 	DataNode
 	RFC7951S
 	ConfigOnly yang.TriState
+	printMeta  bool
 }
 
 func (jnode *jsonNode) getQname() string {
@@ -59,22 +60,95 @@ func (jnode *jsonNode) getQname() string {
 
 func (jnode *jsonNode) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
-	err := jnode.marshalJSON(&buffer, false)
+	_, err := jnode.marshalJSON(&buffer, false, false, false)
 	if err != nil {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
 }
 
-func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, skipRootMarshalling bool) error {
+func (jnode *jsonNode) marshalJSONMetadata(buffer *bytes.Buffer, comma bool) (bool, error) {
+	// marshalling metadata
+	var err error
+	m := jnode.Metadata()
+	if len(m) == 0 {
+		return comma, nil
+	}
+	if comma {
+		buffer.WriteString(",")
+	}
+	comma = true
+
+	switch {
+	case jnode.IsBranchNode():
+		buffer.WriteString(`"@":{`)
+	case jnode.HasMultipleValues(): // single leaf-list schema node
+		if jnode.RFC7951S == RFC7951Disabled {
+			buffer.WriteString(fmt.Sprintf(`"@%s":{`, jnode.getQname()))
+			break
+		}
+		buffer.WriteString(fmt.Sprintf(`"@%s":[`, jnode.getQname()))
+		mcomma := false
+		length := len(jnode.Values())
+		for i := 0; i < length; i++ {
+			if mcomma {
+				buffer.WriteString(",")
+			}
+			mcomma = true
+			buffer.WriteString(`{`)
+			mmcomma := false
+			mjnode := *jnode
+			for _, mdata := range m {
+				mjnode.DataNode = mdata
+				mjnode.RFC7951S = jnode.RFC7951S
+				if mmcomma, err = mjnode.marshalJSON(buffer, mmcomma, true, false); err != nil {
+					return false, err
+				}
+			}
+			buffer.WriteString(`}`)
+		}
+		buffer.WriteString(`]`)
+		return comma, nil
+	case jnode.IsLeafNode(): // leaf, multiple leaf-list schema node
+		buffer.WriteString(fmt.Sprintf(`"@%s":{`, jnode.getQname()))
+	default:
+		return false, fmt.Errorf("unknown ynode type %v", jnode.DataNode)
+	}
+	mcomma := false
+	mjnode := *jnode
+	for _, mdata := range m {
+		mjnode.DataNode = mdata
+		mjnode.RFC7951S = jnode.RFC7951S
+		if mcomma, err = mjnode.marshalJSON(buffer, mcomma, true, false); err != nil {
+			return false, err
+		}
+	}
+	buffer.WriteString(`}`)
+	return comma, err
+}
+
+func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipRootMarshalling bool) (bool, error) {
+	var err error
+	if !skipRootMarshalling {
+		if printName {
+			if comma {
+				buffer.WriteString(",")
+			}
+			comma = true
+			buffer.WriteString(`"`)
+			buffer.WriteString(jnode.getQname()) // namespace-qualified name
+			buffer.WriteString(`":`)
+		}
+	}
+
 	if jnode == nil || jnode.DataNode == nil {
 		buffer.WriteString(`null`)
-		return nil
+		return comma, nil
 	}
 	switch {
 	case jnode.IsBranchNode():
 		cjnode := *jnode
-		comma := false
+		childcomma := false
 		children := jnode.Children()
 		if !skipRootMarshalling {
 			buffer.WriteString(`{`)
@@ -83,9 +157,9 @@ func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, skipRootMarshalling boo
 			schema := children[i].Schema()
 			if schema.IsListable() {
 				var err error
-				i, comma, err = jnode.marshalJSONListableNode(buffer, children, i, comma, skipRootMarshalling)
+				i, childcomma, err = jnode.marshalJSONListableNode(buffer, children, i, childcomma, skipRootMarshalling)
 				if err != nil {
-					return err
+					return childcomma, err
 				}
 				continue
 			}
@@ -98,52 +172,62 @@ func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, skipRootMarshalling boo
 			}
 			cjnode.DataNode = children[i]
 			cjnode.RFC7951S = jnode.RFC7951S
-			if !skipRootMarshalling {
-				if comma {
-					buffer.WriteString(",")
-				}
-				comma = true
-				buffer.WriteString(`"`)
-				buffer.WriteString(cjnode.getQname()) // namespace-qualified name
-				buffer.WriteString(`":`)
-			}
-			if err := cjnode.marshalJSON(buffer, false); err != nil {
-				return err
+			if childcomma, err = cjnode.marshalJSON(buffer, childcomma, true, false); err != nil {
+				return comma, err
 			}
 			i++
 		}
+
 		if !skipRootMarshalling {
+			// marshalling metadata
+			if jnode.printMeta {
+				_, err = jnode.marshalJSONMetadata(buffer, childcomma)
+				if err != nil {
+					return false, err
+				}
+			}
 			buffer.WriteString(`}`)
 		}
 	case jnode.HasMultipleValues(): // single leaf-list schema node
 		schema := jnode.Schema()
 		value := jnode.Values()
-		rfc7951enabled := jnode.RFC7951S != RFC7951Disabled
-		comma := false
+		valcomma := false
 		buffer.WriteString("[")
 		for i := range value {
-			if comma {
+			if valcomma {
 				buffer.WriteString(",")
 			}
-			b, err := schema.ValueToJSONBytes(schema.Type, value[i], rfc7951enabled)
+			b, err := schema.ValueToJSONBytes(schema.Type, value[i], jnode.RFC7951S != RFC7951Disabled)
 			if err != nil {
-				return err
+				return false, err
 			}
 			buffer.Write(b)
-			comma = true
+			valcomma = true
 		}
 		buffer.WriteString("]")
-		return nil
+		// marshalling metadata
+		if jnode.printMeta && !skipRootMarshalling {
+			comma, err = jnode.marshalJSONMetadata(buffer, comma)
+			if err != nil {
+				return comma, err
+			}
+		}
 	case jnode.IsLeafNode(): // leaf, multiple leaf-list schema node
-		rfc7951enabled := jnode.RFC7951S != RFC7951Disabled
 		schema := jnode.Schema()
-		b, err := schema.ValueToJSONBytes(schema.Type, jnode.Value(), rfc7951enabled)
+		b, err := schema.ValueToJSONBytes(schema.Type, jnode.Value(), jnode.RFC7951S != RFC7951Disabled)
 		if err != nil {
-			return err
+			return comma, err
 		}
 		buffer.Write(b)
+		// marshalling metadata
+		if jnode.printMeta && !skipRootMarshalling {
+			comma, err = jnode.marshalJSONMetadata(buffer, comma)
+			if err != nil {
+				return comma, err
+			}
+		}
 	}
-	return nil
+	return comma, nil
 }
 
 func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma bool, skipRootMarshalling bool) (int, bool, error) {
@@ -185,21 +269,66 @@ func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []Dat
 				break
 			}
 		}
+		printMeta := first.printMeta
+		if schema.IsLeafList() {
+			printMeta = false
+		}
 		nodelist := make([]interface{}, 0, i-ii)
 		for ; ii < i; ii++ {
-			jnode := &jsonNode{DataNode: node[ii],
-				ConfigOnly: first.ConfigOnly, RFC7951S: first.RFC7951S}
+			jnode := &jsonNode{DataNode: node[ii], ConfigOnly: first.ConfigOnly,
+				RFC7951S: first.RFC7951S, printMeta: printMeta}
 			nodelist = append(nodelist, jnode)
 		}
 		err := marshalJNodeTree(buffer, nodelist)
+		if err == nil {
+			// marshalling metadata of a leaf-list
+			if first.printMeta && schema.IsLeafList() {
+				if !skipRootMarshalling {
+					if comma {
+						buffer.WriteString(",")
+					}
+					comma = true
+					buffer.WriteString(`"`)
+					buffer.WriteString(`@`)
+					buffer.WriteString(first.getQname())
+					buffer.WriteString(`":[`)
+				}
+				mcomma := false
+				for j := 0; j < len(nodelist); j++ {
+					m := nodelist[j].(*jsonNode).Metadata()
+					if mcomma {
+						buffer.WriteString(`,`)
+					}
+					mcomma = true
+					if len(m) == 0 {
+						buffer.WriteString("null")
+						continue
+					}
+					mmcomma := false
+					mjnode := first
+					buffer.WriteString(`{`)
+					for _, mdata := range m {
+						mjnode.DataNode = mdata
+						mjnode.RFC7951S = first.RFC7951S
+						if mmcomma, err = mjnode.marshalJSON(buffer, mmcomma, true, false); err != nil {
+							return i, comma, err
+						}
+					}
+					buffer.WriteString(`}`)
+				}
+				if !skipRootMarshalling {
+					buffer.WriteString(`]`)
+				}
+			}
+		}
 		return i, comma, err
 	}
 
 	// object format
 	nodemap := map[string]interface{}{}
 	for ; i < len(node); i++ {
-		jnode := &jsonNode{DataNode: node[i],
-			ConfigOnly: first.ConfigOnly, RFC7951S: first.RFC7951S}
+		jnode := &jsonNode{DataNode: node[i], ConfigOnly: first.ConfigOnly,
+			RFC7951S: first.RFC7951S, printMeta: first.printMeta}
 		if schema != jnode.Schema() {
 			break
 		}
@@ -262,7 +391,7 @@ func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
 		}
 		buffer.WriteString(`]`)
 	case *jsonNode:
-		if err := jj.marshalJSON(buffer, false); err != nil {
+		if _, err := jj.marshalJSON(buffer, false, false, false); err != nil {
 			return err
 		}
 	}
@@ -490,13 +619,15 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 			jnode.ConfigOnly = yang.TSFalse
 		case RFC7951Format:
 			jnode.RFC7951S = RFC7951Enabled
+		case Metadata:
+			jnode.printMeta = true
 		}
 	}
 	skipRootMarshalling := false
 	if _, ok := node.(*DataNodeGroup); ok {
 		skipRootMarshalling = true
 	}
-	err := jnode.marshalJSON(&buffer, skipRootMarshalling)
+	_, err := jnode.marshalJSON(&buffer, false, false, skipRootMarshalling)
 	if err != nil {
 		return nil, err
 	}
@@ -523,7 +654,7 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 	if _, ok := node.(*DataNodeGroup); ok {
 		skipRootMarshalling = true
 	}
-	err := jnode.marshalJSON(&buffer, skipRootMarshalling)
+	_, err := jnode.marshalJSON(&buffer, false, false, skipRootMarshalling)
 	if err != nil {
 		return nil, err
 	}

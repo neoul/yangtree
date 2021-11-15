@@ -279,9 +279,7 @@ func (leaflist *DataLeafList) Delete(child DataNode) error {
 // SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
 //   node.SetMetadata("last-modified", "2015-06-18T17:01:14+02:00")
 func (leaflist *DataLeafList) SetMetadata(name string, value ...interface{}) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	mschema := leaflist.schema.MetadataSchema[name]
 	if mschema == nil {
 		return fmt.Errorf("no schema of metadata for %q", name)
@@ -300,9 +298,7 @@ func (leaflist *DataLeafList) SetMetadata(name string, value ...interface{}) err
 // SetMetadataString() sets a metadata. for example, the following last-modified is set to the node as a metadata.
 //   node.SetMetadataString("last-modified", "2015-06-18T17:01:14+02:00")
 func (leaflist *DataLeafList) SetMetadataString(name string, value ...string) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	mschema := leaflist.schema.MetadataSchema[name]
 	if mschema == nil {
 		return fmt.Errorf("no schema of metadata for %q", name)
@@ -320,13 +316,15 @@ func (leaflist *DataLeafList) SetMetadataString(name string, value ...string) er
 
 // UnsetMetadata() remove a metadata.
 func (leaflist *DataLeafList) UnsetMetadata(name string) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	if leaflist.metadata != nil {
 		delete(leaflist.metadata, name)
 	}
 	return nil
+}
+
+func (leaflist *DataLeafList) Metadata() map[string]DataNode {
+	return leaflist.metadata
 }
 
 func (leaflist *DataLeafList) Exist(id string) bool {
@@ -435,7 +433,7 @@ func (leaflist *DataLeafList) UnmarshalJSON(jbytes []byte) error {
 func (leaflist *DataLeafList) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: leaflist}
-	err := jnode.marshalJSON(&buffer, false)
+	_, err := jnode.marshalJSON(&buffer, false, false, false)
 	if err != nil {
 		return nil, err
 	}

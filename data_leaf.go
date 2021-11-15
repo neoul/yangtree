@@ -194,9 +194,7 @@ func (leaf *DataLeaf) Delete(child DataNode) error {
 // SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
 //   node.SetMetadata("last-modified", "2015-06-18T17:01:14+02:00")
 func (leaf *DataLeaf) SetMetadata(name string, value ...interface{}) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	mschema := leaf.schema.MetadataSchema[name]
 	if mschema == nil {
 		return fmt.Errorf("no schema of metadata for %q", name)
@@ -215,9 +213,7 @@ func (leaf *DataLeaf) SetMetadata(name string, value ...interface{}) error {
 // SetMetadataString() sets a metadata. for example, the following last-modified is set to the node as a metadata.
 //   node.SetMetadataString("last-modified", "2015-06-18T17:01:14+02:00")
 func (leaf *DataLeaf) SetMetadataString(name string, value ...string) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	mschema := leaf.schema.MetadataSchema[name]
 	if mschema == nil {
 		return fmt.Errorf("no schema of metadata for %q", name)
@@ -235,9 +231,7 @@ func (leaf *DataLeaf) SetMetadataString(name string, value ...string) error {
 
 // UnsetMetadata() remove a metadata.
 func (leaf *DataLeaf) UnsetMetadata(name string) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	// mschema := leaf.schema.MetadataSchema[name]
 	// if mschema == nil {
 	// 	return fmt.Errorf("no schema of metadata for %q", name)
@@ -246,6 +240,10 @@ func (leaf *DataLeaf) UnsetMetadata(name string) error {
 		delete(leaf.metadata, name)
 	}
 	return nil
+}
+
+func (leaf *DataLeaf) Metadata() map[string]DataNode {
+	return leaf.metadata
 }
 
 func (leaf *DataLeaf) Exist(id string) bool {
@@ -363,7 +361,7 @@ func (leaf *DataLeaf) UnmarshalJSON(jbytes []byte) error {
 func (leaf *DataLeaf) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: leaf}
-	err := jnode.marshalJSON(&buffer, false)
+	_, err := jnode.marshalJSON(&buffer, false, false, false)
 	if err != nil {
 		return nil, err
 	}

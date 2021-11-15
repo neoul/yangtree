@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -87,15 +88,15 @@ func TestYANGMetaData(t *testing.T) {
 	yangfiles := []string{
 		"testdata/sample/sample.yang",
 		"testdata/modules/example-last-modified.yang",
-		// "modules/ietf-yang-metadata@2016-08-05.yang", // built-in yangtree module
+		// "modules/ietf-yang-metadata@2016-08-05.yang", // This yang metadata schema is loaded by default.
 	}
 	dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
 	excluded := []string{"ietf-interfaces"}
-	RootSchema, err := Load(yangfiles, dir, excluded)
+	schema, err := Load(yangfiles, dir, excluded, YANGTreeOption{SingleLeafList: true})
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}
-	root, err := NewWithValueString(RootSchema)
+	root, err := NewWithValueString(schema)
 	if err != nil {
 		t.Fatalf("error in new yangtree: %v", err)
 	}
@@ -115,11 +116,11 @@ func TestYANGMetaData(t *testing.T) {
 
 	// Metadata access using path
 	// /sample/@last-modified
-	// /sample/container-val/a
-	// /sample/@container-val
-	// /sample/@container-val
-	// /sample/@multiple-key-list[str=first][integer=1]
-	// /sample/@non-key-list[0]
+	// /sample/container-val/a/@last-modified
+	// /sample/container-val
+	// /sample/container-val
+	// /sample/multiple-key-list[str=first][integer=1]/last-modified
+	// /sample/non-key-list[0]
 
 	tests := []struct {
 		path          string
@@ -129,6 +130,11 @@ func TestYANGMetaData(t *testing.T) {
 	}{
 		{wantInsertErr: false, path: "/sample/@last-modified", value: "2015-06-18T17:01:14+02:00"},
 		{wantInsertErr: false, path: "/sample/container-val/a/@last-modified", value: "2015-06-18T17:01:14+02:00"},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val[.=leaf-list-second]/@last-modified", value: "2015-06-18T17:01:14+02:03"},
+		{wantInsertErr: false, path: "/sample/container-val/leaf-list-val/@last-modified", value: "2015-06-18T17:01:14+02:01"},
+		{wantInsertErr: false, path: "/sample/multiple-key-list[str=first][integer=2]/@last-modified", value: "2015-06-18T17:01:14+02:01"},
+		{wantInsertErr: false, path: "/sample/str-val/@last-modified", value: "2015-06-18T17:01:14+02:01"},
+		{wantInsertErr: false, path: "/sample/non-key-list[1]/@last-modified", value: "2015-06-18T17:01:14+02:10"},
 	}
 	for _, tt := range tests {
 		t.Run("SetValueString."+tt.path, func(t *testing.T) {
@@ -141,6 +147,12 @@ func TestYANGMetaData(t *testing.T) {
 	if err := Validate(root); err != nil {
 		t.Error(err)
 	}
+
+	j, err := MarshalJSON(root, Metadata{})
+	if err != nil {
+		t.Errorf("error in marshalling metadat: %v", err)
+	}
+	fmt.Println(string(j))
 
 	// sample, err := Find(root, "/sample/container-val/enum-val")
 	// if err != nil {

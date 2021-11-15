@@ -76,7 +76,7 @@ type DataNode interface {
 
 	// Metadata(name string) interface{}
 	// Metadatas(name string) []interface{}
-	// GetAllMetadata() map[string]DataNode
+	Metadata() map[string]DataNode
 }
 
 // yangtree Option
@@ -101,4 +101,9 @@ type YANGTreeOption struct {
 	// DefaultValueString [json, yaml, xml]
 }
 
-func (schemaoption YANGTreeOption) IsOption() {}
+func (yangtreeOption YANGTreeOption) IsOption() {}
+
+// Metadata option is used to print out the metadata of the tree.
+type Metadata struct{}
+
+func (metadata Metadata) IsOption() {}

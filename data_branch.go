@@ -458,9 +458,7 @@ func (branch *DataBranch) Delete(child DataNode) error {
 // SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
 //   node.SetMetadata("last-modified", "2015-06-18T17:01:14+02:00")
 func (branch *DataBranch) SetMetadata(name string, value ...interface{}) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	mschema := branch.schema.MetadataSchema[name]
 	if mschema == nil {
 		return fmt.Errorf("no schema of metadata for %q", name)
@@ -480,9 +478,7 @@ func (branch *DataBranch) SetMetadata(name string, value ...interface{}) error {
 // SetMetadataString() sets a metadata. for example, the following last-modified is set to the node as a metadata.
 //   node.SetMetadataString("last-modified", "2015-06-18T17:01:14+02:00")
 func (branch *DataBranch) SetMetadataString(name string, value ...string) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	mschema := branch.schema.MetadataSchema[name]
 	if mschema == nil {
 		return fmt.Errorf("no schema of metadata for %q", name)
@@ -500,9 +496,7 @@ func (branch *DataBranch) SetMetadataString(name string, value ...string) error 
 
 // UnsetMetadata() remove a metadata.
 func (branch *DataBranch) UnsetMetadata(name string) error {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
-	}
+	name = strings.TrimPrefix(name, "@")
 	// mschema := branch.schema.MetadataSchema[name]
 	// if mschema == nil {
 	// 	return fmt.Errorf("no schema of metadata for %q", name)
@@ -511,6 +505,10 @@ func (branch *DataBranch) UnsetMetadata(name string) error {
 		delete(branch.metadata, name)
 	}
 	return nil
+}
+
+func (branch *DataBranch) Metadata() map[string]DataNode {
+	return branch.metadata
 }
 
 func (branch *DataBranch) Exist(id string) bool {
@@ -761,7 +759,7 @@ func (branch *DataBranch) UnmarshalJSON(jbytes []byte) error {
 func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: branch}
-	err := jnode.marshalJSON(&buffer, false)
+	_, err := jnode.marshalJSON(&buffer, false, false, false)
 	if err != nil {
 		return nil, err
 	}

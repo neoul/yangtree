@@ -332,6 +332,10 @@ func (group *DataNodeGroup) UnsetMetadata(name string) error {
 	return fmt.Errorf("data node group doesn't support metadata")
 }
 
+func (group *DataNodeGroup) Metadata() map[string]DataNode {
+	return nil
+}
+
 func (group *DataNodeGroup) Exist(id string) bool {
 	for i := range group.Nodes {
 		if group.Nodes[i].ID() == id {
@@ -459,7 +463,7 @@ func (group *DataNodeGroup) UnmarshalJSON(jbytes []byte) error {
 func (group *DataNodeGroup) MarshalJSON() ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: group}
-	err := jnode.marshalJSON(&buffer, true)
+	_, err := jnode.marshalJSON(&buffer, false, false, false)
 	if err != nil {
 		return nil, err
 	}
