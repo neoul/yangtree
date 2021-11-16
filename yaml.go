@@ -444,8 +444,8 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableInde
 			if !skipRootMarshalling {
 				disableIndent = cynode.WriteIndent(buffer, indent, disableIndent)
 				buffer.WriteString(cynode.getQname())
-				if cynode.IsLeaf() {
-					newline = ynode.HasMultipleValues() && ynode.Len() > 8
+				if cynode.IsLeafNode() {
+					newline = cynode.HasMultipleValues() && cynode.Len() > 8
 					if newline {
 						buffer.WriteString(":\n")
 					} else {
@@ -458,8 +458,10 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableInde
 			if err := cynode.marshalYAML(buffer, indent+1, false, false); err != nil {
 				return Error(EAppTagYAMLEmitting, err)
 			}
-			if cynode.IsLeaf() && !newline {
-				buffer.WriteString("\n")
+			if !skipRootMarshalling {
+				if cynode.IsLeafNode() && !newline {
+					buffer.WriteString("\n")
+				}
 			}
 			i++
 		}
