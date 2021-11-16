@@ -123,7 +123,7 @@ func NewGroupWithValueString(schema *SchemaNode, value ...string) (*DataNodeGrou
 				if !ok {
 					return nil, fmt.Errorf("invalid value inserted for %q", schema.Name)
 				}
-				if err := unmarshalJSONListableNode(collector, schema, schema.Keyname, array); err != nil {
+				if err := unmarshalJSONListableNode(collector, schema, schema.Keyname, array, nil); err != nil {
 					return nil, err
 				}
 				return &DataNodeGroup{
@@ -163,7 +163,7 @@ func NewGroupWithValueString(schema *SchemaNode, value ...string) (*DataNodeGrou
 					return nil, err
 				}
 			case []interface{}:
-				if err := unmarshalJSONListableNode(collector, schema, schema.Keyname, jdata); err != nil {
+				if err := unmarshalJSONListableNode(collector, schema, schema.Keyname, jdata, nil); err != nil {
 					return nil, err
 				}
 			default:

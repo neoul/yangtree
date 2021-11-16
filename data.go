@@ -634,15 +634,21 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 		return nil
 	}
 
+	// processing metadata
 	reachToEnd := len(pathnode) == 1
 	if strings.HasPrefix(pathnode[0].Name, "@") {
 		if !reachToEnd {
 			return fmt.Errorf("longtail path for metadata %q", pathnode[0].Name)
 		}
-		if isValueString {
-			return root.SetMetadataString(pathnode[0].Name, value.([]string)...)
+		switch op {
+		case EditDelete, EditRemove:
+			return root.UnsetMetadata(pathnode[0].Name)
+		default:
+			if isValueString {
+				return root.SetMetadataString(pathnode[0].Name, value.([]string)...)
+			}
+			return root.SetMetadata(pathnode[0].Name, value)
 		}
-		return root.SetMetadata(pathnode[0].Name, value)
 	}
 
 	branch, ok := root.(*DataBranch)

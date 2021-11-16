@@ -505,6 +505,11 @@ func collectExtension(module *yang.Module, option *YANGTreeOption, ext *Extensio
 			}
 			ext.ExtSchema[name] = extNode
 			if isMetadata {
+				// ext.MetadataSchema[name] = extNode
+				ext.MetadataSchema[extNode.Module.Name+":"+name] = extNode
+				if extNode.Prefix != nil {
+					ext.MetadataSchema[extNode.Prefix.Name+":"+name] = extNode
+				}
 				ext.MetadataSchema[name] = extNode
 			}
 		}
