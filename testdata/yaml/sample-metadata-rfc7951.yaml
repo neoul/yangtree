@@ -1,0 +1,47 @@
+sample:
+ container-val:
+  a: A
+  "@a":
+   last-modified: "2015-06-18T17:01:14+02:02"
+  enum-val: enum2
+  leaf-list-val:
+   - leaf-list-first
+   - leaf-list-fourth
+   - leaf-list-second
+   - leaf-list-third
+  "@leaf-list-val":
+   - last-modified: "2015-06-18T17:01:14+02:04"
+   - last-modified: "2015-06-18T17:01:14+02:04"
+   - last-modified: "2015-06-18T17:01:14+02:03"
+   - last-modified: "2015-06-18T17:01:14+02:04"
+  test-default: 11
+ empty-val: 
+ multiple-key-list:
+  first:
+   1:
+    integer: 1
+    ok: true
+    str: first
+   2:
+    integer: 2
+    str: first
+    "@":
+     last-modified: "2015-06-18T17:01:14+02:05"
+ non-key-list:
+  - strval: XYZ
+    uintval: 10
+    "@":
+     last-modified: "2015-06-18T17:01:14+02:07"
+ single-key-list:
+  AAA:
+   country-code: KR
+   decimal-range: 1.01
+   empty-node: 
+   list-key: AAA
+   uint32-range: 100
+   uint64-node: 1234567890
+ str-val: abc
+ "@str-val":
+  last-modified: "2015-06-18T17:01:14+02:06"
+ "@":
+  last-modified: "2015-06-18T17:01:14+02:01"

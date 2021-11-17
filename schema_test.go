@@ -3,6 +3,7 @@ package yangtree
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -97,6 +98,7 @@ func TestYANGMetaData(t *testing.T) {
 	schema := make([]*SchemaNode, 2)
 	root := make([]DataNode, 2)
 	j := make([][]byte, 2)
+	y := make([][]byte, 2)
 	schema[0], err = Load(yangfiles, dir, excluded)
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
@@ -168,15 +170,14 @@ func TestYANGMetaData(t *testing.T) {
 			t.Error(err)
 		}
 
-		j[i], err = MarshalJSON(root[i], Metadata{}, RFC7951Format{})
-		if err != nil {
+		if j[i], err = MarshalJSON(root[i], Metadata{}, RFC7951Format{}); err != nil {
 			t.Errorf("error in marshalling metadata: %v", err)
 		}
-		// j[i], err = MarshalJSONIndent(root[i], "", "  ", Metadata{})
-		// if err != nil {
-		// 	t.Errorf("error in marshalling metadata: %v", err)
-		// }
 		// fmt.Println(string(j[i]))
+
+		if y[i], err = MarshalYAML(root[i], Metadata{}); err != nil {
+			t.Errorf("error in marshalling metadata: %v", err)
+		}
 	}
 
 	unmarshallingMetaTests := []struct {
@@ -186,6 +187,8 @@ func TestYANGMetaData(t *testing.T) {
 	}{
 		{root: root[0], expect: j[0], file: "testdata/json/sample-metadata-rfc7951.json"},
 		{root: root[1], expect: j[1], file: "testdata/json/sample-metadata.json"},
+		{root: root[0], expect: y[0], file: "testdata/yaml/sample-metadata-rfc7951.yaml"},
+		{root: root[1], expect: y[1], file: "testdata/yaml/sample-metadata.yaml"},
 	}
 	for _, tt := range unmarshallingMetaTests {
 		t.Run("unmarshal-metadata."+tt.file, func(t *testing.T) {
@@ -206,20 +209,38 @@ func TestYANGMetaData(t *testing.T) {
 				return
 			}
 			file.Close()
-			if err := UnmarshalJSON(r, b); err != nil {
-				t.Errorf("error in unmarshalling metadata: %v", err)
-				return
-			}
-			jj, err := MarshalJSON(r, Metadata{}, RFC7951Format{})
-			if err != nil {
-				t.Errorf("error in marshalling metadata: %v", err)
-				return
-			}
-			if string(tt.expect) != string(jj) {
-				t.Errorf("different unmarshalled data:")
-				t.Errorf(" - A: %s", string(tt.expect))
-				t.Errorf(" - B: %s", string(jj))
-				return
+			if strings.HasSuffix(tt.file, ".json") {
+				if err := UnmarshalJSON(r, b); err != nil {
+					t.Errorf("error in unmarshalling metadata: %v", err)
+					return
+				}
+				jj, err := MarshalJSON(r, Metadata{}, RFC7951Format{})
+				if err != nil {
+					t.Errorf("error in marshalling metadata: %v", err)
+					return
+				}
+				if string(tt.expect) != string(jj) {
+					t.Errorf("different unmarshalled data:")
+					t.Errorf(" - A: %s", string(tt.expect))
+					t.Errorf(" - B: %s", string(jj))
+					return
+				}
+			} else if strings.HasSuffix(tt.file, ".yaml") {
+				if err := UnmarshalYAML(r, b); err != nil {
+					t.Errorf("error in unmarshalling metadata: %v", err)
+					return
+				}
+				jj, err := MarshalYAML(r, Metadata{}, RFC7951Format{})
+				if err != nil {
+					t.Errorf("error in marshalling metadata: %v", err)
+					return
+				}
+				if string(tt.expect) != string(jj) {
+					t.Errorf("different unmarshalled data:")
+					t.Errorf(" - A: %s", string(tt.expect))
+					t.Errorf(" - B: %s", string(jj))
+					return
+				}
 			}
 		})
 	}

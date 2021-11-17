@@ -302,6 +302,7 @@ type yamlNode struct {
 	DataNode            // Target data node to encode the data node
 	RFC7951S            // Modified RFC7951 format for YAML
 	InternalFormat bool // Interval YAML format
+	printMeta      bool // Print all metadata
 	ConfigOnly     yang.TriState
 	IndentStr      string
 	PrefixStr      string
@@ -324,7 +325,79 @@ func (ynode *yamlNode) getQname() string {
 	}
 }
 
-func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node []DataNode, i int, indent int, disableIndent, skipRootMarshalling bool) (int, error) {
+func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, unindent, printName bool) error {
+	// marshalling metadata
+	var err error
+	var indentoffset int
+	if indent < 0 {
+		return nil
+	}
+	m := ynode.Metadata()
+	if len(m) == 0 {
+		return nil
+	}
+	switch {
+	case ynode.IsBranchNode():
+		if printName {
+			unindent = ynode.WriteIndent(buffer, indent, unindent)
+			buffer.WriteString("\"@\":\n")
+			indentoffset++
+		}
+		mynode := *ynode
+		for _, mdata := range m {
+			mynode.DataNode = mdata
+			mynode.RFC7951S = ynode.RFC7951S
+			if err = mynode.marshalYAML(buffer, indent+indentoffset, unindent, true); err != nil {
+				return err
+			}
+			if mynode.IsLeafNode() {
+				buffer.WriteString("\n")
+			}
+		}
+	default:
+		if printName {
+			unindent = ynode.WriteIndent(buffer, indent, unindent)
+			buffer.WriteString("\"@")
+			buffer.WriteString(ynode.getQname())
+			buffer.WriteString("\":\n")
+			indentoffset++
+		}
+		mynode := *ynode
+		if ynode.HasMultipleValues() && ynode.RFC7951S != RFC7951Disabled { // single leaf-list schema node
+			length := len(ynode.Values())
+			for i := 0; i < length; i++ {
+				buffer.WriteString("- ")
+				for _, mdata := range m {
+					mynode.DataNode = mdata
+					mynode.RFC7951S = ynode.RFC7951S
+					if err = mynode.marshalYAML(buffer, indent+indentoffset+2, unindent, true); err != nil {
+						return err
+					}
+					if mynode.IsLeafNode() {
+						buffer.WriteString("\n")
+					}
+				}
+			}
+		} else {
+			for _, mdata := range m {
+				mynode.DataNode = mdata
+				mynode.RFC7951S = ynode.RFC7951S
+				if err = mynode.marshalYAML(buffer, indent+1, unindent, true); err != nil {
+					return err
+				}
+				if mynode.IsLeafNode() {
+					buffer.WriteString("\n")
+				}
+			}
+		}
+	}
+
+	return err
+}
+
+func (ynode *yamlNode) marshalYAMChildListableNodes(
+	buffer *bytes.Buffer, node []DataNode, i int, indent int, unindent bool, printName bool) (int, error) {
+	indentoffset := 0
 	schema := node[i].Schema()
 	cynode := *ynode          // copy options
 	cynode.DataNode = node[i] // update the marshalling target
@@ -347,40 +420,71 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 		}
 	}
 	if cynode.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
-		if !skipRootMarshalling {
-			cynode.WriteIndent(buffer, indent, disableIndent)
-			buffer.WriteString(cynode.getQname())
-			buffer.WriteString(":\n")
-			indent++
+		if printName {
+			if indent >= 0 {
+				cynode.WriteIndent(buffer, indent, unindent)
+				buffer.WriteString(cynode.getQname())
+				buffer.WriteString(":\n")
+			}
+			indentoffset++
 		}
+		j := i
+		cindent := indent + indentoffset
 		for ; i < len(node); i++ {
 			cynode.DataNode = node[i]
+			cynode.RFC7951S = ynode.RFC7951S
 			if schema != cynode.Schema() {
 				break
 			}
-			cynode.WriteIndent(buffer, indent, false)
-			buffer.WriteString("- ")
-			err := cynode.marshalYAML(buffer, indent+2, true, false)
+			if cindent >= 0 {
+				cynode.WriteIndent(buffer, cindent, false)
+				buffer.WriteString("- ")
+			}
+			err := cynode.marshalYAML(buffer, cindent+2, true, false)
 			if err != nil {
 				return i, err
 			}
-			if cynode.IsLeafList() {
-				buffer.WriteString("\n")
+			if cindent >= 0 {
+				if cynode.IsLeafList() {
+					buffer.WriteString("\n")
+				}
+			}
+		}
+		if ynode.printMeta && schema.IsLeafList() {
+			cynode.DataNode = node[j]
+			cynode.RFC7951S = ynode.RFC7951S
+			cynode.WriteIndent(buffer, indent, false)
+			buffer.WriteString("\"@")
+			buffer.WriteString(cynode.getQname())
+			buffer.WriteString("\":\n")
+			for ; j < i; j++ {
+				cynode.DataNode = node[j]
+				cynode.RFC7951S = ynode.RFC7951S
+				if cindent >= 0 {
+					cynode.WriteIndent(buffer, cindent, false)
+					buffer.WriteString("- ")
+				}
+				if err := cynode.marshalYAMLMetadata(buffer, cindent+2, true, false); err != nil {
+					return i, err
+				}
 			}
 		}
 		return i, nil
 	}
 	var lastKeyval []string
 	if !cynode.InternalFormat {
-		if !skipRootMarshalling {
-			disableIndent = cynode.WriteIndent(buffer, indent, disableIndent)
-			buffer.WriteString(cynode.getQname())
-			buffer.WriteString(":\n")
-			indent++
+		if printName {
+			if indent >= 0 {
+				unindent = cynode.WriteIndent(buffer, indent, unindent)
+				buffer.WriteString(cynode.getQname())
+				buffer.WriteString(":\n")
+			}
+			indentoffset++
 		}
 	}
 	for ; i < len(node); i++ {
 		cynode.DataNode = node[i]
+		cynode.RFC7951S = ynode.RFC7951S
 		if schema != cynode.Schema() {
 			break
 		}
@@ -389,24 +493,24 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 			if len(keyname) != len(keyval) {
 				return i, fmt.Errorf("list %q doesn't have a id value", schema.Name)
 			}
+			cindent := indent + indentoffset
 			for j := range keyval {
 				if len(lastKeyval) > 0 && keyval[j] == lastKeyval[j] {
 					continue
 				}
-				cynode.WriteIndent(buffer, indent+j, false)
-				buffer.WriteString(keyval[j])
-				buffer.WriteString(":\n")
+				if cindent+j >= 0 {
+					cynode.WriteIndent(buffer, cindent+j, false)
+					buffer.WriteString(keyval[j])
+					buffer.WriteString(":\n")
+				}
 			}
-			err := cynode.marshalYAML(buffer, indent+len(keyval), false, false)
+			err := cynode.marshalYAML(buffer, cindent+len(keyval), false, false)
 			if err != nil {
 				return i, err
 			}
 			lastKeyval = keyval
-		} else {
-			disableIndent = cynode.WriteIndent(buffer, indent, disableIndent)
-			buffer.WriteString(cynode.getQname())
-			buffer.WriteString(":\n")
-			err := cynode.marshalYAML(buffer, indent+1, false, false)
+		} else { // InternalFormat
+			err := cynode.marshalYAML(buffer, indent+indentoffset, unindent, true)
 			if err != nil {
 				return i, err
 			}
@@ -415,7 +519,25 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(buffer *bytes.Buffer, node [
 	return i, nil
 }
 
-func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableIndent, skipRootMarshalling bool) error {
+func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, unindent, printName bool) error {
+	var indentoffset int
+	if printName {
+		if indent >= 0 {
+			unindent = ynode.WriteIndent(buffer, indent, unindent)
+			buffer.WriteString(ynode.getQname())
+			if ynode.IsLeafNode() {
+				if ynode.HasMultipleValues() && ynode.Len() > 8 {
+					buffer.WriteString(":\n")
+				} else {
+					buffer.WriteString(": ")
+				}
+			} else {
+				buffer.WriteString(":\n")
+			}
+		}
+		indentoffset++
+	}
+
 	cynode := *ynode
 	switch {
 	case ynode.IsBranchNode():
@@ -423,11 +545,11 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableInde
 		for i := 0; i < len(children); {
 			if children[i].IsListableNode() { // for list and multiple leaf-list nodes
 				var err error
-				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent, disableIndent, skipRootMarshalling)
+				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent+indentoffset, unindent, true)
 				if err != nil {
 					return Error(EAppTagYAMLEmitting, err)
 				}
-				disableIndent = false
+				unindent = false
 				continue
 			}
 			// container, leaf, single leaf-list node
@@ -439,44 +561,49 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableInde
 			}
 			cynode.DataNode = children[i]
 			cynode.RFC7951S = ynode.RFC7951S
-
-			newline := false
-			if !skipRootMarshalling {
-				disableIndent = cynode.WriteIndent(buffer, indent, disableIndent)
-				buffer.WriteString(cynode.getQname())
-				if cynode.IsLeafNode() {
-					newline = cynode.HasMultipleValues() && cynode.Len() > 8
-					if newline {
-						buffer.WriteString(":\n")
-					} else {
-						buffer.WriteString(": ")
-					}
-				} else {
-					buffer.WriteString(":\n")
-				}
-			}
-			if err := cynode.marshalYAML(buffer, indent+1, false, false); err != nil {
+			if err := cynode.marshalYAML(buffer, indent+indentoffset, unindent, true); err != nil {
 				return Error(EAppTagYAMLEmitting, err)
 			}
-			if !skipRootMarshalling {
-				if cynode.IsLeafNode() && !newline {
-					buffer.WriteString("\n")
+			if unindent {
+				unindent = false
+			}
+			if cynode.IsLeafNode() {
+				buffer.WriteString("\n")
+				if cynode.printMeta {
+					if err := cynode.marshalYAMLMetadata(buffer, indent+indentoffset, false, true); err != nil {
+						return err
+					}
 				}
 			}
 			i++
 		}
+		if ynode.printMeta {
+			if err := ynode.marshalYAMLMetadata(buffer, indent+indentoffset, false, true); err != nil {
+				return err
+			}
+		}
 	case ynode.HasMultipleValues():
 		schema := ynode.Schema()
 		value := ynode.Values()
-		rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
-		if len(value) <= 8 {
+		if len(value) > 8 {
+			for i := range value {
+				ynode.WriteIndent(buffer, indent, false)
+				buffer.WriteString("- ")
+				valbyte, err := schema.ValueToYAMLBytes(schema.Type, value[i], ynode.RFC7951S != RFC7951Disabled)
+				if err != nil {
+					return Error(EAppTagYAMLEmitting, err)
+				}
+				buffer.Write(valbyte)
+				buffer.WriteString("\n")
+			}
+		} else {
 			comma := false
 			buffer.WriteString("[")
 			for i := range value {
 				if comma {
 					buffer.WriteString(",")
 				}
-				valbyte, err := schema.ValueToYAMLBytes(schema.Type, value[i], rfc7951enabled)
+				valbyte, err := schema.ValueToYAMLBytes(schema.Type, value[i], ynode.RFC7951S != RFC7951Disabled)
 				if err != nil {
 					return Error(EAppTagYAMLEmitting, err)
 				}
@@ -484,23 +611,10 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableInde
 				comma = true
 			}
 			buffer.WriteString("]")
-		} else {
-			for i := range value {
-				ynode.WriteIndent(buffer, indent, false)
-				buffer.WriteString("- ")
-				valbyte, err := schema.ValueToYAMLBytes(schema.Type, value[i], rfc7951enabled)
-				if err != nil {
-					return Error(EAppTagYAMLEmitting, err)
-				}
-				buffer.Write(valbyte)
-				buffer.WriteString("\n")
-			}
 		}
-		return nil
 	case ynode.IsLeafNode():
 		schema := ynode.Schema()
-		rfc7951enabled := ynode.RFC7951S != RFC7951Disabled
-		valbyte, err := schema.ValueToYAMLBytes(schema.Type, ynode.Value(), rfc7951enabled)
+		valbyte, err := schema.ValueToYAMLBytes(schema.Type, ynode.Value(), ynode.RFC7951S != RFC7951Disabled)
 		if err != nil {
 			return Error(EAppTagYAMLEmitting, err)
 		}
@@ -509,15 +623,15 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, disableInde
 	return nil
 }
 
-func (yamlnode *yamlNode) WriteIndent(buffer *bytes.Buffer, indent int, disableIndent bool) bool {
-	if disableIndent {
+func (yamlnode *yamlNode) WriteIndent(buffer *bytes.Buffer, indent int, unindent bool) bool {
+	if unindent {
 		return false
 	}
 	buffer.WriteString(yamlnode.PrefixStr)
 	for i := 0; i < indent; i++ {
 		buffer.WriteString(yamlnode.IndentStr)
 	}
-	return disableIndent
+	return unindent
 }
 
 // yamlkeys returns the listed key values.
@@ -811,10 +925,12 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 			ynode.RFC7951S = RFC7951Enabled
 		case InternalFormat:
 			ynode.InternalFormat = true
+		case Metadata:
+			ynode.printMeta = true
 		}
 	}
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, 0, false, true); err != nil {
+		if err := ynode.marshalYAML(buffer, -2, false, false); err != nil {
 			return nil, err
 		}
 	} else {
