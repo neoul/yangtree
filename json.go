@@ -127,18 +127,16 @@ func (jnode *jsonNode) marshalJSONMetadata(buffer *bytes.Buffer, comma bool) (bo
 	return comma, err
 }
 
-func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipRootMarshalling bool) (bool, error) {
+func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipRoot bool) (bool, error) {
 	var err error
-	if !skipRootMarshalling {
-		if printName {
-			if comma {
-				buffer.WriteString(",")
-			}
-			comma = true
-			buffer.WriteString(`"`)
-			buffer.WriteString(jnode.getQname()) // namespace-qualified name
-			buffer.WriteString(`":`)
+	if !skipRoot && printName {
+		if comma {
+			buffer.WriteString(",")
 		}
+		comma = true
+		buffer.WriteString(`"`)
+		buffer.WriteString(jnode.getQname()) // namespace-qualified name
+		buffer.WriteString(`":`)
 	}
 
 	if jnode == nil || jnode.DataNode == nil {
@@ -150,14 +148,14 @@ func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipR
 		cjnode := *jnode
 		childcomma := false
 		children := jnode.Children()
-		if !skipRootMarshalling {
+		if !skipRoot {
 			buffer.WriteString(`{`)
 		}
 		for i := 0; i < len(children); {
 			schema := children[i].Schema()
 			if schema.IsListable() {
 				var err error
-				i, childcomma, err = jnode.marshalJSONListableNode(buffer, children, i, childcomma, skipRootMarshalling)
+				i, childcomma, err = jnode.marshalJSONListableNode(buffer, children, i, childcomma, skipRoot)
 				if err != nil {
 					return childcomma, err
 				}
@@ -172,13 +170,23 @@ func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipR
 			}
 			cjnode.DataNode = children[i]
 			cjnode.RFC7951S = jnode.RFC7951S
+
 			if childcomma, err = cjnode.marshalJSON(buffer, childcomma, true, false); err != nil {
 				return comma, err
+			}
+			// marshalling metadata
+			if jnode.printMeta {
+				if cjnode.IsLeafNode() {
+					childcomma, err = cjnode.marshalJSONMetadata(buffer, childcomma)
+					if err != nil {
+						return comma, err
+					}
+				}
 			}
 			i++
 		}
 
-		if !skipRootMarshalling {
+		if !skipRoot {
 			// marshalling metadata
 			if jnode.printMeta {
 				_, err = jnode.marshalJSONMetadata(buffer, childcomma)
@@ -205,13 +213,6 @@ func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipR
 			valcomma = true
 		}
 		buffer.WriteString("]")
-		// marshalling metadata
-		if jnode.printMeta && !skipRootMarshalling {
-			comma, err = jnode.marshalJSONMetadata(buffer, comma)
-			if err != nil {
-				return comma, err
-			}
-		}
 	case jnode.IsLeafNode(): // leaf, multiple leaf-list schema node
 		schema := jnode.Schema()
 		b, err := schema.ValueToJSONBytes(schema.Type, jnode.Value(), jnode.RFC7951S != RFC7951Disabled)
@@ -219,18 +220,11 @@ func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipR
 			return comma, err
 		}
 		buffer.Write(b)
-		// marshalling metadata
-		if jnode.printMeta && !skipRootMarshalling {
-			comma, err = jnode.marshalJSONMetadata(buffer, comma)
-			if err != nil {
-				return comma, err
-			}
-		}
 	}
 	return comma, nil
 }
 
-func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma bool, skipRootMarshalling bool) (int, bool, error) {
+func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []DataNode, i int, comma bool, skipRoot bool) (int, bool, error) {
 	first := *parent
 	first.DataNode = node[i]
 	schema := first.Schema()
@@ -252,7 +246,7 @@ func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []Dat
 			}
 		}
 	}
-	if !skipRootMarshalling {
+	if !skipRoot {
 		if comma {
 			buffer.WriteString(",")
 		}
@@ -283,7 +277,7 @@ func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []Dat
 		if err == nil {
 			// marshalling metadata of a leaf-list
 			if first.printMeta && schema.IsLeafList() {
-				if !skipRootMarshalling {
+				if !skipRoot {
 					if comma {
 						buffer.WriteString(",")
 					}
@@ -316,7 +310,7 @@ func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []Dat
 					}
 					buffer.WriteString(`}`)
 				}
-				if !skipRootMarshalling {
+				if !skipRoot {
 					buffer.WriteString(`]`)
 				}
 			}
@@ -689,11 +683,11 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 			jnode.printMeta = true
 		}
 	}
-	skipRootMarshalling := false
+	skipRoot := false
 	if _, ok := node.(*DataNodeGroup); ok {
-		skipRootMarshalling = true
+		skipRoot = true
 	}
-	_, err := jnode.marshalJSON(&buffer, false, false, skipRootMarshalling)
+	_, err := jnode.marshalJSON(&buffer, false, false, skipRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -718,11 +712,11 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 			jnode.printMeta = true
 		}
 	}
-	skipRootMarshalling := false
+	skipRoot := false
 	if _, ok := node.(*DataNodeGroup); ok {
-		skipRootMarshalling = true
+		skipRoot = true
 	}
-	_, err := jnode.marshalJSON(&buffer, false, false, skipRootMarshalling)
+	_, err := jnode.marshalJSON(&buffer, false, false, skipRoot)
 	if err != nil {
 		return nil, err
 	}
