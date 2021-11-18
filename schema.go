@@ -366,7 +366,7 @@ func (schema *SchemaNode) IsListHasKey() bool {
 }
 
 // IsListable() checks if the schema node is a list or a leaf-list node.
-// If SingleLeafList is set, a single leaf-list node has several values and it is not listable.
+// If SingleLeafList is set, it is not lisable because it has serveral values in the single leaf-list node.
 func (schema *SchemaNode) IsListable() bool {
 	if schema.IsDir() {
 		return schema.ListAttr != nil
@@ -689,9 +689,9 @@ func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 
 // GetSchema() returns a child of the schema node. The namespace-qualified name is used for the name.
 func (schema *SchemaNode) GetSchema(name string) *SchemaNode {
-	if strings.HasPrefix(name, "@") {
-		return schema.MetadataSchema[name[1:]]
-	}
+	// if strings.HasPrefix(name, "@") {
+	// 	return schema.MetadataSchema[name[1:]]
+	// }
 	// if schema == nil {
 	// 	return nil
 	// }
@@ -724,12 +724,12 @@ func (schema *SchemaNode) FindSchema(path string) *SchemaNode {
 			return nil
 		}
 		if pathnode[i].Name != "" {
-			if strings.HasPrefix(pathnode[i].Name, "@") {
-				if len(pathnode)-1 != i {
-					return nil
-				}
-				return target.MetadataSchema[pathnode[i].Name[1:]]
-			}
+			// if strings.HasPrefix(pathnode[i].Name, "@") {
+			// 	if len(pathnode)-1 != i {
+			// 		return nil
+			// 	}
+			// 	return target.MetadataSchema[pathnode[i].Name[1:]]
+			// }
 			target = target.Directory[pathnode[i].Name]
 		}
 	}

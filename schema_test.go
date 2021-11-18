@@ -174,7 +174,7 @@ func TestYANGMetaData(t *testing.T) {
 			t.Errorf("error in marshalling metadata: %v", err)
 		}
 
-		if y[i], err = MarshalYAML(root[i], Metadata{}); err != nil {
+		if y[i], err = MarshalYAML(root[i], Metadata{}, RFC7951Format{}); err != nil {
 			t.Errorf("error in marshalling metadata: %v", err)
 		}
 	}
@@ -186,8 +186,8 @@ func TestYANGMetaData(t *testing.T) {
 	}{
 		{root: root[0], expect: j[0], file: "testdata/json/sample-metadata-rfc7951.json"},
 		{root: root[1], expect: j[1], file: "testdata/json/sample-metadata.json"},
-		// {root: root[0], expect: y[0], file: "testdata/yaml/sample-metadata-rfc7951.yaml"},
-		// {root: root[1], expect: y[1], file: "testdata/yaml/sample-metadata.yaml"},
+		{root: root[0], expect: y[0], file: "testdata/yaml/sample-metadata-rfc7951.yaml"},
+		{root: root[1], expect: y[1], file: "testdata/yaml/sample-metadata.yaml"},
 	}
 	for _, tt := range unmarshallingMetaTests {
 		t.Run("unmarshal-metadata."+tt.file, func(t *testing.T) {

@@ -91,8 +91,9 @@ func getValueFromYAMLHash(yamlHash interface{}, kname *string) interface{} {
 }
 
 // unmarshalYAMLListableNode constructs listable child nodes of the parent data node using YAML values.
-func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []string, sequnce []interface{}) error {
+func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []string, sequnce []interface{}, meta interface{}) error {
 	if cschema.IsLeafList() {
+		_meta, isSlice := meta.([]interface{})
 		for i := range sequnce {
 			child, err := New(cschema)
 			if err != nil {
@@ -103,6 +104,11 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 			}
 			if _, err = parent.Insert(child, nil); err != nil {
 				return err
+			}
+			if isSlice && i < len(_meta) {
+				if err := unmarshalYAMLUpdateMetadata(child, cschema, _meta[i]); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -161,20 +167,42 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 	return nil
 }
 
-func unmarshalYAMLkeyval(parent DataNode, schema *SchemaNode, keystr *string, v interface{}) error {
-	name, haskey, err := extractSchemaName(keystr)
-	if err != nil {
-		return Error(EAppTagYAMLParsing, err)
+func unmarshalYAMLUpdateMetadata(node DataNode, schema *SchemaNode, meta interface{}) error {
+	switch _meta := meta.(type) {
+	case map[interface{}]interface{}:
+		for k, v := range _meta {
+			if kv, ok := k.(string); ok {
+				if err := node.SetMetadata(kv, v); err != nil {
+					return err
+				}
+			}
+		}
+	case map[string]interface{}:
+		for k, v := range _meta {
+			if err := node.SetMetadata(k, v); err != nil {
+				return err
+			}
+		}
+	case []interface{}:
+		for i := range _meta {
+			if err := unmarshalYAMLUpdateMetadata(node, schema, _meta[i]); err != nil {
+				return err
+			}
+		}
+	case nil:
+		return nil
+	default:
+		return Errorf(EAppTagYAMLParsing, "invalid metadata format for %q", node)
 	}
-	cschema := schema.GetSchema(name)
-	if cschema == nil {
-		return Errorf(EAppTagYAMLParsing, "schema %q not found from %q", *keystr, schema.Name)
-	}
+	return nil
+}
+
+func unmarshalYAMLkeyval(parent DataNode, cschema *SchemaNode, haskey bool, keystr *string, v interface{}, meta interface{}) error {
 	if haskey {
 		keyname := cschema.Keyname
 		keyval, err := extractKeyValues(keyname, keystr)
 		if err != nil {
-			return Error(EAppTagYAMLParsing, err)
+			return err
 		}
 		keymap := map[interface{}]interface{}{}
 		m := keymap
@@ -200,32 +228,39 @@ func unmarshalYAMLkeyval(parent DataNode, schema *SchemaNode, keystr *string, v 
 	if cschema.IsListable() {
 		switch vv := v.(type) {
 		case []interface{}:
-			if err := unmarshalYAMLListableNode(parent, cschema, cschema.Keyname, vv); err != nil {
-				return Error(EAppTagYAMLParsing, err)
+			if err := unmarshalYAMLListableNode(parent, cschema, cschema.Keyname, vv, meta); err != nil {
+				return err
 			}
 		case map[interface{}]interface{}, map[string]interface{}:
 			kname := cschema.Keyname
 			kval := make([]interface{}, 0, len(kname))
 			if err := unmarshalYAMLListNode(parent, cschema, kname, kval, v); err != nil {
-				return Error(EAppTagYAMLParsing, err)
+				return err
 			}
 		default:
-			return Errorf(EAppTagYAMLParsing, "unexpected value %q for %q", vv, cschema.Name)
+			return fmt.Errorf("unexpected value %q for %q", vv, cschema.Name)
 		}
 	} else {
-		if child := parent.Get(*keystr); child == nil {
+		var err error
+		var child DataNode
+		if child = parent.Get(*keystr); child == nil {
 			if child, err = New(cschema); err != nil {
-				return Error(EAppTagYAMLParsing, err)
+				return err
 			}
 			if err = unmarshalYAML(child, cschema, v); err != nil {
-				return Error(EAppTagYAMLParsing, err)
+				return err
 			}
 			if _, err = parent.Insert(child, nil); err != nil {
-				return Error(EAppTagYAMLParsing, err)
+				return err
 			}
 		} else {
 			if err := unmarshalYAML(child, cschema, v); err != nil {
-				return Error(EAppTagYAMLParsing, err)
+				return err
+			}
+		}
+		if meta != nil {
+			if err := unmarshalYAMLUpdateMetadata(child, cschema, meta); err != nil {
+				return err
 			}
 		}
 	}
@@ -239,16 +274,48 @@ func unmarshalYAML(node DataNode, schema *SchemaNode, yval interface{}) error {
 		case map[interface{}]interface{}:
 			for k, v := range entry {
 				kstr := ValueToValueString(k)
-				err := unmarshalYAMLkeyval(node, schema, &kstr, v)
+				name, haskey, err := extractSchemaName(&kstr)
 				if err != nil {
+					return err
+				}
+				if name == "@" {
+					if err := unmarshalYAMLUpdateMetadata(node, schema, v); err != nil {
+						return err
+					}
+				}
+				if strings.HasPrefix(name, "@") {
+					continue
+				}
+				cschema := schema.GetSchema(name)
+				if cschema == nil {
+					return fmt.Errorf("schema %q not found from %q", kstr, schema.Name)
+				}
+				mname := "@" + cschema.Name
+				if err := unmarshalYAMLkeyval(node, cschema, haskey, &kstr, v, getValueFromYAMLHash(entry, &mname)); err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
 			}
 			return nil
 		case map[string]interface{}:
 			for k, v := range entry {
-				err := unmarshalYAMLkeyval(node, schema, &k, v)
+				name, haskey, err := extractSchemaName(&k)
 				if err != nil {
+					return err
+				}
+				if name == "@" {
+					if err := unmarshalYAMLUpdateMetadata(node, schema, v); err != nil {
+						return err
+					}
+				}
+				if strings.HasPrefix(name, "@") {
+					continue
+				}
+				cschema := schema.GetSchema(name)
+				if cschema == nil {
+					return fmt.Errorf("schema %q not found from %q", k, schema.Name)
+				}
+				mname := "@" + cschema.Name
+				if err := unmarshalYAMLkeyval(node, cschema, haskey, &k, v, getValueFromYAMLHash(entry, &mname)); err != nil {
 					return Error(EAppTagYAMLParsing, err)
 				}
 			}
@@ -295,6 +362,7 @@ func UnmarshalYAML(node DataNode, in []byte) error {
 	if err != nil {
 		return err
 	}
+	// pretty.Print(ydata)
 	return unmarshalYAML(node, node.Schema(), ydata)
 }
 
@@ -450,22 +518,25 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 				}
 			}
 		}
-		if ynode.printMeta && schema.IsLeafList() {
-			cynode.DataNode = node[j]
-			cynode.RFC7951S = ynode.RFC7951S
-			cynode.WriteIndent(buffer, indent, false)
-			buffer.WriteString("\"@")
-			buffer.WriteString(cynode.getQname())
-			buffer.WriteString("\":\n")
-			for ; j < i; j++ {
+		if ynode.printMeta {
+			// processing the metadata of multiple leaf-list node schema
+			if schema.IsLeafList() && len(node[j].Metadata()) > 0 {
 				cynode.DataNode = node[j]
 				cynode.RFC7951S = ynode.RFC7951S
-				if cindent >= 0 {
-					cynode.WriteIndent(buffer, cindent, false)
-					buffer.WriteString("- ")
-				}
-				if err := cynode.marshalYAMLMetadata(buffer, cindent+2, true, false); err != nil {
-					return i, err
+				cynode.WriteIndent(buffer, indent, false)
+				buffer.WriteString("\"@")
+				buffer.WriteString(cynode.getQname())
+				buffer.WriteString("\":\n")
+				for ; j < i; j++ {
+					cynode.DataNode = node[j]
+					cynode.RFC7951S = ynode.RFC7951S
+					if cindent >= 0 {
+						cynode.WriteIndent(buffer, cindent, false)
+						buffer.WriteString("- ")
+					}
+					if err := cynode.marshalYAMLMetadata(buffer, cindent+2, true, false); err != nil {
+						return i, err
+					}
 				}
 			}
 		}
@@ -711,7 +782,7 @@ func (ynode *yamlNode) skip(node DataNode) bool {
 }
 
 // toMap() encodes the data node using golang yaml marshaler interface.
-func (ynode *yamlNode) toMap(skipRootMarshalling bool) (interface{}, error) {
+func (ynode *yamlNode) toMap(skipRoot bool) (interface{}, error) {
 	top := make(map[interface{}]interface{})
 	curkeys := make([]interface{}, 0, 8)
 	parent := top
@@ -881,13 +952,13 @@ func (ynode *yamlNode) toMap(skipRootMarshalling bool) (interface{}, error) {
 				return nil, Error(EAppTagYAMLEmitting, err)
 			}
 		}
-		if skipRootMarshalling {
+		if skipRoot {
 			if len(top) == 1 {
 				for _, v := range top {
 					return v, nil
 				}
 			}
-			return nil, Errorf(EAppTagYAMLEmitting, "unable to skip top node marshalling")
+			return nil, Errorf(EAppTagYAMLEmitting, "unable to skip top node marshalling because there are a lot of children")
 		}
 		return top, nil
 	} else {
@@ -908,13 +979,17 @@ type InternalFormat struct{}
 
 func (o InternalFormat) IsOption() {}
 
+type YAMLIndent string
+
+func (o YAMLIndent) IsOption() {}
+
 // MarshalYAML encodes the data node to a YAML document with a number of options.
 // The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
 func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 	buffer := bytes.NewBufferString("")
 	ynode := &yamlNode{DataNode: node, IndentStr: " "}
 	for i := range option {
-		switch option[i].(type) {
+		switch o := option[i].(type) {
 		case HasState:
 			return nil, Errorf(EAppTagYAMLEmitting, "%v option can be used to find nodes", option[i])
 		case ConfigOnly:
@@ -927,6 +1002,8 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 			ynode.InternalFormat = true
 		case Metadata:
 			ynode.printMeta = true
+		case YAMLIndent:
+			ynode.IndentStr = string(o)
 		}
 	}
 	if _, ok := node.(*DataNodeGroup); ok {
