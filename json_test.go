@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
-
-	"github.com/kylelemons/godebug/pretty"
 )
 
 func TestDataNode_JSON(t *testing.T) {
@@ -169,8 +167,8 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 	}
 	if !reflect.DeepEqual(jdata1, jdata2) {
 		t.Errorf("unmarshaled data is not equal.")
-		pretty.Print(jdata1)
-		pretty.Print(jdata2)
+		t.Error(jdata1)
+		t.Error(jdata2)
 	}
 
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
@@ -287,8 +285,8 @@ func TestDataNode_FindState(t *testing.T) {
 	}
 	if !reflect.DeepEqual(jdata1, jdata2) {
 		t.Errorf("unmarshaled data is not equal.")
-		pretty.Print(jdata1)
-		pretty.Print(jdata2)
+		t.Error(jdata1)
+		t.Error(jdata2)
 	}
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }

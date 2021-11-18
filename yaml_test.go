@@ -53,11 +53,7 @@ func TestYAML(t *testing.T) {
 			}
 		}
 	}
-	// y, e := yaml.Marshal(root[0])
-	// if e != nil {
-	// 	t.Errorf("yaml marshalling error: %v\n", err)
-	// }
-	// fmt.Println(string(y))
+
 	option := []Option{InternalFormat{}, RFC7951Format{}, nil}
 	reversed := make([]DataNode, max)
 	for i := 0; i < max; i++ {

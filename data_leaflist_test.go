@@ -204,8 +204,7 @@ func TestMultipleLeafList(t *testing.T) {
 			}
 		})
 	}
-	// y, _ := MarshalYAML(RootData)
-	// fmt.Println(string(y))
+
 	for i := len(rwLeafListTest) - 1; i >= 0; i-- {
 		t.Run(fmt.Sprintf("Delete.%s", rwLeafListTest[i].path), func(t *testing.T) {
 			// err := Delete(RootData, rwLeafListTest[i].path)
@@ -261,8 +260,6 @@ func TestMultipleLeafList(t *testing.T) {
 			if (err != nil) != roLeafListTest[i].wantDeleteErr {
 				t.Errorf("Set() error = %v, wantDeleteErr = %v path = %s", err, roLeafListTest[i].wantDeleteErr, roLeafListTest[i].path)
 			}
-			// y, _ := MarshalYAML(RootData)
-			// fmt.Println(string(y))
 		})
 	}
 }

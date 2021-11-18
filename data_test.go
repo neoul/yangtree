@@ -92,7 +92,7 @@ func TestSetValue(t *testing.T) {
 		}
 		t.Error(string(yb))
 	}
-	// pretty.Print(root.Value(), root.Values())
+
 	// err = root.SetValue(
 	// 	map[interface{}]interface{}{"sample": map[interface{}]interface{}{
 	// 		"container-val": map[interface{}]interface{}{
@@ -242,8 +242,6 @@ func TestChildDataNodeListing(t *testing.T) {
 	for i := range input {
 		SetValueString(RootData, input[i], nil, "")
 	}
-	// sort.Strings(input)
-	// pretty.Print(input)
 
 	path := []string{
 		"/sample/*",

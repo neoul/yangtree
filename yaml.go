@@ -362,7 +362,6 @@ func UnmarshalYAML(node DataNode, in []byte) error {
 	if err != nil {
 		return err
 	}
-	// pretty.Print(ydata)
 	return unmarshalYAML(node, node.Schema(), ydata)
 }
 

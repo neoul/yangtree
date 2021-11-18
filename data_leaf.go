@@ -409,7 +409,6 @@ func (leaf *DataLeaf) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 
 	var value string
 	d.DecodeElement(&value, &start)
-	fmt.Println(start)
 	return leaf.SetValueString(value)
 }
 

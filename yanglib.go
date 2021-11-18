@@ -252,7 +252,6 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 				}
 				// deviation
 				for i := range m.Deviation {
-					// fmt.Println(m.Name, m.Deviation[i].Name)
 					pathnode, err := ParsePath(&m.Deviation[i].Name)
 					if err != nil || len(pathnode) == 0 {
 						return fmt.Errorf("yanglib: can not find target node %q to deviate", m.Deviation[i].Name)
@@ -292,14 +291,12 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 		}
 		var contentId strings.Builder
 		b, _ := MarshalYAML(top, InternalFormat{})
-		// fmt.Println(string(b))
 		h := sha1.New()
 		io.WriteString(h, string(b))
 		b = h.Sum(nil)
 		encoder := base64.NewEncoder(base64.StdEncoding, &contentId)
 		encoder.Write(b)
 		encoder.Close()
-		// fmt.Println(contentId.String())
 		if err := SetValueString(top, "content-id", nil, contentId.String()); err != nil {
 			return fmt.Errorf("yanglib: content-id generation error: %v", err)
 		}
@@ -366,14 +363,12 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 		}
 		var moduleSetId strings.Builder
 		b, _ := MarshalYAML(top, InternalFormat{})
-		// fmt.Println(string(b))
 		h := sha1.New()
 		io.WriteString(h, string(b))
 		b = h.Sum(nil)
 		encoder := base64.NewEncoder(base64.StdEncoding, &moduleSetId)
 		encoder.Write(b)
 		encoder.Close()
-		// fmt.Println(moduleSetId.String())
 		if err := SetValueString(top, "module-set-id", nil, moduleSetId.String()); err != nil {
 			return fmt.Errorf("yanglib: module-set-id generation error: %v", err)
 		}

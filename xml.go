@@ -90,7 +90,6 @@ type xmlNode struct {
 
 func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	schema := xnode.Schema()
-	// fmt.Println(xnode.Name(), schema.Module.Namespace)
 	boundary := false
 	if start.Name.Local != schema.Name {
 		boundary = true

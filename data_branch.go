@@ -767,7 +767,6 @@ func (branch *DataBranch) MarshalJSON() ([]byte, error) {
 }
 
 func (branch *DataBranch) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	// fmt.Println(branch.Name(), branch.schema.Module.Namespace)
 	boundary := false
 	if start.Name.Local != branch.schema.Name {
 		boundary = true
