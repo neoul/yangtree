@@ -445,8 +445,9 @@ func unmarshalJSONListNode(parent DataNode, cschema *SchemaNode, kname []string,
 	return nil
 }
 
-func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []string, arrary, metadata []interface{}) error {
+func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []string, arrary []interface{}, meta interface{}) error {
 	if cschema.IsLeafList() {
+		_meta, isSlice := meta.([]interface{})
 		for i := range arrary {
 			child, err := New(cschema)
 			if err != nil {
@@ -455,25 +456,13 @@ func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []str
 			if err = unmarshalJSON(child, cschema, arrary[i]); err != nil {
 				return err
 			}
-			// proccessing metadata
-			if i < len(metadata) {
-				msrc, ok := metadata[i].(map[string]interface{})
-				if !ok {
-					return Errorf(EAppTagJSONParsing, "invalid metadata format inserted for %q", cschema)
-				}
-				for k, v := range msrc {
-					vstr, err := JSONValueToString(v)
-					if err != nil {
-						return Error(EAppTagJSONParsing, err)
-					}
-					if err := child.SetMetadataString(k, vstr); err != nil {
-						return Error(EAppTagJSONParsing, err)
-					}
-				}
-			}
-
 			if _, err = parent.Insert(child, nil); err != nil {
 				return err
+			}
+			if isSlice && i < len(_meta) {
+				if err := unmarshalJSONUpdateMetadata(child, cschema, _meta[i]); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -528,33 +517,59 @@ func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []str
 	return nil
 }
 
-func unmarshalJSONMeta(node DataNode, metakey string, jval interface{}) error {
-	msrc, ok := jval.(map[string]interface{})
-	if !ok {
-		if msrc, ok := jval.([]interface{}); ok {
-			if len(msrc) > 0 {
-				return unmarshalJSONMeta(node, metakey, msrc[len(msrc)-1])
+// func unmarshalJSONMeta(node DataNode, metakey string, jval interface{}) error {
+// 	msrc, ok := jval.(map[string]interface{})
+// 	if !ok {
+// 		if msrc, ok := jval.([]interface{}); ok {
+// 			if len(msrc) > 0 {
+// 				return unmarshalJSONMeta(node, metakey, msrc[len(msrc)-1])
+// 			}
+// 		}
+// 		return Errorf(EAppTagJSONParsing, "invalid metadata format for %q", node)
+// 	}
+// 	for k, v := range msrc {
+// 		vstr, err := JSONValueToString(v)
+// 		if err != nil {
+// 			return Error(EAppTagJSONParsing, err)
+// 		}
+// 		if metakey == "@" {
+// 			if err := node.SetMetadataString(k, vstr); err != nil {
+// 				return Error(EAppTagJSONParsing, err)
+// 			}
+// 		} else {
+// 			nodes := node.GetAll(metakey[1:])
+// 			for j := range nodes {
+// 				if err := nodes[j].SetMetadataString(k, vstr); err != nil {
+// 					return Error(EAppTagJSONParsing, err)
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
+
+func unmarshalJSONUpdateMetadata(node DataNode, schema *SchemaNode, meta interface{}) error {
+	switch _meta := meta.(type) {
+	case map[string]interface{}:
+		for k, v := range _meta {
+			vstr, err := JSONValueToString(v)
+			if err != nil {
+				return err
 			}
-		}
-		return Errorf(EAppTagJSONParsing, "invalid metadata format for %q", node)
-	}
-	for k, v := range msrc {
-		vstr, err := JSONValueToString(v)
-		if err != nil {
-			return Error(EAppTagJSONParsing, err)
-		}
-		if metakey == "@" {
 			if err := node.SetMetadataString(k, vstr); err != nil {
-				return Error(EAppTagJSONParsing, err)
-			}
-		} else {
-			nodes := node.GetAll(metakey[1:])
-			for j := range nodes {
-				if err := nodes[j].SetMetadataString(k, vstr); err != nil {
-					return Error(EAppTagJSONParsing, err)
-				}
+				return err
 			}
 		}
+	case []interface{}:
+		for i := range _meta {
+			if err := unmarshalJSONUpdateMetadata(node, schema, _meta[i]); err != nil {
+				return err
+			}
+		}
+	case nil:
+		return nil
+	default:
+		return fmt.Errorf("invalid metadata format for %q", node)
 	}
 	return nil
 }
@@ -563,10 +578,13 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 	if node.IsBranchNode() {
 		switch entry := jval.(type) {
 		case map[string]interface{}:
-			var metakey []string
 			for k, v := range entry {
+				if k == "@" {
+					if err := unmarshalJSONUpdateMetadata(node, schema, v); err != nil {
+						return err
+					}
+				}
 				if strings.HasPrefix(k, "@") {
-					metakey = append(metakey, k)
 					continue
 				}
 				cschema := schema.GetSchema(k)
@@ -577,16 +595,8 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 				case cschema.IsListable():
 					switch vv := v.(type) {
 					case []interface{}:
-						// processing metadata
-						var metadata []interface{}
-						if cschema.IsLeafList() {
-							if _meta, ok := entry["@"+k]; ok {
-								if _meta, ok := _meta.([]interface{}); ok {
-									metadata = _meta
-								}
-							}
-						}
-						if err := unmarshalJSONListableNode(node, cschema, cschema.Keyname, vv, metadata); err != nil {
+						mname := "@" + cschema.Name
+						if err := unmarshalJSONListableNode(node, cschema, cschema.Keyname, vv, entry[mname]); err != nil {
 							return Error(EAppTagJSONParsing, err)
 						}
 					case map[string]interface{}:
@@ -600,7 +610,8 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 					}
 				default:
 					var err error
-					if child := node.Get(k); child == nil {
+					var child DataNode
+					if child = node.Get(k); child == nil {
 						if child, err = New(cschema); err != nil {
 							return Error(EAppTagJSONParsing, err)
 						}
@@ -615,11 +626,13 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 							return Error(EAppTagJSONParsing, err)
 						}
 					}
+					mname := "@" + cschema.Name
+					if meta := entry[mname]; meta != nil {
+						if err := unmarshalJSONUpdateMetadata(child, cschema, meta); err != nil {
+							return err
+						}
+					}
 				}
-			}
-			// unmarshalling metadata
-			for i := range metakey {
-				unmarshalJSONMeta(node, metakey[i], entry[metakey[i]])
 			}
 			return nil
 		case []interface{}:
