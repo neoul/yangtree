@@ -2,6 +2,7 @@ package yangtree
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -84,8 +85,27 @@ func TestXML2(t *testing.T) {
 	if err := UnmarshalYAML(root, b); err != nil {
 		t.Errorf("unmarshalling error: %v\n", err)
 	}
-	// xmlstr, _ := MarshalXMLIndent(root, "", " ", Metadata{})
-	// fmt.Println(string(xmlstr))
+	xmlstr, _ := MarshalXMLIndent(root, "", " ", Metadata{})
+	fmt.Println(string(xmlstr))
+
+	r, err := New(schema)
+	if err != nil {
+		t.Fatalf("error in new yangtree: %v", err)
+	}
+
+	file, err = os.Open("testdata/xml/sample.xml")
+	if err != nil {
+		t.Errorf("file open err: %v\n", err)
+	}
+	b, err = ioutil.ReadAll(file)
+	if err != nil {
+		t.Errorf("file read error: %v\n", err)
+	}
+	file.Close()
+	if err := xml.Unmarshal(b, r); err != nil {
+		t.Errorf("unmarshalling error: %v\n", err)
+	}
+	fmt.Println(r.Value())
 
 	// xmlstr, _ = xml.MarshalIndent(root, "", " ")
 	// fmt.Println(string(xmlstr))

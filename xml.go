@@ -8,8 +8,8 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
-// value2String() marshals a value based on its schema, type and representing format.
-func value2String(schema *SchemaNode, typ *yang.YangType, value interface{}) (string, error) {
+// value2XMLString() marshals a value based on its schema, type and representing format.
+func value2XMLString(schema *SchemaNode, typ *yang.YangType, value interface{}) (string, error) {
 	switch typ.Kind {
 	// case yang.YinstanceIdentifier:
 	// [FIXME] The leftmost (top-level) data node name is always in the
@@ -21,11 +21,11 @@ func value2String(schema *SchemaNode, typ *yang.YangType, value interface{}) (st
 	// case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
 	// case yang.Yint64:
 	// case yang.Yuint64:
-	// case yang.Ybits, yang.Yenum:
 	// case yang.Ydecimal64:
+	// case yang.Ybits, yang.Yenum:
 	case yang.Yunion:
 		for i := range typ.Type {
-			v, err := value2String(schema, typ.Type[i], value)
+			v, err := value2XMLString(schema, typ.Type[i], value)
 			if err == nil {
 				return v, nil
 			}
@@ -85,6 +85,7 @@ type xmlNode struct {
 	DataNode
 	ConfigOnly yang.TriState
 	printMeta  bool
+	metaNS     map[string]string
 }
 
 func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
@@ -109,9 +110,21 @@ func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 	// metadata
 	if xnode.printMeta {
+		if xnode.metaNS == nil {
+			xnode.metaNS = make(map[string]string)
+		}
 		meta := xnode.DataNode.Metadata()
-		for k, v := range meta {
-			start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: k}, Value: v.ValueString()})
+		for _, v := range meta {
+			mschema := v.Schema()
+			ns, prefix := mschema.GetNamespaceAndPrefix()
+			if _prefix, ok := xnode.metaNS[ns]; !ok {
+				nsattr := xml.Attr{Name: xml.Name{Local: "xmlns:" + prefix}, Value: ns}
+				start.Attr = append(start.Attr, nsattr)
+				xnode.metaNS[ns] = prefix
+				start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: prefix + ":" + v.Name()}, Value: v.ValueString()})
+			} else {
+				start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: _prefix + ":" + v.Name()}, Value: v.ValueString()})
+			}
 		}
 	}
 
@@ -139,7 +152,7 @@ func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 		}
 		return nil
 	case *DataLeaf:
-		vstr, err := value2String(schema, schema.Type, node.value)
+		vstr, err := value2XMLString(schema, schema.Type, node.value)
 		if err != nil {
 			return err
 		}

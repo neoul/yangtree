@@ -387,7 +387,7 @@ func (leaf *DataLeaf) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	// if err := e.EncodeToken(xml.Comment(leaf.ID())); err != nil {
 	// 	return err
 	// }
-	vstr, err := value2String(leaf.schema, leaf.schema.Type, leaf.value)
+	vstr, err := value2XMLString(leaf.schema, leaf.schema.Type, leaf.value)
 	if err != nil {
 		return err
 	}
@@ -399,12 +399,17 @@ func (leaf *DataLeaf) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 func (leaf *DataLeaf) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	_, name := SplitQName(&(start.Name.Local))
-	// FIXME - prefix (namesapce) must be checked.
+
 	if name != leaf.schema.Name {
 		return fmt.Errorf("invalid element %q inserted for %q", name, leaf.ID())
 	}
+	if start.Name.Space != leaf.Schema().Module.Namespace.Name {
+		return fmt.Errorf("unknown namespace %q", start.Name.Space)
+	}
+
 	var value string
 	d.DecodeElement(&value, &start)
+	fmt.Println(start)
 	return leaf.SetValueString(value)
 }
 

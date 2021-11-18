@@ -1274,12 +1274,7 @@ func merge(dest, src DataNode) error {
 		}
 	case *DataLeafList:
 		d := dest.(*DataLeafList)
-		if len(s.value) > 0 {
-			d.value = make([]interface{}, len(s.value))
-			copy(d.value, s.value)
-		} else {
-			d.value = nil
-		}
+		return d.setValue(true, s.value)
 	case *DataLeaf:
 		d := dest.(*DataLeaf)
 		d.value = s.value

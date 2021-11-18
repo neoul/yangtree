@@ -469,9 +469,12 @@ func (leaflist *DataLeafList) MarshalXML(e *xml.Encoder, start xml.StartElement)
 
 func (leaflist *DataLeafList) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	_, name := SplitQName(&(start.Name.Local))
-	// FIXME - prefix (namesapce) must be checked.
+
 	if name != leaflist.schema.Name {
 		return fmt.Errorf("invalid element %q inserted for %q", name, leaflist.ID())
+	}
+	if start.Name.Space != leaflist.Schema().Module.Namespace.Name {
+		return fmt.Errorf("unknown namespace %q", start.Name.Space)
 	}
 	var value string
 	d.DecodeElement(&value, &start)

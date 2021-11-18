@@ -21,6 +21,20 @@ module sample {
   }
 
   container sample {
+    leaf bits-val {
+      type bits {
+        bit disable-nagle {
+          position 0;
+        }
+        bit auto-sense-speed {
+          position 1;
+        }
+        bit 10-Mb-only {
+          position 2;
+        }
+      }
+      default "auto-sense-speed";
+    }
     anydata any {
      description "any data node can be placed this node"; 
     }

@@ -406,6 +406,18 @@ func (schema *SchemaNode) GetQName(rfc7951 bool) (string, bool) {
 	return schema.Name, schema.Qboundary
 }
 
+func (schema *SchemaNode) GetNamespaceAndPrefix() (string, string) {
+	ns := schema.Module.Namespace
+	prefix := schema.Module.Prefix
+	if ns == nil {
+		return "", ""
+	}
+	if prefix == nil {
+		return ns.Name, schema.Module.Name
+	}
+	return ns.Name, prefix.Name
+}
+
 // getModule() returns the module strcture of the schema node.
 func getModule(e *yang.Entry, base *yang.Module, ms *yang.Modules) *yang.Module {
 	var m *yang.Module

@@ -800,6 +800,9 @@ func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 	if name != branch.schema.Name {
 		return fmt.Errorf("invalid element %q inserted for %q", name, branch.ID())
 	}
+	if start.Name.Space != branch.Schema().Module.Namespace.Name {
+		return fmt.Errorf("unknown namespace %q", start.Name.Space)
+	}
 
 	schema := branch.schema
 	for {
