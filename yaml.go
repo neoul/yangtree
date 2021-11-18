@@ -434,11 +434,12 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 		if ynode.HasMultipleValues() && ynode.RFC7951S != RFC7951Disabled { // single leaf-list schema node
 			length := len(ynode.Values())
 			for i := 0; i < length; i++ {
+				ynode.WriteIndent(buffer, indent+indentoffset, false)
 				buffer.WriteString("- ")
 				for _, mdata := range m {
 					mynode.DataNode = mdata
 					mynode.RFC7951S = ynode.RFC7951S
-					if err = mynode.marshalYAML(buffer, indent+indentoffset+2, unindent, true); err != nil {
+					if err = mynode.marshalYAML(buffer, indent+indentoffset+2, true, true); err != nil {
 						return err
 					}
 					if mynode.IsLeafNode() {
