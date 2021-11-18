@@ -414,7 +414,6 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 		mynode := *ynode
 		for _, mdata := range m {
 			mynode.DataNode = mdata
-			mynode.RFC7951S = ynode.RFC7951S
 			if err = mynode.marshalYAML(buffer, indent+indentoffset, unindent, true); err != nil {
 				return err
 			}
@@ -438,7 +437,6 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 				buffer.WriteString("- ")
 				for _, mdata := range m {
 					mynode.DataNode = mdata
-					mynode.RFC7951S = ynode.RFC7951S
 					if err = mynode.marshalYAML(buffer, indent+indentoffset+2, true, true); err != nil {
 						return err
 					}
@@ -450,7 +448,6 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 		} else {
 			for _, mdata := range m {
 				mynode.DataNode = mdata
-				mynode.RFC7951S = ynode.RFC7951S
 				if err = mynode.marshalYAML(buffer, indent+1, unindent, true); err != nil {
 					return err
 				}
@@ -501,7 +498,6 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 		cindent := indent + indentoffset
 		for ; i < len(node); i++ {
 			cynode.DataNode = node[i]
-			cynode.RFC7951S = ynode.RFC7951S
 			if schema != cynode.Schema() {
 				break
 			}
@@ -523,14 +519,12 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 			// processing the metadata of multiple leaf-list node schema
 			if schema.IsLeafList() && len(node[j].Metadata()) > 0 {
 				cynode.DataNode = node[j]
-				cynode.RFC7951S = ynode.RFC7951S
 				cynode.WriteIndent(buffer, indent, false)
 				buffer.WriteString("\"@")
 				buffer.WriteString(cynode.getQname())
 				buffer.WriteString("\":\n")
 				for ; j < i; j++ {
 					cynode.DataNode = node[j]
-					cynode.RFC7951S = ynode.RFC7951S
 					if cindent >= 0 {
 						cynode.WriteIndent(buffer, cindent, false)
 						buffer.WriteString("- ")
@@ -556,7 +550,6 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 	}
 	for ; i < len(node); i++ {
 		cynode.DataNode = node[i]
-		cynode.RFC7951S = ynode.RFC7951S
 		if schema != cynode.Schema() {
 			break
 		}
@@ -632,7 +625,6 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, unindent, p
 				continue
 			}
 			cynode.DataNode = children[i]
-			cynode.RFC7951S = ynode.RFC7951S
 			if err := cynode.marshalYAML(buffer, indent+indentoffset, unindent, true); err != nil {
 				return Error(EAppTagYAMLEmitting, err)
 			}
