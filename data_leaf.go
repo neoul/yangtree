@@ -197,7 +197,7 @@ func (leaf *DataLeaf) SetMetadata(name string, value ...interface{}) error {
 	name = strings.TrimPrefix(name, "@")
 	mschema := leaf.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("no schema of metadata for %q", name)
+		return fmt.Errorf("metadata schema %q not found", name)
 	}
 	meta, err := NewWithValue(mschema, value...)
 	if err != nil {
@@ -216,7 +216,7 @@ func (leaf *DataLeaf) SetMetadataString(name string, value ...string) error {
 	name = strings.TrimPrefix(name, "@")
 	mschema := leaf.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("no schema of metadata for %q", name)
+		return fmt.Errorf("metadata schema %q not found", name)
 	}
 	meta, err := NewWithValueString(mschema, value...)
 	if err != nil {
@@ -234,7 +234,7 @@ func (leaf *DataLeaf) UnsetMetadata(name string) error {
 	name = strings.TrimPrefix(name, "@")
 	// mschema := leaf.schema.MetadataSchema[name]
 	// if mschema == nil {
-	// 	return fmt.Errorf("no schema of metadata for %q", name)
+	// 	return fmt.Errorf("metadata schema %q not found", name)
 	// }
 	if leaf.metadata != nil {
 		delete(leaf.metadata, name)

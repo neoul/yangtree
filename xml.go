@@ -1,6 +1,7 @@
 package yangtree
 
 import (
+	"encoding/xml"
 	"fmt"
 	"strconv"
 
@@ -78,4 +79,113 @@ func value2String(schema *SchemaNode, typ *yang.YangType, value interface{}) (st
 		return "", nil
 	}
 	return fmt.Sprint(value), nil
+}
+
+type xmlNode struct {
+	DataNode
+	ConfigOnly yang.TriState
+	printMeta  bool
+}
+
+func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	schema := xnode.Schema()
+	// fmt.Println(xnode.Name(), schema.Module.Namespace)
+	boundary := false
+	if start.Name.Local != schema.Name {
+		boundary = true
+	} else if schema.Qboundary {
+		boundary = true
+	}
+	// xmlns
+	if boundary {
+		ns := schema.Module.Namespace
+		if ns != nil {
+			start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: ns.Name})
+			start.Name.Local = schema.Name
+		}
+	} else {
+		start = xml.StartElement{Name: xml.Name{Local: schema.Name}}
+	}
+
+	// metadata
+	if xnode.printMeta {
+		meta := xnode.DataNode.Metadata()
+		for k, v := range meta {
+			start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: k}, Value: v.ValueString()})
+		}
+	}
+
+	// if err := e.EncodeToken(xml.Comment(leaflist.ID())); err != nil {
+	// 	return err
+	// }
+	switch node := xnode.DataNode.(type) {
+	case *DataBranch:
+		if err := e.EncodeToken(xml.Token(start)); err != nil {
+			return err
+		}
+		for _, child := range node.children {
+			cxnode := *xnode
+			cxnode.DataNode = child
+			if err := e.EncodeElement(&cxnode, xml.StartElement{Name: xml.Name{Local: cxnode.Name()}}); err != nil {
+				return err
+			}
+		}
+		return e.EncodeToken(xml.Token(xml.EndElement{Name: xml.Name{Local: schema.Name}}))
+	case *DataLeafList:
+		for i := range node.value {
+			if err := e.EncodeElement(ValueToValueString(node.value[i]), start); err != nil {
+				return err
+			}
+		}
+		return nil
+	case *DataLeaf:
+		vstr, err := value2String(schema, schema.Type, node.value)
+		if err != nil {
+			return err
+		}
+		return e.EncodeElement(vstr, start)
+	case *DataNodeGroup:
+		return nil
+	}
+	return nil
+}
+
+// MarshalXML returns the XML bytes of a data node.
+func MarshalXML(node DataNode, option ...Option) ([]byte, error) {
+	xnode := &xmlNode{DataNode: node}
+	for i := range option {
+		switch option[i].(type) {
+		case HasState:
+			return nil, fmt.Errorf("%v is not allowed for marshalling", option[i])
+		case ConfigOnly:
+			xnode.ConfigOnly = yang.TSTrue
+		case StateOnly:
+			xnode.ConfigOnly = yang.TSFalse
+		case RFC7951Format:
+			return nil, fmt.Errorf("%v is not allowed for marshalling", option[i])
+		case Metadata:
+			xnode.printMeta = true
+		}
+	}
+	return xml.Marshal(xnode)
+}
+
+// MarshalXMLIndent returns the XML bytes of a data node.
+func MarshalXMLIndent(node DataNode, prefix, indent string, option ...Option) ([]byte, error) {
+	xnode := &xmlNode{DataNode: node}
+	for i := range option {
+		switch option[i].(type) {
+		case HasState:
+			return nil, fmt.Errorf("%v is not allowed for marshalling", option[i])
+		case ConfigOnly:
+			xnode.ConfigOnly = yang.TSTrue
+		case StateOnly:
+			xnode.ConfigOnly = yang.TSFalse
+		case RFC7951Format:
+			return nil, fmt.Errorf("%v is not allowed for marshalling", option[i])
+		case Metadata:
+			xnode.printMeta = true
+		}
+	}
+	return xml.MarshalIndent(xnode, prefix, indent)
 }

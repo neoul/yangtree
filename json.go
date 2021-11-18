@@ -676,9 +676,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 	}
 }
 
-// MarshalJSON returns the JSON encoding of DataNode.
-//
-// Marshal traverses the value v recursively.
+// MarshalJSON returns the JSON bytes of a data node.
 func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
 	jnode := &jsonNode{DataNode: node}
