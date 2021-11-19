@@ -105,7 +105,7 @@ func TestXML2(t *testing.T) {
 	if err := xml.Unmarshal(b, r); err != nil {
 		t.Errorf("unmarshalling error: %v\n", err)
 	}
-	fmt.Println(r.Value())
+	// fmt.Println(r.Value())
 
 	// xmlstr, _ = xml.MarshalIndent(root, "", " ")
 	// fmt.Println(string(xmlstr))

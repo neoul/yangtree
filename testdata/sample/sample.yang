@@ -23,13 +23,13 @@ module sample {
   container sample {
     leaf bits-val {
       type bits {
-        bit disable-nagle {
+        bit zero {
           position 0;
         }
-        bit auto-sense-speed {
+        bit one {
           position 1;
         }
-        bit 10-Mb-only {
+        bit two {
           position 2;
         }
       }

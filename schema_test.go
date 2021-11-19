@@ -29,6 +29,31 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+func TestType(t *testing.T) {
+	yangfiles := []string{
+		"testdata/sample/sample.yang",
+	}
+	// dir := []string{"../../openconfig/public/", "../../YangModels/yang"}
+	schema, err := Load(yangfiles, nil, nil)
+	if err != nil {
+		t.Fatalf("error in loading: %v", err)
+	}
+	bitsSchema := schema.FindSchema("/sample/bits-val")
+	if bitsSchema == nil {
+		t.Fatal("error in finding a bits schema")
+	}
+	node, err := NewWithValueString(bitsSchema, "zero two one")
+	if err != nil {
+		t.Fatalf("error in creating a bits node: %v", err)
+	}
+	if err := node.SetValue("zero three"); err == nil {
+		t.Fatalf(`it must be failed due to the bits %q`, "three")
+	}
+	if node.ValueString() != "zero one two" {
+		t.Fatal("unexpected bits set")
+	}
+}
+
 // Test for DataNodes defined using a YANG extension
 func TestYANGExtDataNode(t *testing.T) {
 	yangfiles := []string{

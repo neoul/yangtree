@@ -21,11 +21,13 @@ import (
 // SchemaNode - The node structure of yangtree schema.
 type SchemaNode struct {
 	*yang.Entry
-	Parent        *SchemaNode             // The parent schema node of the schema node
-	Module        *yang.Module            // The module of the schema node
-	Children      []*SchemaNode           // The child schema nodes of the schema node
-	Directory     map[string]*SchemaNode  // used to store the children of the schema node with all schema node's aliases
-	Enum          map[string]int64        // used to store all enumeration string
+	Parent        *SchemaNode            // The parent schema node of the schema node
+	Module        *yang.Module           // The module of the schema node
+	Children      []*SchemaNode          // The child schema nodes of the schema node
+	Directory     map[string]*SchemaNode // used to store the children of the schema node with all schema node's aliases
+	Enum          map[string]int64       // used to store all enumeration string
+	Bits          map[string]int64
+	BitsR         map[int64]string
 	Identityref   map[string]*yang.Module // used to store all identity values of the schema node
 	Keyname       []string                // used to store key list
 	Qboundary     bool                    // used to indicate the boundary of the namespace-qualified name of RFC7951
@@ -274,21 +276,10 @@ func updatType(schema *SchemaNode, typ *yang.YangType) error {
 	}
 	switch typ.Kind {
 	case yang.Ybits:
-		if schema.Enum == nil {
-			schema.Enum = map[string]int64{}
-		}
-		newenum := typ.Bit.NameMap()
-		for bs, bi := range newenum {
-			schema.Enum[bs] = bi
-		}
+		schema.Bits = typ.Bit.NameMap()
+		schema.BitsR = typ.Bit.ValueMap()
 	case yang.Yenum:
-		if schema.Enum == nil {
-			schema.Enum = map[string]int64{}
-		}
-		newenum := typ.Enum.NameMap()
-		for bs, bi := range newenum {
-			schema.Enum[bs] = bi
-		}
+		schema.Enum = typ.Enum.NameMap()
 	case yang.Yidentityref:
 		if schema.Identityref == nil {
 			schema.Identityref = make(map[string]*yang.Module)
@@ -951,7 +942,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 			return uint64(n), nil
 		}
 		return number, nil
-	case yang.Ybits, yang.Yenum:
+	case yang.Yenum:
 		v, ok := value.(string)
 		if !ok {
 			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
@@ -959,7 +950,29 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 		if _, ok := schema.Enum[v]; ok {
 			return value, nil
 		}
-		return nil, fmt.Errorf("enum or bits %q not found", value)
+		return nil, fmt.Errorf("enum %q not found", value)
+	case yang.Ybits:
+		bitsStr, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+		}
+		bits := strings.Split(bitsStr, " ")
+		if len(bits) > 0 {
+			bitlist := make([]int64, 0, len(bits))
+			for i := range bits {
+				v, ok := schema.Bits[bits[i]]
+				if !ok {
+					return nil, fmt.Errorf("bits %q not found", bits[i])
+				}
+				bitlist = append(bitlist, v)
+			}
+			sort.Slice(bitlist, func(i, j int) bool { return bitlist[i] < bitlist[j] })
+			for i := range bitlist {
+				bits[i] = schema.BitsR[bitlist[i]]
+			}
+			return strings.Join(bits, " "), nil
+		}
+		return bitsStr, nil
 	case yang.Yidentityref:
 		v, ok := value.(string)
 		if !ok {
@@ -1117,10 +1130,28 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 			return uint64(n), nil
 		}
 		return number, nil
-	case yang.Ybits, yang.Yenum:
+	case yang.Yenum:
 		if _, ok := schema.Enum[value]; ok {
 			return value, nil
 		}
+	case yang.Ybits:
+		bits := strings.Split(value, " ")
+		if len(bits) > 0 {
+			bitlist := make([]int64, 0, len(bits))
+			for i := range bits {
+				v, ok := schema.Bits[bits[i]]
+				if !ok {
+					return nil, fmt.Errorf("bits %q not found", bits[i])
+				}
+				bitlist = append(bitlist, v)
+			}
+			sort.Slice(bitlist, func(i, j int) bool { return bitlist[i] < bitlist[j] })
+			for i := range bitlist {
+				bits[i] = schema.BitsR[bitlist[i]]
+			}
+			return strings.Join(bits, " "), nil
+		}
+		return value, nil
 	case yang.Yidentityref:
 		if i := strings.Index(value, ":"); i >= 0 {
 			iref := value[i+1:]
