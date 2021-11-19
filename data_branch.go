@@ -795,7 +795,6 @@ func (branch *DataBranch) MarshalXML(e *xml.Encoder, start xml.StartElement) err
 
 func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	_, name := SplitQName(&(start.Name.Local))
-	// FIXME - prefix (namesapce) must be checked.
 	if name != branch.schema.Name {
 		return fmt.Errorf("invalid element %q inserted for %q", name, branch.ID())
 	}
@@ -826,14 +825,28 @@ func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 			if err := d.DecodeElement(child, &e); err != nil {
 				return err
 			}
+			// fmt.Println("Branch", branch.ID(), "E", child.ID(), start.Attr)
 			curchild := branch.Get(child.ID())
 			if curchild == nil {
 				if _, err := branch.insert(child, nil); err != nil {
 					return err
 				}
+				curchild = child
 			} else {
 				if err := curchild.Merge(child); err != nil {
 					return err
+				}
+			}
+			for i := range e.Attr {
+				if e.Attr[i].Name.Local != "xmlns" &&
+					e.Attr[i].Name.Space != "xmlns" {
+					// metadata
+					curchild.SetMetadataString(e.Attr[i].Name.Local, e.Attr[i].Value)
+					// if mschema := branch.schema.MetadataSchema[e.Attr[i].Name.Local]; mschema != nil {
+					// 	if n, err := NewWithValueString(mschema, e.Attr[i].Value); err == nil {
+					// 		branch.metadata[e.Attr[i].Name.Local] = n
+					// 	}
+					// }
 				}
 			}
 		case xml.EndElement:

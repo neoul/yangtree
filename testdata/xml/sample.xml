@@ -1,36 +1,36 @@
 <root xmlns="https://github.com/neoul/yangtree">
- <sample xmlns="urn:network" last-modified="2015-06-18T17:01:14+02:01">
-  <container-val>
-   <a last-modified="2015-06-18T17:01:14+02:02">A</a>
-   <enum-val>enum2</enum-val>
-   <leaf-list-val last-modified="2015-06-18T17:01:14+02:03">leaf-list-first</leaf-list-val>
-   <leaf-list-val last-modified="2015-06-18T17:01:14+02:03">leaf-list-fourth</leaf-list-val>
-   <leaf-list-val last-modified="2015-06-18T17:01:14+02:03">leaf-list-second</leaf-list-val>
-   <leaf-list-val last-modified="2015-06-18T17:01:14+02:03">leaf-list-third</leaf-list-val>
-   <test-default>11</test-default>
-  </container-val>
-  <empty-val></empty-val>
-  <multiple-key-list>
-   <integer>1</integer>
-   <ok>true</ok>
-   <str>first</str>
-  </multiple-key-list>
-  <multiple-key-list last-modified="2015-06-18T17:01:14+02:05">
-   <integer>2</integer>
-   <str>first</str>
-  </multiple-key-list>
-  <non-key-list last-modified="2015-06-18T17:01:14+02:07">
-   <strval>XYZ</strval>
-   <uintval>10</uintval>
-  </non-key-list>
-  <single-key-list>
-   <country-code>KR</country-code>
-   <decimal-range>1.01</decimal-range>
-   <empty-node></empty-node>
-   <list-key>AAA</list-key>
-   <uint32-range>100</uint32-range>
-   <uint64-node>1234567890</uint64-node>
-  </single-key-list>
-  <str-val last-modified="2015-06-18T17:01:14+02:06">abc</str-val>
- </sample>
+    <sample xmlns="urn:network" xmlns:elm="http://example.org/example-last-modified" elm:last-modified="2015-06-18T17:01:14+02:01">
+        <container-val>
+            <a elm:last-modified="2015-06-18T17:01:14+02:02">A</a>
+            <enum-val>enum2</enum-val>
+            <leaf-list-val elm:last-modified="2015-06-18T17:01:14+02:03">leaf-list-first</leaf-list-val>
+            <leaf-list-val elm:last-modified="2015-06-18T17:01:14+02:03">leaf-list-fourth</leaf-list-val>
+            <leaf-list-val elm:last-modified="2015-06-18T17:01:14+02:03">leaf-list-second</leaf-list-val>
+            <leaf-list-val elm:last-modified="2015-06-18T17:01:14+02:03">leaf-list-third</leaf-list-val>
+            <test-default>11</test-default>
+        </container-val>
+        <empty-val></empty-val>
+        <multiple-key-list>
+            <integer>1</integer>
+            <ok>true</ok>
+            <str>first</str>
+        </multiple-key-list>
+        <multiple-key-list elm:last-modified="2015-06-18T17:01:14+02:05">
+            <integer>2</integer>
+            <str>first</str>
+        </multiple-key-list>
+        <non-key-list elm:last-modified="2015-06-18T17:01:14+02:07">
+            <strval>XYZ</strval>
+            <uintval>10</uintval>
+        </non-key-list>
+        <single-key-list>
+            <country-code>KR</country-code>
+            <decimal-range>1.01</decimal-range>
+            <empty-node></empty-node>
+            <list-key>AAA</list-key>
+            <uint32-range>100</uint32-range>
+            <uint64-node>1234567890</uint64-node>
+        </single-key-list>
+        <str-val elm:last-modified="2015-06-18T17:01:14+02:06">abc</str-val>
+    </sample>
 </root>

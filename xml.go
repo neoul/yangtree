@@ -201,3 +201,8 @@ func MarshalXMLIndent(node DataNode, prefix, indent string, option ...Option) ([
 	}
 	return xml.MarshalIndent(xnode, prefix, indent)
 }
+
+// UnmarshalXML updates the data node using an XML document.
+func UnmarshalXML(node DataNode, data []byte) error {
+	return xml.Unmarshal(data, node)
+}

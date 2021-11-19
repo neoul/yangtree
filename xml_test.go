@@ -2,7 +2,6 @@ package yangtree
 
 import (
 	"encoding/xml"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -68,7 +67,7 @@ func TestXML2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error in loading: %v", err)
 	}
-	root, err := New(schema)
+	root1, err := New(schema)
 	if err != nil {
 		t.Fatalf("error in new yangtree: %v", err)
 	}
@@ -82,13 +81,13 @@ func TestXML2(t *testing.T) {
 		t.Errorf("file read error: %v\n", err)
 	}
 	file.Close()
-	if err := UnmarshalYAML(root, b); err != nil {
+	if err := UnmarshalYAML(root1, b); err != nil {
 		t.Errorf("unmarshalling error: %v\n", err)
 	}
-	xmlstr, _ := MarshalXMLIndent(root, "", " ", Metadata{})
-	fmt.Println(string(xmlstr))
+	// xmlstr, _ := MarshalXMLIndent(root1, "", " ", Metadata{})
+	// fmt.Println(string(xmlstr))
 
-	r, err := New(schema)
+	root2, err := New(schema)
 	if err != nil {
 		t.Fatalf("error in new yangtree: %v", err)
 	}
@@ -102,11 +101,13 @@ func TestXML2(t *testing.T) {
 		t.Errorf("file read error: %v\n", err)
 	}
 	file.Close()
-	if err := xml.Unmarshal(b, r); err != nil {
+	if err := xml.Unmarshal(b, root2); err != nil {
 		t.Errorf("unmarshalling error: %v\n", err)
 	}
-	// fmt.Println(r.Value())
-
-	// xmlstr, _ = xml.MarshalIndent(root, "", " ")
-	// fmt.Println(string(xmlstr))
+	j1, _ := MarshalJSON(root1, Metadata{})
+	j2, _ := MarshalJSON(root2, Metadata{})
+	if string(j1) != string(j2) {
+		t.Errorf("different result: root1 %s\n", string(j1))
+		t.Errorf("different result: root2 %s\n", string(j2))
+	}
 }
