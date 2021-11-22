@@ -210,7 +210,7 @@ func (branch *DataBranch) insert(child DataNode, iopt InsertOption) (DataNode, e
 		child.Remove()
 	}
 	schema := child.Schema()
-	if !branch.schema.IsAnyData() {
+	if !branch.schema.IsAnyData() && !branch.schema.insertAny {
 		if branch.Schema() != schema.Parent {
 			return nil, fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
 		}

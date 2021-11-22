@@ -39,6 +39,8 @@ type SchemaNode struct {
 	Option        *YANGTreeOption
 	Modules       *yang.Modules
 	*Extension
+
+	insertAny bool
 }
 
 type Extension struct {
@@ -48,6 +50,10 @@ type Extension struct {
 
 func (schema *SchemaNode) String() string {
 	return schema.Name
+}
+
+func (schema *SchemaNode) SetInsertAny() {
+	schema.insertAny = true
 }
 
 func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *YANGTreeOption, ext *Extension, ms *yang.Modules) (*SchemaNode, error) {
@@ -327,13 +333,14 @@ func buildRootSchema(module *yang.Module, option *YANGTreeOption, ext *Extension
 
 // GetRootSchema() returns its root schema node.
 func (schema *SchemaNode) GetRootSchema() *SchemaNode {
-	for schema != nil {
-		if schema.IsRoot {
-			return schema
+	s := schema
+	for s.Parent != nil {
+		if s.Parent.IsRoot {
+			return s.Parent
 		}
-		schema = schema.Parent
+		s = s.Parent
 	}
-	return nil
+	return s
 }
 
 // IsDuplicatable() checks the data nodes can be inserted duplicately several times.
@@ -720,8 +727,14 @@ func (schema *SchemaNode) FindSchema(path string) *SchemaNode {
 		case NodeSelectSelf:
 		case NodeSelectParent:
 			target = target.Parent
+			if target == nil {
+				return nil
+			}
 		case NodeSelectFromRoot:
 			target = target.GetRootSchema()
+			if target == nil {
+				return nil
+			}
 		case NodeSelectAllChildren, NodeSelectAll:
 			// not supported
 			return nil
@@ -733,7 +746,11 @@ func (schema *SchemaNode) FindSchema(path string) *SchemaNode {
 			// 	}
 			// 	return target.MetadataSchema[pathnode[i].Name[1:]]
 			// }
-			target = target.Directory[pathnode[i].Name]
+			var ok bool
+			target, ok = target.Directory[pathnode[i].Name]
+			if !ok {
+				break
+			}
 		}
 	}
 	return target

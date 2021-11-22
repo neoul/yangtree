@@ -86,6 +86,9 @@ func TestYANGExtDataNode(t *testing.T) {
 	}
 	// yang-api
 	yangapiSchema := schema.ExtSchema["yang-api"]
+
+	// configure /restconf/data schema to insert any child node into the in the node.
+	yangapiSchema.FindSchema("/restconf/data").SetInsertAny()
 	node, err = NewWithValueString(yangapiSchema)
 	if err != nil {
 		t.Fatalf("error in creating an last-modified extension data node: %v", err)
@@ -99,12 +102,20 @@ func TestYANGExtDataNode(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("error in creating an yang-lib extension data node: %v", err)
 	}
+	bval, err := NewWithValueString(schema.FindSchema("/sample/bits-val"), "one zero")
+	if err != nil {
+		t.Fatalf("error in creating bval: %v", err)
+	}
+	data, _ := Find(node, "/restconf/data")
+	if _, err := data[0].Insert(bval, nil); err != nil {
+		t.Fatalf("error in updating bits-val to restconf/data: %v", err)
+	}
 
 	j, err := MarshalJSON(node)
 	if err != nil {
 		t.Fatalf("error in marshalling an extension data node: %v", err)
 	}
-	if string(j) != `{"restconf":{"data":{},"operations":{},"yang-library-version":"2016-06-21"}}` {
+	if string(j) != `{"restconf":{"data":{"bits-val":"zero one"},"operations":{},"yang-library-version":"2016-06-21"}}` {
 		t.Fatalf("error in storing an yang-api extension data node: %v", string(j))
 	}
 }
