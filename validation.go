@@ -30,7 +30,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 			errors = append(errors, fmt.Errorf("when %q statement failed", whenstr))
 		}
 	}
-	mustlist := GetMust(node.Schema())
+	mustlist := node.Schema().GetMust()
 	for i := range mustlist {
 		mustXPath, ok := mustlist[i].Source.Arg()
 		if ok {

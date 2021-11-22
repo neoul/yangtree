@@ -1,4 +1,4 @@
-module openconfig-extensions {
+module openconfig-ext {
   namespace "urn:oc-ext";
   prefix "oc-ext";
   extension openconfig-version {

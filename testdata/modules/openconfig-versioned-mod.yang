@@ -2,7 +2,7 @@ module openconfig-versioned-mod {
   namespace "urn:vm";
   prefix "oc-vm";
 
-  import openconfig-extensions { prefix "oc-ext"; }
+  import openconfig-ext { prefix "oc-ext"; }
 
   oc-ext:openconfig-version "12.4.2";
   organization "openconfig";

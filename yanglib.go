@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
-func GetYangLibrary(schema *yang.Entry) DataNode {
-	schema = GetRootSchema(schema)
+func (schema *SchemaNode) GetYangLibrary() DataNode {
+	schema = schema.GetRootSchema()
 	n, ok := schema.Annotation["ietf-yang-libary"]
 	if ok {
 		return n.(DataNode)
@@ -169,12 +170,18 @@ func getConformanceType(m *yang.Module, excluded []string) (conformancetype stri
 	return
 }
 
+// Module set ID
 var moduleSetNum int
 
-func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, excluded []string) error {
+func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
+	modulemap := rootschema.Modules.Modules
 	moduleSetNum++
-	ylib := module["ietf-yang-library"]
+	ylib := modulemap["ietf-yang-library"]
 	if ylib == nil {
+		if rootschema.Option.YANGLibrary2016 ||
+			rootschema.Option.YANGLibrary2019 {
+			return fmt.Errorf("yanglib: ietf-yang-library is not loaded")
+		}
 		return nil
 	}
 	var err error
@@ -182,15 +189,27 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 	switch ylib.Current() {
 	case "2019-01-04":
 		moduleSetName := fmt.Sprintf("set-%d", moduleSetNum)
-		meta := GetSchemaMeta(rootschema)
-		if meta.Option != nil && meta.Option.SchemaSetName != "" {
-			moduleSetName = meta.Option.SchemaSetName
+		// load the previous module set
+		if rootschema.Option != nil && rootschema.Option.SchemaSetName != "" {
+			moduleSetName = rootschema.Option.SchemaSetName
 		}
-		top, err = New(GetSchema(rootschema, "yang-library"))
+		top, err = NewWithValueString(rootschema.GetSchema("yang-library"))
 		if err != nil {
-			return fmt.Errorf(`yanglib: "yang-library" not found`)
+			return fmt.Errorf(`yanglib: %q not found`, "yang-library")
 		}
-		for _, m := range module {
+		var mods []*yang.Module
+		for _, m := range modulemap {
+			mods = append(mods, m)
+		}
+		sort.Slice(mods, func(i, j int) bool {
+			if mods[i].Name < mods[j].Name {
+				return true
+			} else if mods[i].Name == mods[j].Name {
+				return mods[i].Current() < mods[j].Current()
+			}
+			return true
+		})
+		for _, m := range modulemap {
 			if m.BelongsTo != nil {
 				continue
 			}
@@ -204,31 +223,35 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 			isImport := getConformanceType(m, excluded)
 			if isImport == "import" {
 				listname = "import-only-module"
-				err := Set(top, fmt.Sprintf(
-					"module-set[name=%s]/%s[name=%s][revision=%s][namespace=%s]",
-					moduleSetName, listname, name, revision, namespace))
+				err := SetValueString(top, fmt.Sprintf(
+					"module-set[name=%s]/%s[name=%s][revision=%s]",
+					moduleSetName, listname, name, revision), nil,
+					fmt.Sprintf(`{"namespace":%q}`, namespace))
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
 				}
 			} else {
-				err := Set(top, fmt.Sprintf(
-					"module-set[name=%s]/%s[name=%s][revision=%s][namespace=%s]",
-					moduleSetName, listname, name, revision, namespace))
+				err := SetValueString(top, fmt.Sprintf(
+					"module-set[name=%s]/%s[name=%s][revision=%s]",
+					moduleSetName, listname, name, revision), nil,
+					fmt.Sprintf(`{"namespace":%q}`, namespace))
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
 				}
 				// feature
 				for i := range m.Feature {
-					err = Set(top, fmt.Sprintf(
-						"module-set[name=%s]/%s[name=%s][revision=%s]/feature",
-						moduleSetName, listname, name, revision), m.Feature[i].Name)
-					if err != nil {
-						return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
+					p := fmt.Sprintf(
+						"module-set[name=%s]/%s[name=%s][revision=%s]/feature[.=%s]",
+						moduleSetName, listname, name, revision, m.Feature[i].Name)
+					if n, err := Find(top, p); err == nil && len(n) == 0 {
+						err = SetValueString(top, p, nil, m.Feature[i].Name)
+						if err != nil {
+							return fmt.Errorf("yanglib: unable to add feature %q: %v", m.Feature[i].Name, err)
+						}
 					}
 				}
 				// deviation
 				for i := range m.Deviation {
-					// fmt.Println(m.Name, m.Deviation[i].Name)
 					pathnode, err := ParsePath(&m.Deviation[i].Name)
 					if err != nil || len(pathnode) == 0 {
 						return fmt.Errorf("yanglib: can not find target node %q to deviate", m.Deviation[i].Name)
@@ -236,15 +259,18 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 					prefix := pathnode[len(pathnode)-1].Prefix
 					target := yang.FindModuleByPrefix(m, prefix)
 					if target == nil {
-						target = module[prefix]
+						target = modulemap[prefix]
 						if target == nil {
 							return fmt.Errorf("yanglib: deviation schema %q not found", m.Deviation[i].Name)
 						}
 					}
-					err = Set(top, fmt.Sprintf("module-set[name=%s]/%s[name=%s]/deviation",
-						moduleSetName, listname, target.Name), name)
-					if err != nil {
-						return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+					p := fmt.Sprintf("module-set[name=%s]/%s[name=%s][revision=%s]/deviation[.=%s]",
+						moduleSetName, listname, target.Name, target.Current(), name)
+					if n, err := Find(top, p); err == nil && len(n) == 0 {
+						err = SetValueString(top, p, nil, name)
+						if err != nil {
+							return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+						}
 					}
 				}
 			}
@@ -254,9 +280,9 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 				sm := m.Include[i].Module
 				if sm != nil {
 					subname, subrevision := sm.Name, sm.Current()
-					err := Set(top, fmt.Sprintf(
+					err := SetValueString(top, fmt.Sprintf(
 						"module-set[name=%s]/%s[name=%s]/submodule[name=%s][revision=%s]",
-						moduleSetName, listname, name, subname, subrevision))
+						moduleSetName, listname, name, subname, subrevision), nil, "")
 					if err != nil {
 						return fmt.Errorf("yanglib: unable to add submodule %q: %v", name, err)
 					}
@@ -265,45 +291,45 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 		}
 		var contentId strings.Builder
 		b, _ := MarshalYAML(top, InternalFormat{})
-		fmt.Println(string(b))
 		h := sha1.New()
 		io.WriteString(h, string(b))
 		b = h.Sum(nil)
 		encoder := base64.NewEncoder(base64.StdEncoding, &contentId)
 		encoder.Write(b)
 		encoder.Close()
-		// fmt.Println(contentId.String())
-		if err := Set(top, "content-id", contentId.String()); err != nil {
+		if err := SetValueString(top, "content-id", nil, contentId.String()); err != nil {
 			return fmt.Errorf("yanglib: content-id generation error: %v", err)
 		}
 	case "2016-06-21":
-		top, err = New(GetSchema(rootschema, "modules-state"))
+		top, err = NewWithValueString(rootschema.GetSchema("modules-state"))
 		if err != nil {
-			return fmt.Errorf(`yanglib: "modules-state" not found`)
+			return fmt.Errorf(`yanglib: %q not found`, "modules-state")
 		}
-		for _, m := range module {
+		for _, m := range modulemap {
 			name, revision, namespace := m.Name, m.Current(), ""
 			if m.Namespace != nil {
 				namespace = m.Namespace.Name
 			}
 			// module
 			if m.BelongsTo == nil {
-				err := Set(top, fmt.Sprintf("module[name=%s][revision=%s][namespace=%s][conformance-type=%s]",
-					name, revision, namespace, getConformanceType(m, excluded)))
+				err := SetValueString(top, fmt.Sprintf("module[name=%s][revision=%s]", name, revision), nil,
+					fmt.Sprintf(`{"namespace":%q,"conformance-type":%q}`, namespace, getConformanceType(m, excluded)))
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
 				}
 			}
 			// feature
 			for i := range m.Feature {
-				err = Set(top, fmt.Sprintf("module[name=%s][revision=%s]/feature", name, revision), m.Feature[i].Name)
-				if err != nil {
-					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
+				p := fmt.Sprintf("module[name=%s][revision=%s]/feature[.=%s]", name, revision, m.Feature[i].Name)
+				if n, err := Find(top, p); err == nil && len(n) == 0 {
+					err = SetValueString(top, p, nil, m.Feature[i].Name)
+					if err != nil {
+						return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+					}
 				}
 			}
 			// deviation
 			for i := range m.Deviation {
-				// fmt.Println(m.Name, m.Deviation[i].Name)
 				pathnode, err := ParsePath(&m.Deviation[i].Name)
 				if err != nil || len(pathnode) == 0 {
 					return fmt.Errorf("yanglib: can not find target node %q to deviate", m.Deviation[i].Name)
@@ -311,13 +337,13 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 				prefix := pathnode[len(pathnode)-1].Prefix
 				target := yang.FindModuleByPrefix(m, prefix)
 				if target == nil {
-					target = module[prefix]
+					target = modulemap[prefix]
 					if target == nil {
 						return fmt.Errorf("yanglib: deviation schema %q not found", m.Deviation[i].Name)
 					}
 				}
-				err = Set(top, fmt.Sprintf("module[name=%s][revision=%s]/deviation[name=%s][revision=%s]",
-					target.Name, target.Current(), name, revision))
+				err = SetValueString(top, fmt.Sprintf("module[name=%s][revision=%s]/deviation[name=%s][revision=%s]",
+					target.Name, target.Current(), name, revision), nil, "")
 				if err != nil {
 					return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
 				}
@@ -327,8 +353,8 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 				sm := m.Include[i].Module
 				if sm != nil {
 					subname, subrevision := sm.Name, sm.Current()
-					err := Set(top, fmt.Sprintf("module[name=%s][revision=%s]/submodule[name=%s][revision=%s]",
-						name, revision, subname, subrevision))
+					err := SetValueString(top, fmt.Sprintf("module[name=%s][revision=%s]/submodule[name=%s][revision=%s]",
+						name, revision, subname, subrevision), nil, "")
 					if err != nil {
 						return fmt.Errorf("yanglib: unable to add submodule %q: %v", name, err)
 					}
@@ -337,19 +363,20 @@ func loadYanglibrary(rootschema *yang.Entry, module map[string]*yang.Module, exc
 		}
 		var moduleSetId strings.Builder
 		b, _ := MarshalYAML(top, InternalFormat{})
-		// fmt.Println(string(b))
 		h := sha1.New()
 		io.WriteString(h, string(b))
 		b = h.Sum(nil)
 		encoder := base64.NewEncoder(base64.StdEncoding, &moduleSetId)
 		encoder.Write(b)
 		encoder.Close()
-		// fmt.Println(moduleSetId.String())
-		if err := Set(top, "module-set-id", moduleSetId.String()); err != nil {
+		if err := SetValueString(top, "module-set-id", nil, moduleSetId.String()); err != nil {
 			return fmt.Errorf("yanglib: module-set-id generation error: %v", err)
 		}
 	}
 	if top != nil {
+		if rootschema.Annotation == nil {
+			rootschema.Annotation = make(map[string]interface{})
+		}
 		rootschema.Annotation["ietf-yang-libary"] = top
 	}
 	return nil

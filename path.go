@@ -1,13 +1,11 @@
 package yangtree
 
 import (
-	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/PaesslerAG/gval"
-	"github.com/openconfig/goyang/pkg/yang"
 )
 
 // XPath for yangtree
@@ -68,6 +66,68 @@ var (
 	}
 )
 
+func (pathnode *PathNode) PredicatesToMap() (map[string]interface{}, error) {
+	pmap := make(map[string]interface{})
+LOOP:
+	for i := range pathnode.Predicates {
+		token, _, err := TokenizePathExpr(nil, &(pathnode.Predicates[i]), 0)
+		if err != nil {
+			return nil, err
+		}
+		switch len(token) {
+		case 0:
+			continue LOOP
+		case 1:
+			if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
+				if index <= 0 {
+					return nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
+				}
+				pmap["@index"] = index - 1
+			} else if pathnode.Predicates[0] == "last()" {
+				pmap["@last"] = true
+			} else {
+				pmap["@evaluate-xpath"] = true
+			}
+			continue LOOP
+		case 2, 3:
+			if token[1] != "=" {
+				pmap["@evaluate-xpath"] = true
+			}
+		default:
+			pmap["@evaluate-xpath"] = true
+		}
+
+		var value string
+		if len(token) > 2 {
+			value = token[2]
+			if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+				value = strings.Trim(value, "'")
+			}
+			if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+				value = strings.Trim(value, "\"")
+			}
+		}
+		switch token[0] {
+		case ".":
+			pmap["."] = value
+		default:
+			var name string
+			if j := strings.Index(token[0], ":"); j >= 0 {
+				name = token[0][j+1:]
+			} else {
+				name = token[0]
+			}
+			if v, exist := pmap[name]; exist {
+				if v != value {
+					return nil, fmt.Errorf("duplicated path predicate %q found", name)
+				}
+			}
+			pmap[name] = value
+		}
+	}
+	return pmap, nil
+}
+
 func updateNodeSelect(pathnode *PathNode) *PathNode {
 	if s, ok := pathNodeKeyword[pathnode.Name]; ok {
 		pathnode.Select = s
@@ -105,6 +165,7 @@ func ParsePath(path *string) ([]*PathNode, error) {
 			if insideBrackets <= 0 {
 				if (*path)[end-1] == '/' {
 					pathnode.Select = NodeSelectAll
+					pathnode.Name = "..."
 				} else {
 					if begin < end {
 						pathnode.Name = (*path)[begin:end]
@@ -158,113 +219,11 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	if begin < end {
 		pathnode.Name = (*path)[begin:end]
 	}
+	if pathnode.Name == "" && pathnode.Value == "" && len(pathnode.Predicates) == 0 {
+		return node, nil
+	}
 	node = append(node, updateNodeSelect(pathnode))
 	return node, nil
-}
-
-func keyGen(schema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
-	p := map[string]interface{}{}
-	numP := 0
-	if len(pathnode.Predicates) == 1 {
-		if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
-			if index <= 0 {
-				return "", nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
-			}
-			p["@index"] = index - 1
-			return pathnode.Name, p, nil
-		}
-	}
-	meta := GetSchemaMeta(schema)
-	for i := range pathnode.Predicates {
-		token, _, err := TokenizePathExpr(nil, &(pathnode.Predicates[i]), 0)
-		if err != nil {
-			return "", nil, err
-		}
-		if len(token) < 2 || len(token) > 3 ||
-			((len(token) == 2 || len(token) == 3) && token[1] != "=") {
-			p["@find-in-order"] = true
-			if IsUniqueList(schema) {
-				p["@prefix"] = true
-			}
-			continue
-		}
-		var value string
-		if len(token) > 2 {
-			value = token[2]
-		}
-		if token[0] == "." {
-			p["."] = value
-			continue
-		}
-		cschema, ok := meta.Dir[token[0]]
-		if !ok {
-			p["@find-in-order"] = true
-			if IsUniqueList(schema) {
-				p["@prefix"] = true
-			}
-			return pathnode.Name, p, nil
-		}
-		if !IsKeyNode(cschema) {
-			p["@need-to-update"] = true
-		}
-		if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
-			value = strings.Trim(value, "'")
-		}
-		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
-			value = strings.Trim(value, "\"")
-		}
-		if v, exist := p[cschema.Name]; exist {
-			if v != value {
-				return "", nil, fmt.Errorf("invalid path predicates %q", pathnode.Predicates[i])
-			}
-		}
-
-		numP++
-		p[cschema.Name] = value
-	}
-
-	switch {
-	case IsUniqueList(schema):
-		var key bytes.Buffer
-		key.WriteString(schema.Name)
-		keyname := GetKeynames(schema)
-		usedPredicates := 0
-	LOOP:
-		for i := range keyname {
-			v, ok := p[keyname[i]]
-			if !ok {
-				p["@nokey"] = true
-				p["@prefix"] = true
-				break LOOP
-			}
-			usedPredicates++
-			// delete(p, keyname[i])
-			value := v.(string)
-			// if value == "" || value == "*" {
-			// 	p["@present"] = true
-			// 	break LOOP
-			// }
-			switch value {
-			case "*":
-				p["@prefix"] = true
-				break LOOP
-			default:
-				key.WriteString("[")
-				key.WriteString(keyname[i])
-				key.WriteString("=")
-				key.WriteString(value)
-				key.WriteString("]")
-			}
-		}
-		if usedPredicates < numP {
-			p["@find-in-order"] = true
-		}
-		return key.String(), p, nil
-	}
-	if numP > 0 {
-		p["@find-in-order"] = true
-	}
-	return pathnode.Name, p, nil
 }
 
 func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error) {
@@ -578,17 +537,8 @@ func RemovePredicates(path *string) (string, bool) {
 	return "", false
 }
 
-// KeyGen() generates the child key and child map from the PathNode.
-func KeyGen(pschema *yang.Entry, pathnode *PathNode) (string, map[string]interface{}, error) {
-	cschema := GetSchema(pschema, pathnode.Name)
-	if cschema == nil {
-		return "", nil, fmt.Errorf("schema %q not found from %q", pathnode.Name, pschema.Name)
-	}
-	return keyGen(cschema, pathnode)
-}
-
 // FindAllPossiblePath finds all possible paths. It resolves the gNMI path wildcards.
-func FindAllPossiblePath(schema *yang.Entry, spath string) []string {
+func FindAllPossiblePath(schema *SchemaNode, spath string) []string {
 	if schema == nil {
 		return nil
 	}
@@ -597,13 +547,13 @@ func FindAllPossiblePath(schema *yang.Entry, spath string) []string {
 		return nil
 	}
 	prefix := make([]string, 0, 12)
-	if IsRootSchema(schema) {
+	if schema.IsRoot {
 		prefix = append(prefix, "")
 	}
 	return findAllPossiblePath(schema, prefix, pathnode)
 }
 
-func findAllPossiblePath(schema *yang.Entry, prefix []string, pathnode []*PathNode) []string {
+func findAllPossiblePath(schema *SchemaNode, prefix []string, pathnode []*PathNode) []string {
 	if len(pathnode) == 0 {
 		return []string{strings.Join(prefix, "/")}
 	}
@@ -614,37 +564,35 @@ func findAllPossiblePath(schema *yang.Entry, prefix []string, pathnode []*PathNo
 		if schema.Parent == nil {
 			return nil
 		}
-		if IsRootSchema(schema.Parent) {
+		if schema.Parent.IsRoot {
 			return findAllPossiblePath(schema.Parent, append(prefix[:0], ""), pathnode[1:])
 		} else if len(prefix) > 0 {
 			return findAllPossiblePath(schema.Parent, prefix[:len(prefix)-1], pathnode[1:])
 		}
 		return findAllPossiblePath(schema.Parent, []string{".."}, pathnode[1:])
 	case NodeSelectFromRoot:
-		schema = GetRootSchema(schema)
+		schema = schema.GetRootSchema()
 	case NodeSelectAllChildren:
-		cschema := GetAllChildSchema(schema)
-		if len(cschema) == 0 {
+		if len(schema.Children) == 0 {
 			return nil
 		}
-		founds := make([]string, 0, len(cschema))
-		for i := range cschema {
+		founds := make([]string, 0, len(schema.Children))
+		for i := range schema.Children {
 			founds = append(founds,
-				findAllPossiblePath(cschema[i], append(prefix, cschema[i].Name), pathnode[1:])...)
+				findAllPossiblePath(schema.Children[i], append(prefix, schema.Children[i].Name), pathnode[1:])...)
 		}
 		return founds
 	case NodeSelectAll:
-		cschema := GetAllChildSchema(schema)
-		if len(cschema) == 0 {
+		if len(schema.Children) == 0 {
 			return nil
 		}
 		founds := make([]string, 0, 16)
-		for i := range cschema {
-			cprefix := append(prefix, cschema[i].Name)
+		for i := range schema.Children {
+			cprefix := append(prefix, schema.Children[i].Name)
 			founds = append(founds,
-				findAllPossiblePath(cschema[i], cprefix, pathnode[1:])...)
+				findAllPossiblePath(schema.Children[i], cprefix, pathnode[1:])...)
 			founds = append(founds,
-				findAllPossiblePath(cschema[i], cprefix, pathnode[0:])...)
+				findAllPossiblePath(schema.Children[i], cprefix, pathnode[0:])...)
 		}
 		return founds
 	}
@@ -652,7 +600,7 @@ func findAllPossiblePath(schema *yang.Entry, prefix []string, pathnode []*PathNo
 	if pathnode[0].Name == "" {
 		return []string{strings.Join(prefix, "/")}
 	}
-	schema = GetSchema(schema, pathnode[0].Name)
+	schema = schema.GetSchema(pathnode[0].Name)
 	if schema == nil {
 		return nil
 	}

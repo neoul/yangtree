@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
-
-	"github.com/kylelemons/godebug/pretty"
 )
 
 func TestDataNode_JSON(t *testing.T) {
@@ -13,7 +11,7 @@ func TestDataNode_JSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewWithValueString(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +63,7 @@ func TestDataNode_JSON(t *testing.T) {
 		}
 	   }
 	`
-	if err := RootData.UnmarshalJSON([]byte(jbyte)); err != nil {
+	if err := json.Unmarshal([]byte(jbyte), RootData); err != nil {
 		t.Error(err)
 	}
 	var jdata1 interface{}
@@ -75,7 +73,7 @@ func TestDataNode_JSON(t *testing.T) {
 		t.Error(err)
 	}
 
-	jbyte2, err := RootData.MarshalJSON()
+	jbyte2, err := MarshalJSON(RootData)
 	if err != nil {
 		t.Error(err)
 	}
@@ -85,8 +83,8 @@ func TestDataNode_JSON(t *testing.T) {
 	}
 	if !reflect.DeepEqual(jdata1, jdata2) {
 		t.Errorf("unmarshaled data is not equal.")
-		t.Log(jdata1)
-		t.Log(jdata2)
+		t.Log("json output    :", jdata1)
+		t.Log("yangtree output:", jdata2)
 	}
 }
 
@@ -95,7 +93,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewWithValueString(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +147,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 		}
 	   }	   
 	`
-	if err := RootData.UnmarshalJSON([]byte(jbyte)); err != nil {
+	if err := json.Unmarshal([]byte(jbyte), RootData); err != nil {
 		t.Error(err)
 	}
 	var jdata1 interface{}
@@ -159,7 +157,7 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 		t.Error(err)
 	}
 
-	jbyte2, err := RootData.MarshalJSON_IETF()
+	jbyte2, err := MarshalJSON(RootData, RFC7951Format{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -169,8 +167,8 @@ func TestDataNode_JSON_IETF(t *testing.T) {
 	}
 	if !reflect.DeepEqual(jdata1, jdata2) {
 		t.Errorf("unmarshaled data is not equal.")
-		pretty.Print(jdata1)
-		pretty.Print(jdata2)
+		t.Error(jdata1)
+		t.Error(jdata2)
 	}
 
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
@@ -181,7 +179,7 @@ func TestDataNode_FindState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	RootData, err := New(RootSchema)
+	RootData, err := NewWithValueString(RootSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,8 +285,8 @@ func TestDataNode_FindState(t *testing.T) {
 	}
 	if !reflect.DeepEqual(jdata1, jdata2) {
 		t.Errorf("unmarshaled data is not equal.")
-		pretty.Print(jdata1)
-		pretty.Print(jdata2)
+		t.Error(jdata1)
+		t.Error(jdata2)
 	}
 	// gdump.ValueDump(RootData, 12, func(a ...interface{}) { fmt.Print(a...) }, "schema", "parent")
 }

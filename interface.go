@@ -1,62 +1,109 @@
 package yangtree
 
-import "github.com/openconfig/goyang/pkg/yang"
-
+// yangtree consists of the data node.
 type DataNode interface {
-	IsYangDataNode()
-	IsNil() bool      // IsNil() is used to check the data node is null.
-	IsBranch() bool   // IsBranch() returns true if the data node is a branch.
-	IsLeaf() bool     // IsLeaf() returns true if the data node is a leaf.
-	IsLeafList() bool // IsLeafList() returns true if the data node is a leaf-list.
-	Key() string      // Key() returns the key string of the data node. The key is an XPath element combined with XPath predicates.
+	IsDataNode()
+	IsNil() bool              // IsNil() is used to check the data node is null.
+	IsBranchNode() bool       // IsBranchNode() returns true if the data node is a DataBranch (a container or a list node).
+	IsLeafNode() bool         // IsLeafNode() returns true if the data node is a DataLeaf (a leaf or a multiple leaf-list node) or DataLeafList (a single leaf-list node).
+	IsDuplicatableNode() bool // IsDuplicatable() returns true if multiple nodes having the same ID can exist in the tree.
+	IsListableNode() bool     // IsListable() returns true if the nodes that has the same schema are listed in the tree.
+	IsStateNode() bool        // IsStateNode() returns true if the node is a config=false node.
+	HasStateNode() bool       // HasStateNode() returns true if the node has a config=false child node.
+	HasMultipleValues() bool  // HasMultipleValues() returns true if the node has a set of values (= *DataLeafList).
 
-	Schema() *yang.Entry // Schema() returns the schema of the data node.
-	Parent() DataNode    // Parent() returns the parent if it is present.
+	IsLeaf() bool      // IsLeaf() returns true if the data node is an yang leaf.
+	IsLeafList() bool  // IsLeafList() returns true if the data node is an yang leaf-list.
+	IsList() bool      // IsList() returns true if the data node is an yang list.
+	IsContainer() bool // IsContainer returns true if the data node is an yang container node.
 
-	Insert(child DataNode) error // Insert() inserts a new child node. It replaces the old one.
-	Delete(child DataNode) error // Delete() deletes the child node if it is present.
-	Replace(src DataNode) error  // Replace() replaces itself to the src node.
-	Merge(src DataNode) error    // Merge() merges the src node including all children to the current data node.
+	Name() string                      // Name() returns the name of the data node.
+	QName(rfc7951 bool) (string, bool) // QName() returns the namespace-qualified name e.g. module-name:node-name or module-prefix:node-name.
+	ID() string                        // ID() returns the data node ID (NODE[KEY=VALUE]). The ID is an XPath element combined with XPath predicates to identify the node instance.
 
-	Set(value ...string) error    // Set() writes the values to the data node. The value must be string.
-	Remove(value ...string) error // Remote() removes the value if the value is inserted or itself if the value is not specified.
+	Schema() *SchemaNode  // Schema() returns the schema of the data node.
+	Parent() DataNode     // Parent() returns the parent if it is present.
+	Children() []DataNode // Children() returns all child nodes.
 
-	// New() creates a cild using the key and values.
-	// key is an xpath element combined with xpath predicates.
-	// For example, interface[name=VALUE]
-	New(key string, value ...string) (DataNode, error)
+	Insert(child DataNode, i InsertOption) (DataNode, error) // Insert() inserts a new child node. It replaces and returns the old one.
+	Delete(child DataNode) error                             // Delete() deletes the child node if it is present.
+	Replace(src DataNode) error                              // Replace() replaces itself to the src node.
+	Merge(src DataNode) error                                // Merge() merges the src node including all children to the current data node.
+	Remove() error                                           // Remove() removes itself.
 
-	// Update() updates a child that can be identified by the key using the input values.
-	Update(key string, value ...string) error
+	// GetOrNew() gets or creates a node having the id (NODE_NAME or NODE_NAME[KEY=VALUE]) and returns
+	// the found or created node with the boolean value that
+	// indicates the returned node is created.
+	GetOrNew(id string, i InsertOption) (DataNode, bool, error)
 
-	Exist(key string) bool            // Exist() is used to check a data node is present.
-	Get(key string) DataNode          // Get() is used to get the first child has the key.
-	GetValue(key string) interface{}  // GetValue() is used to get the value of the child that has the key.
-	GetValueString(key string) string // GetValueString() is used to get the value, converted to string, of the child that has the key.
+	Create(id string, value ...string) (DataNode, error) // Create() creates a child using the node id (NODE_NAME or NODE_NAME[KEY=VALUE]).
+	Update(id string, value ...string) (DataNode, error) // Update() updates a child that has the node id (NODE_NAME or NODE_NAME[KEY=VALUE]) using the input values.
 
-	GetAll(key string) []DataNode    // GetAll() is used to get all children that have the key.
-	Lookup(prefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix.
+	CreateByMap(pmap map[string]interface{}) error // CreateByMap() updates the data node using pmap (path predicate map) and string values.
+	UpdateByMap(pmap map[string]interface{}) error // UpdateByMap() updates the data node using pmap (path predicate map) and string values.
 
-	Len() int                    // Len() returns the length of children.
-	Index(key string) (int, int) // Index() finds all children by the key and returns the range found.
-	Child(index int) DataNode    // Child() gets the child of the index.
+	Exist(id string) bool              // Exist() is used to check a data node is present.
+	Get(id string) DataNode            // Get() is used to get the first child has the id.
+	GetValue(id string) interface{}    // GetValue() is used to get the value of the child that has the id.
+	GetValueString(id string) string   // GetValueString() is used to get the value, converted to string, of the child that has the id.
+	GetAll(id string) []DataNode       // GetAll() is used to get all children that have the id.
+	Lookup(idPrefix string) []DataNode // Lookup() is used to get all children on which their keys start with the prefix string of the node id.
 
-	String() string
+	Len() int                 // Len() returns the number of children or the number of values.
+	Index(id string) int      // Index() finds all children by the node id and returns the position.
+	Child(index int) DataNode // Child() gets the child of the index.
+
+	String() string                    // String() returns a string to identify the node.
 	Path() string                      // Path() returns the path from the root to the current data node.
 	PathTo(descendant DataNode) string // PathTo() returns a relative path to a descendant node.
-	Value() interface{}                // Value() returns the raw data of the data node.
-	ValueString() string               // ValueString() returns the string value of the data node.
 
-	MarshalJSON() ([]byte, error)      // MarshalJSON() encodes the data node to JSON bytes.
-	MarshalJSON_IETF() ([]byte, error) // MarshalJSON_IETF() encodes the data node to JSON_IETF (RFC7951) bytes.
-	UnmarshalJSON([]byte) error        // UnmarshalJSON() assembles the data node using JSON or JSON_IETF (rfc7951) bytes.
+	SetValue(value ...interface{}) error     // SetValue() writes the values to the data node.
+	SetValueSafe(value ...interface{}) error // SetValueSafe() writes the values to the data node. It will recover the value if failed.
+	UnsetValue(value ...interface{}) error   // UnsetValue() clear the value of the data node to the default.
 
-	MarshalYAML() ([]byte, error)         // MarshalYAML() encodes the data node to a YAML bytes.
-	MarshalYAML_RFC7951() ([]byte, error) // MarshalYAML_RFC7951() encodes the data node to a YAML bytes.
-	UnmarshalYAML([]byte) error           // UnmarshalYAML() assembles the data node using a YAML bytes
+	SetValueString(value ...string) error     // SetValueString() writes the values to the data node. The value must be string.
+	SetValueStringSafe(value ...string) error // SetValueStringSafe() writes the values to the data node. It will recover the value if failed.
+	UnsetValueString(value ...string) error   // UnsetValueString() clear the value of the data node to the default.
+	HasValueString(value string) bool         // HasValueString() returns true if the data node value has the value.
+
+	Value() interface{}    // Value() returns the raw data of the data node.
+	Values() []interface{} // Values() returns its values using []interface{} slice
+	ValueString() string   // ValueString() returns the string value of the data node.
+
+	SetMetadata(name string, value ...interface{}) error  // SetMetadata() sets a metadata.
+	SetMetadataString(name string, value ...string) error // SetMetadataString() sets a metadata using string values.
+	UnsetMetadata(name string) error                      // UnsetMetadata() remove a metadata.
+
+	// Metadata(name string) interface{}
+	// Metadatas(name string) []interface{}
+	Metadata() map[string]DataNode
 }
 
 // yangtree Option
 type Option interface {
 	IsOption()
 }
+
+// SetValueString(node, editopt, valuestring ...)
+// SetValue(node, editopt, value ...)
+// New YANGTreeOption
+
+// YANGTreeOption is used to store yangtree options.
+type YANGTreeOption struct {
+	// If SingleLeafList is enabled, leaf-list data represents to a single leaf-list node that contains several values.
+	// If disabled, leaf-list data represents to multiple leaf-list nodes that contains each single value.
+	SingleLeafList     bool
+	LeafListValueAsKey bool   // leaf-list value can be represented to the xpath if it is set to true.
+	CreatedWithDefault bool   // DataNode (data node) is created with the default value of the schema if set.
+	YANGLibrary2016    bool   // Load ietf-yang-library@2016-06-21
+	YANGLibrary2019    bool   // Load ietf-yang-library@2019-01-04
+	SchemaSetName      string // The name of the schema set
+	// DefaultValueString [json, yaml, xml]
+}
+
+func (yangtreeOption YANGTreeOption) IsOption() {}
+
+// Metadata option is used to print out the metadata of the tree.
+type Metadata struct{}
+
+func (metadata Metadata) IsOption() {}

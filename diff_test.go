@@ -21,14 +21,14 @@ func TestDiffUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, err := New(rootschema)
+	root, err := NewWithValueString(rootschema)
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := FindSchema(rootschema, "interfaces/interface")
+	schema := rootschema.FindSchema("interfaces/interface")
 	for i := 1; i < 5; i++ {
 		v := fmt.Sprintf(`{"name":"e%d", "config": {"enabled":"true"}}`, i)
-		new, err := New(schema, v)
+		new, err := NewWithValueString(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -40,7 +40,7 @@ func TestDiffUpdate(t *testing.T) {
 	prev := Clone(root)
 	for i := 3; i < 7; i++ {
 		v := `{ "config": {"enabled":"false"}, "state": {"admin-status":"DOWN"}}`
-		new, err := New(schema, v)
+		new, err := NewWithValueString(schema, v)
 		if err != nil {
 			t.Error(err)
 		}
@@ -56,11 +56,11 @@ func TestDiffUpdate(t *testing.T) {
 	if len(ifnodes) != 6 {
 		t.Errorf("expected num: %d, got: %d", 6, len(ifnodes))
 	}
-	created, replaced := DiffUpdated(prev, root)
+	created, replaced := DiffUpdated(prev, root, false)
 	// created
 	t.Log("[created]", len(created))
 	for i := range created {
-		b, _ := created[i].MarshalJSON()
+		b, _ := MarshalJSON(created[i])
 		t.Log(created[i].Path(), string(b))
 	}
 	if len(created) != 16 {
@@ -68,13 +68,13 @@ func TestDiffUpdate(t *testing.T) {
 	}
 	t.Log("[replaced]", len(replaced))
 	for i := range replaced {
-		b, _ := replaced[i].MarshalJSON()
+		b, _ := MarshalJSON(replaced[i])
 		t.Log(replaced[i].Path(), string(b))
 	}
 	if len(replaced) != 2 {
 		t.Errorf("expected num: %d, got: %d", 2, len(replaced))
 	}
 
-	b, _ := root.MarshalJSON()
+	b, _ := MarshalJSON(root)
 	t.Log(string(b))
 }

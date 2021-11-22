@@ -21,6 +21,23 @@ module sample {
   }
 
   container sample {
+    leaf bits-val {
+      type bits {
+        bit zero {
+          position 0;
+        }
+        bit one {
+          position 1;
+        }
+        bit two {
+          position 2;
+        }
+      }
+      default "auto-sense-speed";
+    }
+    anydata any {
+     description "any data node can be placed this node"; 
+    }
     leaf str-val { type string; }
     leaf empty-val { type empty; }
     list single-key-list {
@@ -44,6 +61,9 @@ module sample {
       leaf uint64-node {
         type uint64;
       }
+    }
+    list ordered-by-user-list {
+      ordered-by user;
     }
 
     list non-key-list {
@@ -107,6 +127,12 @@ module sample {
         }
       }
     }
+    leaf-list leaf-list-ro {
+      config false;
+      type string;
+    }
+    leaf-list leaf-list-rw {
+      type string;
+    }
   }
-  
 }
