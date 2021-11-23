@@ -88,7 +88,7 @@ func TestYANGExtDataNode(t *testing.T) {
 	yangapiSchema := schema.ExtSchema["yang-api"]
 
 	// configure /restconf/data schema to insert any child node into the in the node.
-	yangapiSchema.FindSchema("/restconf/data").SetInsertAny()
+	yangapiSchema.FindSchema("/restconf/data").ContainAny = true
 	node, err = NewWithValueString(yangapiSchema)
 	if err != nil {
 		t.Fatalf("error in creating an last-modified extension data node: %v", err)

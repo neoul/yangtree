@@ -40,7 +40,8 @@ type SchemaNode struct {
 	Modules       *yang.Modules
 	*Extension
 
-	insertAny bool
+	// Set option
+	ContainAny bool
 }
 
 type Extension struct {
@@ -50,10 +51,6 @@ type Extension struct {
 
 func (schema *SchemaNode) String() string {
 	return schema.Name
-}
-
-func (schema *SchemaNode) SetInsertAny() {
-	schema.insertAny = true
 }
 
 func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *YANGTreeOption, ext *Extension, ms *yang.Modules) (*SchemaNode, error) {
