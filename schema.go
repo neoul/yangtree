@@ -53,6 +53,62 @@ func (schema *SchemaNode) String() string {
 	return schema.Name
 }
 
+// Path() generates the schema path of the schema node.
+func (schema *SchemaNode) Path() string {
+	i := 0
+	for e := schema; e != nil && e.Parent != nil; e = e.Parent {
+		if e.IsCase() || e.IsChoice() {
+			continue
+		}
+		i++
+	}
+	if i > 0 {
+		path := make([]string, i+1)
+		path[0] = ""
+		for e := schema; e != nil && e.Parent != nil; e = e.Parent {
+			if e.IsCase() || e.IsChoice() {
+				continue
+			}
+			path[i] = e.Name
+			i--
+		}
+		return strings.Join(path, "/")
+	}
+	return ""
+}
+
+// QualifiedPath() generates the qualified schema path of the schema node.
+func (schema *SchemaNode) QualifiedPath(RFC7951format bool) string {
+	i := 0
+	for e := schema; e != nil && e.Parent != nil; e = e.Parent {
+		if e.IsCase() || e.IsChoice() {
+			continue
+		}
+		i++
+	}
+	if i > 0 {
+		path := make([]string, i+1)
+		path[0] = ""
+		for e := schema; e != nil && e.Parent != nil; e = e.Parent {
+			if e.IsCase() || e.IsChoice() {
+				continue
+			}
+			if RFC7951format {
+				path[i] = e.Module.Name + e.Name
+			} else {
+				if e.Prefix != nil {
+					path[i] = e.Prefix.Name + e.Name
+				} else {
+					path[i] = e.Name
+				}
+			}
+			i--
+		}
+		return strings.Join(path, "/")
+	}
+	return ""
+}
+
 func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *YANGTreeOption, ext *Extension, ms *yang.Modules) (*SchemaNode, error) {
 	n := &SchemaNode{
 		Entry:     e,

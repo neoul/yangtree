@@ -120,8 +120,20 @@ func copyDataNodeList(src []DataNode) []DataNode {
 // find() is used to find child data nodes using the id internally.
 func (branch *DataBranch) find(cschema *SchemaNode, id *string, groupSearch, valueSearch bool, pmap map[string]interface{}) []DataNode {
 	i := indexFirst(branch, id)
-	if i >= len(branch.children) ||
-		(i < len(branch.children) && cschema != branch.children[i].Schema()) {
+	if i < len(branch.children) && cschema != branch.children[i].Schema() {
+		if !strings.HasPrefix(branch.children[i].ID(), *id) {
+			return nil
+		}
+		if *id != cschema.Name {
+			return nil
+		}
+		for ; i < len(branch.children); i++ {
+			if cschema == branch.children[i].Schema() {
+				break
+			}
+		}
+	}
+	if i >= len(branch.children) {
 		return nil
 	}
 	if pmap != nil {

@@ -187,11 +187,18 @@ func indexFirst(parent *DataBranch, id *string) int {
 }
 
 // indexRangeBySchema() returns the index of a child related to the node id
-func indexRangeBySchema(parent *DataBranch, id *string) (i, max int) {
-	i = indexFirst(parent, id)
-	max = i
-	for ; max < len(parent.children); max++ {
-		if parent.children[i].Schema() != parent.children[max].Schema() {
+func indexRangeBySchema(parent *DataBranch, target *SchemaNode) (i, max int) {
+	i = sort.Search(len(parent.children),
+		func(j int) bool {
+			return target.Name <= parent.children[j].ID()
+		})
+	for ; i < len(parent.children); i++ {
+		if parent.children[i].Schema() == target {
+			break
+		}
+	}
+	for max = i; max < len(parent.children); max++ {
+		if target != parent.children[max].Schema() {
 			break
 		}
 	}
@@ -991,7 +998,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	}
 	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
 	if _, ok := pmap["@evaluate-xpath"]; ok {
-		first, last := indexRangeBySchema(branch, &id)
+		first, last := indexRangeBySchema(branch, cschema)
 		node, err = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
 		if err != nil {
 			return nil
