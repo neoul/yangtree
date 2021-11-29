@@ -678,9 +678,6 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, unindent, p
 	case ynode.IsLeafNode():
 		schema := ynode.Schema()
 		valbyte, err := schema.ValueToYAMLBytes(schema.Type, ynode.Value(), ynode.RFC7951S != RFC7951Disabled)
-		if strings.HasPrefix(string(valbyte), "/jukebox/library/artist") {
-			fmt.Println(string(valbyte), ynode.Value())
-		}
 		if err != nil {
 			return Error(EAppTagYAMLEmitting, err)
 		}

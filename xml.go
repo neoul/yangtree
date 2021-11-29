@@ -157,7 +157,17 @@ func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 		}
 		return e.EncodeElement(vstr, start)
 	case *DataNodeGroup:
-		return nil
+		if err := e.EncodeToken(xml.Token(start)); err != nil {
+			return err
+		}
+		for _, child := range node.Nodes {
+			cxnode := *xnode
+			cxnode.DataNode = child
+			if err := e.EncodeElement(&cxnode, xml.StartElement{Name: xml.Name{Local: cxnode.Name()}}); err != nil {
+				return err
+			}
+		}
+		return e.EncodeToken(xml.Token(xml.EndElement{Name: xml.Name{Local: schema.Name}}))
 	}
 	return nil
 }
