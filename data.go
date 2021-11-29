@@ -356,7 +356,7 @@ func NewWithID(schema *SchemaNode, id string) (DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
+	pmap, err := pathnode[0].ToMap()
 	if err != nil {
 		return nil, err
 	}
@@ -666,7 +666,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
+	pmap, err := pathnode[0].ToMap()
 	if err != nil {
 		return err
 	}
@@ -822,7 +822,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	if cschema == nil {
 		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
+	pmap, err := pathnode[0].ToMap()
 	if err != nil {
 		return err
 	}
@@ -938,20 +938,20 @@ func returnFound(node DataNode, option ...Option) []DataNode {
 	return []DataNode{node}
 }
 
-func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode {
+func findNode(root DataNode, pathnode []*PathNode, useXPath bool, option ...Option) []DataNode {
 	if len(pathnode) == 0 {
 		return returnFound(root, option...)
 	}
 	var node, children []DataNode
 	switch pathnode[0].Select {
 	case NodeSelectSelf:
-		return findNode(root, pathnode[1:], option...)
+		return findNode(root, pathnode[1:], useXPath, option...)
 	case NodeSelectParent:
 		if root.Parent() == nil {
 			return nil
 		}
 		root = root.Parent()
-		return findNode(root, pathnode[1:], option...)
+		return findNode(root, pathnode[1:], useXPath, option...)
 	case NodeSelectFromRoot:
 		for root.Parent() != nil {
 			root = root.Parent()
@@ -962,17 +962,17 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 			return nil
 		}
 		for i := 0; i < len(branch.children); i++ {
-			children = append(children, findNode(root.Child(i), pathnode[1:], option...)...)
+			children = append(children, findNode(root.Child(i), pathnode[1:], useXPath, option...)...)
 		}
 		return children
 	case NodeSelectAll:
-		children = append(children, findNode(root, pathnode[1:], option...)...)
+		children = append(children, findNode(root, pathnode[1:], useXPath, option...)...)
 		branch, ok := root.(*DataBranch)
 		if !ok {
 			return children
 		}
 		for i := 0; i < len(branch.children); i++ {
-			children = append(children, findNode(root.Child(i), pathnode, option...)...)
+			children = append(children, findNode(root.Child(i), pathnode, useXPath, option...)...)
 		}
 		return children
 	}
@@ -985,7 +985,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 	if cschema == nil {
 		return nil
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
+	pmap, err := pathnode[0].ToMap()
 	if err != nil {
 		return nil
 	}
@@ -997,7 +997,7 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 		}
 	}
 	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
-	if _, ok := pmap["@evaluate-xpath"]; ok {
+	if _, ok := pmap["@evaluate-xpath"]; ok || useXPath {
 		first, last := indexRangeBySchema(branch, cschema)
 		node, err = findByPredicates(branch.children[first:last], pathnode[0].Predicates)
 		if err != nil {
@@ -1007,12 +1007,17 @@ func findNode(root DataNode, pathnode []*PathNode, option ...Option) []DataNode 
 		node = branch.find(cschema, &id, groupSearch, valueSearch, pmap)
 	}
 	for i := range node {
-		children = append(children, findNode(node[i], pathnode[1:], option...)...)
+		children = append(children, findNode(node[i], pathnode[1:], useXPath, option...)...)
 	}
 	return children
 }
 
-// Find() finds all data nodes in the path. xpath format is used for the path.
+type UseXPath struct{}
+
+func (useXpath UseXPath) IsOption() {}
+
+// Find() finds all data nodes in the path. xpath format can be used for the path as following example.
+//   Find(root, "//path/to/data[name='xxx']", UseXPath{})
 func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
 	if !IsValid(root) {
 		return nil, fmt.Errorf("invalid root data node")
@@ -1021,7 +1026,13 @@ func Find(root DataNode, path string, option ...Option) ([]DataNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	return findNode(root, pathnode, option...), nil
+	useXPath := false
+	for i := range option {
+		if _, ok := option[i].(UseXPath); ok {
+			useXPath = true
+		}
+	}
+	return findNode(root, pathnode, useXPath, option...), nil
 }
 
 // FindValueString() finds all data in the path and then returns their values by string.
@@ -1033,7 +1044,8 @@ func FindValueString(root DataNode, path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	node := findNode(root, pathnode)
+	// FIXME - use xpath?
+	node := findNode(root, pathnode, false)
 	if len(node) == 0 {
 		return nil, nil
 	}
@@ -1055,7 +1067,7 @@ func FindValue(root DataNode, path string) ([]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	node := findNode(root, pathnode)
+	node := findNode(root, pathnode, true)
 	if len(node) == 0 {
 		return nil, nil
 	}
@@ -1373,13 +1385,13 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 			err = fmt.Errorf("%q is not a branch", node)
 			break
 		}
-		pmap, err = pathnode[i].PredicatesToMap()
-		if err != nil {
-			break
-		}
 		cschema := branch.schema.GetSchema(pathnode[i].Name)
 		if cschema == nil {
 			err = fmt.Errorf("schema %q not found from %q", pathnode[i].Name, branch.schema.Name)
+			break
+		}
+		pmap, err = pathnode[i].ToMap()
+		if err != nil {
 			break
 		}
 		var children []DataNode

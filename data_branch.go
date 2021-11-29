@@ -215,13 +215,14 @@ func (branch *DataBranch) GetOrNew(id string, insert InsertOption) (DataNode, bo
 	if len(pathnode) == 0 || len(pathnode) > 1 {
 		return nil, false, fmt.Errorf("invalid node id %q inserted", id)
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
-	if err != nil {
-		return nil, false, err
-	}
+
 	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
 		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+	}
+	pmap, err := pathnode[0].ToMap()
+	if err != nil {
+		return nil, false, err
 	}
 	var children []DataNode
 	id, groupSearch, valueSearch := cschema.GenerateID(pmap)
@@ -265,7 +266,7 @@ func (branch *DataBranch) Create(id string, value ...string) (DataNode, error) {
 	if cschema == nil {
 		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
+	pmap, err := pathnode[0].ToMap()
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +298,7 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 	if cschema == nil {
 		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
 	}
-	pmap, err := pathnode[0].PredicatesToMap()
+	pmap, err := pathnode[0].ToMap()
 	if err != nil {
 		return nil, err
 	}
@@ -544,7 +545,7 @@ func (branch *DataBranch) Get(id string) DataNode {
 		return nil
 	case "...":
 		n := findNode(branch, []*PathNode{
-			&PathNode{Name: "...", Select: NodeSelectAll}})
+			&PathNode{Name: "...", Select: NodeSelectAll}}, false)
 		if len(n) > 0 {
 			return n[0]
 		}
@@ -568,7 +569,7 @@ func (branch *DataBranch) GetAll(id string) []DataNode {
 		return branch.children
 	case "...":
 		return findNode(branch, []*PathNode{
-			&PathNode{Name: "...", Select: NodeSelectAll}})
+			&PathNode{Name: "...", Select: NodeSelectAll}}, false)
 	default:
 		i := indexFirst(branch, &id)
 		node := make([]DataNode, 0, len(branch.children)-i+1)
@@ -624,7 +625,7 @@ func (branch *DataBranch) Lookup(prefix string) []DataNode {
 		return branch.children
 	case "...":
 		return findNode(branch, []*PathNode{
-			&PathNode{Name: "...", Select: NodeSelectAll}})
+			&PathNode{Name: "...", Select: NodeSelectAll}}, false)
 	default:
 		i := indexFirst(branch, &prefix)
 		node := make([]DataNode, 0, len(branch.children)-i+1)

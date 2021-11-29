@@ -361,7 +361,7 @@ func TestDataNode(t *testing.T) {
 		{expectedNum: 2, path: "/sample/multiple-key-list[str=first][integer=*]"},
 		{expectedNum: 4, path: "/sample/multiple-key-list"},
 		{expectedNum: 1, path: "/sample/non-key-list[2]"},
-		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']"},
+		{expectedNum: 2, path: "/sample/single-key-list[list-key='BBB' or list-key='CCC']", findOption: UseXPath{}},
 		{expectedNum: 5, path: "/sample/container-val/leaf-list-val"},
 	}
 	for _, tt := range testfinds {

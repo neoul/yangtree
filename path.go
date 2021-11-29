@@ -66,11 +66,71 @@ var (
 	}
 )
 
+func (pathnode *PathNode) ToMap() (map[string]interface{}, error) {
+	pmap := make(map[string]interface{})
+LOOP:
+	for i := range pathnode.Predicates {
+		if strings.HasPrefix(pathnode.Predicates[i], "@") {
+			pmap["@evaluate-xpath"] = true
+			continue
+		}
+		index := strings.Index(pathnode.Predicates[i], "=")
+		if index < 0 {
+			if index, err := strconv.Atoi(pathnode.Predicates[i]); err == nil {
+				if index <= 0 {
+					return nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
+				}
+				pmap["@index"] = index - 1
+			} else if pathnode.Predicates[0] == "last()" {
+				pmap["@last"] = true
+			} else {
+				pmap["@evaluate-xpath"] = true
+			}
+			continue
+			// return nil, fmt.Errorf("the predicate format for yangtree id must be 'name=value'")
+		}
+		if index > 0 {
+			switch pathnode.Predicates[i][index-1] {
+			case '<', '>', '!':
+				pmap["@evaluate-xpath"] = true
+				continue LOOP
+			}
+		}
+
+		name := pathnode.Predicates[i][:index]
+		value := pathnode.Predicates[i][index+1:]
+		// if cschema := schema.GetSchema(name); cschema == nil {
+		// 	return nil, fmt.Errorf("child schema %q doesn't exist", name)
+		// }
+		if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+			value = strings.Trim(value, "'")
+		} else if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+			value = strings.Trim(value, "\"")
+		}
+
+		switch name {
+		case ".":
+			pmap["."] = value
+		default:
+			if j := strings.Index(name, ":"); j >= 0 {
+				name = name[j+1:]
+			}
+			// if v, exist := pmap[name]; exist {
+			// 	if v != value {
+			// 		return nil, fmt.Errorf("duplicated path predicate %q found", name)
+			// 	}
+			// }
+			pmap[name] = value
+		}
+	}
+	return pmap, nil
+}
+
 func (pathnode *PathNode) PredicatesToMap() (map[string]interface{}, error) {
 	pmap := make(map[string]interface{})
 LOOP:
 	for i := range pathnode.Predicates {
-		token, _, err := TokenizePathExpr(nil, &(pathnode.Predicates[i]), 0)
+		token, _, err := TokenizeXPathExpr(nil, &(pathnode.Predicates[i]), 0)
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +286,7 @@ func ParsePath(path *string) ([]*PathNode, error) {
 	return node, nil
 }
 
-func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error) {
+func TokenizeXPathExpr(token []string, s *string, pos int) ([]string, int, error) {
 	var err error
 	length := len((*s))
 	if token == nil {
@@ -282,7 +342,7 @@ func TokenizePathExpr(token []string, s *string, pos int) ([]string, int, error)
 				w.Reset()
 			}
 			token = append(token, "(")
-			token, pos, err = TokenizePathExpr(token, s, pos+1)
+			token, pos, err = TokenizeXPathExpr(token, s, pos+1)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -452,7 +512,7 @@ func findByPredicates(current []DataNode, predicates []string) ([]DataNode, erro
 	}
 
 	for i := range predicates {
-		token, _, err := TokenizePathExpr(nil, &(predicates[i]), 0)
+		token, _, err := TokenizeXPathExpr(nil, &(predicates[i]), 0)
 		if err != nil {
 			return nil, err
 		}
@@ -490,7 +550,7 @@ func findByPredicates(current []DataNode, predicates []string) ([]DataNode, erro
 }
 
 func evaluatePathExpr(node DataNode, exprstr string) (bool, error) {
-	token, _, err := TokenizePathExpr(nil, &exprstr, 0)
+	token, _, err := TokenizeXPathExpr(nil, &exprstr, 0)
 	if err != nil {
 		return false, err
 	}

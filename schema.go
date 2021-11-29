@@ -15,7 +15,7 @@ import (
 
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/util"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // SchemaNode - The node structure of yangtree schema.
@@ -1562,7 +1562,7 @@ func (schema *SchemaNode) ValueToYAMLBytes(typ *yang.YangType, value interface{}
 	if strings.HasSuffix(string(out), "\n") {
 		return out[:len(out)-1], nil
 	}
-	return out, err
+	return out, nil
 }
 
 // GenerateID generates the node ID of the schema using the value in the pmap.
