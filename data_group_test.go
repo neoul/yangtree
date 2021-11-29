@@ -97,5 +97,8 @@ func TestNewDataGroup(t *testing.T) {
 			t.Errorf("leaflist json marshalling failed: %s", jlist)
 			return
 		}
+		// if y, _ := MarshalYAML(jlistnodes); len(y) > 0 {
+		// 	fmt.Println(string(y))
+		// }
 	}
 }

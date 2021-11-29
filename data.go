@@ -1421,7 +1421,7 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 	return node, created, nil
 }
 
-// replace() replaces a to b.
+// replace() replaces a node.
 func replace(from, to DataNode) error {
 	schema := from.Schema()
 	if schema != to.Schema() {

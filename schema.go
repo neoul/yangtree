@@ -109,6 +109,33 @@ func (schema *SchemaNode) QualifiedPath(RFC7951format bool) string {
 	return ""
 }
 
+// Append() adds the nodes to the schema node as child nodes.
+// If the changeParent is set, the Parent of each child becomes the scema node.
+// This affacts the schema tree of a yangtree.
+func (schema *SchemaNode) Append(changeParent bool, nodes ...*SchemaNode) error {
+	if schema == nil {
+		return fmt.Errorf("nil schema")
+	}
+	if !schema.IsDir() {
+		return fmt.Errorf("unable to add schema child nodes to non-directory node %q", schema)
+	}
+	for i := range nodes {
+		if _, ok := schema.Directory[nodes[i].Name]; ok {
+			return fmt.Errorf("there is a child schema node having the same name %q", nodes[i].Name)
+		}
+		if nodes[i].Prefix != nil {
+			schema.Directory[nodes[i].Prefix.Name+":"+nodes[i].Name] = nodes[i]
+		}
+		schema.Directory[nodes[i].Module.Name+":"+nodes[i].Name] = nodes[i]
+		schema.Directory[nodes[i].Name] = nodes[i]
+		schema.Children = append(schema.Children, nodes[i])
+		if changeParent {
+			nodes[i].Parent = schema
+		}
+	}
+	return nil
+}
+
 func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode, option *YANGTreeOption, ext *Extension, ms *yang.Modules) (*SchemaNode, error) {
 	n := &SchemaNode{
 		Entry:     e,
@@ -153,10 +180,11 @@ func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode,
 			n.Qboundary = false
 		}
 		n.Parent = parent
-		parent.Directory[e.Prefix.Name+":"+e.Name] = n
+		if e.Prefix != nil {
+			parent.Directory[e.Prefix.Name+":"+e.Name] = n
+		}
 		parent.Directory[n.Module.Name+":"+e.Name] = n
 		parent.Directory[e.Name] = n
-		parent.Directory[".."] = parent
 		parent.Children = append(parent.Children, n)
 
 		for i := range parent.Keyname {

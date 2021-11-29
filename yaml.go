@@ -999,7 +999,7 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 		}
 	}
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, -2, false, false); err != nil {
+		if err := ynode.marshalYAML(buffer, -1, false, false); err != nil {
 			return nil, err
 		}
 	} else {
