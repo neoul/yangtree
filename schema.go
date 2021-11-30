@@ -424,6 +424,11 @@ func (schema *SchemaNode) GetRootSchema() *SchemaNode {
 	return s
 }
 
+// IsRPC() checks the data node is a rpc node.
+func (schema *SchemaNode) IsRPC() bool {
+	return schema.RPC != nil
+}
+
 // IsDuplicatable() checks the data nodes can be inserted duplicately several times.
 func (schema *SchemaNode) IsDuplicatable() bool {
 	if len(schema.Children) > 0 {

@@ -1009,3 +1009,38 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 	}
 	return buffer.Bytes(), nil
 }
+
+// MarshalYAMLIndent encodes the data node to a YAML document with a number of options.
+// The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
+func MarshalYAMLIndent(node DataNode, prefix, indent string, option ...Option) ([]byte, error) {
+	buffer := bytes.NewBufferString("")
+	ynode := &yamlNode{DataNode: node, PrefixStr: prefix, IndentStr: indent}
+	for i := range option {
+		switch o := option[i].(type) {
+		case HasState:
+			return nil, Errorf(EAppTagYAMLEmitting, "%v option can be used to find nodes", option[i])
+		case ConfigOnly:
+			ynode.ConfigOnly = yang.TSTrue
+		case StateOnly:
+			ynode.ConfigOnly = yang.TSFalse
+		case RFC7951Format:
+			ynode.RFC7951S = RFC7951Enabled
+		case InternalFormat:
+			ynode.InternalFormat = true
+		case Metadata:
+			ynode.printMeta = true
+		case YAMLIndent:
+			ynode.IndentStr = string(o)
+		}
+	}
+	if _, ok := node.(*DataNodeGroup); ok {
+		if err := ynode.marshalYAML(buffer, -1, false, false); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := ynode.marshalYAML(buffer, 0, false, false); err != nil {
+			return nil, err
+		}
+	}
+	return buffer.Bytes(), nil
+}
