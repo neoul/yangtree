@@ -157,6 +157,21 @@ func buildSchemaNode(e *yang.Entry, baseModule *yang.Module, parent *SchemaNode,
 		n.OrderedByUser = orderedByUser
 	}
 	n.Qboundary = true
+	if e.RPC != nil {
+		var err error
+		if e.RPC.Input != nil {
+			_, err = buildSchemaNode(e.RPC.Input, n.Module, n, option, ext, ms)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if e.RPC.Output != nil {
+			_, err = buildSchemaNode(e.RPC.Output, n.Module, n, option, ext, ms)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	// set keyname
 	if e.Key != "" {
@@ -424,9 +439,16 @@ func (schema *SchemaNode) GetRootSchema() *SchemaNode {
 	return s
 }
 
-// IsRPC() checks the data node is a rpc node.
 func (schema *SchemaNode) IsRPC() bool {
 	return schema.RPC != nil
+}
+
+func (schema *SchemaNode) HasRPCInput() bool {
+	return (schema.RPC != nil) && (schema.RPC.Input != nil)
+}
+
+func (schema *SchemaNode) HasRPCOutput() bool {
+	return (schema.RPC != nil) && (schema.RPC.Output != nil)
 }
 
 // IsDuplicatable() checks the data nodes can be inserted duplicately several times.
