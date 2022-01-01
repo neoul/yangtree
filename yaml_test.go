@@ -158,3 +158,47 @@ func BenchmarkYAMLmarshallingNew(b *testing.B) {
 		}
 	}
 }
+
+func TestRepresentItself(t *testing.T) {
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
+	if err != nil {
+		t.Fatalf("model open err: %v\n", err)
+	}
+	root, err := NewWithValueString(RootSchema)
+	if err != nil {
+		t.Errorf("yangtree creation error: %v\n", err)
+	}
+	file, err := os.Open("testdata/yaml/sample1.yaml")
+	if err != nil {
+		t.Errorf("file open err: %v\n", err)
+	}
+	b, err := ioutil.ReadAll(file)
+	if err != nil {
+		t.Errorf("file read error: %v\n", err)
+	}
+	file.Close()
+	// if err := UnmarshalYAML(root[i], b); err != nil {
+	// 	t.Errorf("unmarshalling error: %v\n", err)
+	// }
+	if err := yaml.Unmarshal(b, root); err != nil {
+		t.Errorf("unmarshalling error: %v\n", err)
+	}
+	// if j, _ := MarshalYAMLIndent(root.Get("sample"), "", " ", RepresentItself{}); len(j) > 0 {
+	// 	fmt.Println(string(j))
+	// }
+	if j, _ := MarshalJSONIndent(root.Get("sample"), "", " ", RepresentItself{}); len(j) > 0 {
+		fmt.Println(string(j))
+	}
+	// if j, _ := MarshalXMLIndent(root.Get("sample"), "", " ", RepresentItself{}); len(j) > 0 {
+	// 	fmt.Println(string(j))
+	// }
+
+	enumSchema := RootSchema.FindSchema("/sample/container-val/enum-val")
+	datanode, _ := NewWithValue(enumSchema, "enum1")
+	if j, _ := MarshalJSON(datanode); len(j) > 0 {
+		fmt.Println(string(j))
+	}
+	if j, _ := MarshalJSON(datanode, RepresentItself{}); len(j) > 0 {
+		fmt.Println(string(j))
+	}
+}

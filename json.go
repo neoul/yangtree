@@ -679,6 +679,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 // MarshalJSON returns the JSON bytes of a data node.
 func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
+	var representItself bool
 	jnode := &jsonNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
@@ -690,6 +691,8 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 			jnode.ConfigOnly = yang.TSFalse
 		case RFC7951Format:
 			jnode.RFC7951S = RFC7951Enabled
+		case RepresentItself:
+			representItself = true
 		case Metadata:
 			jnode.printMeta = true
 		}
@@ -698,9 +701,16 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 	if _, ok := node.(*DataNodeGroup); ok {
 		skipRoot = true
 	}
-	_, err := jnode.marshalJSON(&buffer, false, false, skipRoot)
+	if representItself {
+		skipRoot = false
+		buffer.WriteString(`{`)
+	}
+	_, err := jnode.marshalJSON(&buffer, false, representItself, skipRoot)
 	if err != nil {
 		return nil, err
+	}
+	if representItself {
+		buffer.WriteString(`}`)
 	}
 	return buffer.Bytes(), nil
 }
@@ -708,6 +718,7 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 // MarshalJSONIndent is like Marshal but applies an indent and a prefix to format the output.
 func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) ([]byte, error) {
 	var buffer bytes.Buffer
+	var representItself bool
 	jnode := &jsonNode{DataNode: node}
 	for i := range option {
 		switch option[i].(type) {
@@ -719,6 +730,8 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 			jnode.ConfigOnly = yang.TSFalse
 		case RFC7951Format:
 			jnode.RFC7951S = RFC7951Enabled
+		case RepresentItself:
+			representItself = true
 		case Metadata:
 			jnode.printMeta = true
 		}
@@ -727,9 +740,16 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 	if _, ok := node.(*DataNodeGroup); ok {
 		skipRoot = true
 	}
-	_, err := jnode.marshalJSON(&buffer, false, false, skipRoot)
+	if representItself {
+		skipRoot = false
+		buffer.WriteString(`{`)
+	}
+	_, err := jnode.marshalJSON(&buffer, false, representItself, skipRoot)
 	if err != nil {
 		return nil, err
+	}
+	if representItself {
+		buffer.WriteString(`}`)
 	}
 	var buf bytes.Buffer
 	err = json.Indent(&buf, buffer.Bytes(), prefix, indent)

@@ -503,6 +503,10 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 			if cindent >= 0 {
 				cynode.WriteIndent(buffer, cindent, false)
 				buffer.WriteString("- ")
+				l := len(cynode.IndentStr) * 2
+				if l > 2 {
+					buffer.WriteString(strings.Repeat(" ", l-2))
+				}
 			}
 			err := cynode.marshalYAML(buffer, cindent+2, true, false)
 			if err != nil {
@@ -971,17 +975,14 @@ type InternalFormat struct{}
 
 func (o InternalFormat) IsOption() {}
 
-type YAMLIndent string
-
-func (o YAMLIndent) IsOption() {}
-
 // MarshalYAML encodes the data node to a YAML document with a number of options.
 // The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
 func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
+	printNodeName := false
 	buffer := bytes.NewBufferString("")
 	ynode := &yamlNode{DataNode: node, IndentStr: " "}
 	for i := range option {
-		switch o := option[i].(type) {
+		switch option[i].(type) {
 		case HasState:
 			return nil, Errorf(EAppTagYAMLEmitting, "%v option can be used to find nodes", option[i])
 		case ConfigOnly:
@@ -992,18 +993,18 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 			ynode.RFC7951S = RFC7951Enabled
 		case InternalFormat:
 			ynode.InternalFormat = true
+		case RepresentItself:
+			printNodeName = true
 		case Metadata:
 			ynode.printMeta = true
-		case YAMLIndent:
-			ynode.IndentStr = string(o)
 		}
 	}
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, -1, false, false); err != nil {
+		if err := ynode.marshalYAML(buffer, -1, false, printNodeName); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := ynode.marshalYAML(buffer, 0, false, false); err != nil {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
 			return nil, err
 		}
 	}
@@ -1013,10 +1014,11 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 // MarshalYAMLIndent encodes the data node to a YAML document with a number of options.
 // The options available are [ConfigOnly, StateOnly, RFC7951Format, InternalFormat].
 func MarshalYAMLIndent(node DataNode, prefix, indent string, option ...Option) ([]byte, error) {
+	printNodeName := false
 	buffer := bytes.NewBufferString("")
 	ynode := &yamlNode{DataNode: node, PrefixStr: prefix, IndentStr: indent}
 	for i := range option {
-		switch o := option[i].(type) {
+		switch option[i].(type) {
 		case HasState:
 			return nil, Errorf(EAppTagYAMLEmitting, "%v option can be used to find nodes", option[i])
 		case ConfigOnly:
@@ -1027,18 +1029,18 @@ func MarshalYAMLIndent(node DataNode, prefix, indent string, option ...Option) (
 			ynode.RFC7951S = RFC7951Enabled
 		case InternalFormat:
 			ynode.InternalFormat = true
+		case RepresentItself:
+			printNodeName = true
 		case Metadata:
 			ynode.printMeta = true
-		case YAMLIndent:
-			ynode.IndentStr = string(o)
 		}
 	}
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, -1, false, false); err != nil {
+		if err := ynode.marshalYAML(buffer, -1, false, printNodeName); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := ynode.marshalYAML(buffer, 0, false, false); err != nil {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
 			return nil, err
 		}
 	}

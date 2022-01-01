@@ -107,3 +107,18 @@ func (yangtreeOption YANGTreeOption) IsOption() {}
 type Metadata struct{}
 
 func (metadata Metadata) IsOption() {}
+
+// RepresentItself option is used to print out a top node itself to a json or yaml document.
+//   enumSchema := RootSchema.FindSchema("/sample/container-val/enum-val")
+// 	 datanode, _ := NewWithValue(enumSchema, "enum1")
+// 	 if j, _ := MarshalJSON(datanode); len(j) > 0 {
+// 	 	fmt.Println(string(j))
+// 	 	// "enum1"
+// 	 }
+// 	 if j, _ := MarshalJSON(datanode, RepresentItself{}); len(j) > 0 {
+// 	 	fmt.Println(string(j))
+// 	 	// {"enum-val":"enum1"}
+// 	 }
+type RepresentItself struct{}
+
+func (f RepresentItself) IsOption() {}
