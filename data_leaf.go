@@ -2,10 +2,11 @@ package yangtree
 
 import (
 	"bytes"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"strings"
+
+	"github.com/goccy/go-json"
 
 	"github.com/openconfig/goyang/pkg/yang"
 )

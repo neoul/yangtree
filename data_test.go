@@ -1,13 +1,14 @@
 package yangtree
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/goccy/go-json"
 )
 
 func TestSetValue(t *testing.T) {

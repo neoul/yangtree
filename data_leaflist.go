@@ -2,11 +2,12 @@ package yangtree
 
 import (
 	"bytes"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/goccy/go-json"
 )
 
 // DataLeafList - The node structure of yangtree for leaf-list nodes.

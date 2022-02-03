@@ -1,9 +1,10 @@
 package yangtree
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/goccy/go-json"
 )
 
 func TestDataNode_JSON(t *testing.T) {

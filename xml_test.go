@@ -148,16 +148,22 @@ func TestXMLexamples(t *testing.T) {
 	}
 
 	nodes, _ := Find(root, "jukebox/library/artist")
-	// group, _ := ConvertToGroup(nodes[0].Schema(), nodes)
-	// if b, err := MarshalXMLIndent(group, "", " "); err == nil {
-	// 	fmt.Printf(string(b))
-	// }
+	group, _ := ConvertToGroup(nodes[0].Schema(), nodes)
+	if b, err := MarshalXMLIndent(group, " ", "  "); err == nil {
+		fmt.Printf(string(b))
+	}
+	if b, err := MarshalJSONIndent(group, "", " "); err == nil {
+		fmt.Printf(string(b))
+	}
+	if b, err := MarshalYAMLIndent(group, "", " "); err == nil {
+		fmt.Printf(string(b))
+	}
 	// if b, err := xml.MarshalIndent(group, "", " "); err == nil {
 	// 	fmt.Printf(string(b))
 	// }
-	if b, err := xml.MarshalIndent(nodes[0], "", " "); err == nil {
-		fmt.Printf(string(b))
-	}
+	// if b, err := xml.MarshalIndent(nodes[0], " ", " "); err == nil {
+	// 	fmt.Printf(string(b))
+	// }
 
 	// for _, n := range nodes {
 	// 	if b, err := MarshalXMLIndent(n, "", " ", RepresentItself{}); err == nil {
