@@ -2,6 +2,7 @@ package yangtree
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -110,4 +111,57 @@ func TestXML2(t *testing.T) {
 		t.Errorf("different result: root1 %s\n", string(j1))
 		t.Errorf("different result: root2 %s\n", string(j2))
 	}
+}
+
+func TestXMLexamples(t *testing.T) {
+	moduleSetNum = 0
+
+	yangfiles := []string{
+		"../open-restconf/modules/ietf-restconf@2017-01-26.yang",
+		"../open-restconf/modules/example/example-jukebox.yang",
+		"../open-restconf/modules/example/example-mod.yang",
+		"../open-restconf/modules/example/example-ops.yang",
+		"../open-restconf/modules/example/example-actions.yang",
+	}
+	dir := []string{"modules"}
+	excluded := []string{}
+	schema, err := Load(yangfiles, dir, excluded, YANGTreeOption{SingleLeafList: true})
+	if err != nil {
+		t.Fatalf("error in loading: %v", err)
+	}
+	root, err := New(schema)
+	if err != nil {
+		t.Fatalf("error in new yangtree: %v", err)
+	}
+	var file *os.File
+	file, err = os.Open("../open-restconf/testdata/jukebox.yaml")
+	if err != nil {
+		t.Fatalf("restconf: %v", err)
+	}
+	b, err := ioutil.ReadAll(file)
+	if err != nil {
+		t.Fatalf("restconf: %v", err)
+	}
+	file.Close()
+	if err := UnmarshalYAML(root, b); err != nil {
+		t.Fatalf("restconf: %v", err)
+	}
+
+	nodes, _ := Find(root, "jukebox/library/artist")
+	// group, _ := ConvertToGroup(nodes[0].Schema(), nodes)
+	// if b, err := MarshalXMLIndent(group, "", " "); err == nil {
+	// 	fmt.Printf(string(b))
+	// }
+	// if b, err := xml.MarshalIndent(group, "", " "); err == nil {
+	// 	fmt.Printf(string(b))
+	// }
+	if b, err := xml.MarshalIndent(nodes[0], "", " "); err == nil {
+		fmt.Printf(string(b))
+	}
+
+	// for _, n := range nodes {
+	// 	if b, err := MarshalXMLIndent(n, "", " ", RepresentItself{}); err == nil {
+	// 		fmt.Printf(string(b))
+	// 	}
+	// }
 }

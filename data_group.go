@@ -458,30 +458,12 @@ func (group *DataNodeGroup) Merge(src DataNode) error {
 }
 
 func (group *DataNodeGroup) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	boundary := false
-	if start.Name.Local != group.schema.Name {
-		boundary = true
-	} else if group.schema.Qboundary {
-		boundary = true
-	}
-	if boundary {
-		ns := group.schema.Module.Namespace
-		if ns != nil {
-			start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: ns.Name})
-			start.Name.Local = group.schema.Name
-		}
-	} else {
-		start = xml.StartElement{Name: xml.Name{Local: group.schema.Name}}
-	}
-	if err := e.EncodeToken(xml.Token(start)); err != nil {
-		return err
-	}
 	for _, child := range group.Nodes {
-		if err := e.EncodeElement(child, xml.StartElement{Name: xml.Name{Local: child.Name()}}); err != nil {
+		if err := e.EncodeElement(child, xml.StartElement{Name: xml.Name{Local: child.Name() + "?"}}); err != nil {
 			return err
 		}
 	}
-	return e.EncodeToken(xml.Token(xml.EndElement{Name: xml.Name{Local: group.schema.Name}}))
+	return nil
 }
 
 func (group *DataNodeGroup) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {

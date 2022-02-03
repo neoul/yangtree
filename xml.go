@@ -90,6 +90,16 @@ type xmlNode struct {
 
 func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	schema := xnode.Schema()
+	if node, ok := xnode.DataNode.(*DataNodeGroup); ok {
+		for _, child := range node.Nodes {
+			cxnode := *xnode
+			cxnode.DataNode = child
+			if err := e.EncodeElement(&cxnode, xml.StartElement{Name: xml.Name{Local: cxnode.Name() + "?"}}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	boundary := false
 	if start.Name.Local != schema.Name {
 		boundary = true
@@ -157,17 +167,7 @@ func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 		}
 		return e.EncodeElement(vstr, start)
 	case *DataNodeGroup:
-		if err := e.EncodeToken(xml.Token(start)); err != nil {
-			return err
-		}
-		for _, child := range node.Nodes {
-			cxnode := *xnode
-			cxnode.DataNode = child
-			if err := e.EncodeElement(&cxnode, xml.StartElement{Name: xml.Name{Local: cxnode.Name()}}); err != nil {
-				return err
-			}
-		}
-		return e.EncodeToken(xml.Token(xml.EndElement{Name: xml.Name{Local: schema.Name}}))
+		return fmt.Errorf("unexpected data node type %T", node)
 	}
 	return nil
 }
