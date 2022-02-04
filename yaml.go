@@ -1000,7 +1000,7 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 		}
 	}
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, -1, false, printNodeName); err != nil {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1036,7 +1036,7 @@ func MarshalYAMLIndent(node DataNode, prefix, indent string, option ...Option) (
 		}
 	}
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, -1, false, printNodeName); err != nil {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
 			return nil, err
 		}
 	} else {

@@ -46,6 +46,7 @@ func TestXML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error in new: %v", err)
 	}
+	fmt.Println(string(xmlstr))
 	if err := xml.Unmarshal(xmlstr, newyanglib); err != nil {
 		t.Fatalf("error in new: %v", err)
 	}
