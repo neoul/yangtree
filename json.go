@@ -761,11 +761,29 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 }
 
 // UnmarshalJSON parses the JSON-encoded data and stores the result in the data node.
-func UnmarshalJSON(node DataNode, jbytes []byte) error {
+func UnmarshalJSON(node DataNode, jbytes []byte, option ...Option) error {
 	var jval interface{}
 	err := json.Unmarshal(jbytes, &jval)
 	if err != nil {
 		return err
+	}
+	var representItself bool
+	for i := range option {
+		switch option[i].(type) {
+		case RepresentItself:
+			representItself = true
+		default:
+			return fmt.Errorf("%s option not supported", option[i])
+		}
+	}
+	if representItself {
+		if jv, ok := jval.(map[string]interface{}); ok {
+			for k, v := range jv {
+				if node.Schema().IsValidQName(&k, true) {
+					return unmarshalJSON(node, node.Schema(), v)
+				}
+			}
+		}
 	}
 	return unmarshalJSON(node, node.Schema(), jval)
 }

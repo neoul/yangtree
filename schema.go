@@ -499,6 +499,27 @@ func (schema *SchemaNode) IsSingleLeafList() bool {
 	return schema.Option.SingleLeafList && schema.IsLeafList()
 }
 
+// IsValidQName() returns true if the qualified name is valid.
+func (schema *SchemaNode) IsValidQName(qname *string, rfc7951 bool) bool {
+	q, name := SplitQName(qname)
+	if schema.Name != name {
+		return false
+	}
+	if q == "" {
+		return true
+	}
+	if schema.Module == nil {
+		return true
+	}
+	if rfc7951 {
+		return schema.Module.Name == q
+	}
+	if schema.Module.Prefix == nil {
+		return true
+	}
+	return schema.Module.Prefix.Name == q
+}
+
 // GetQName() returns the qname (namespace-qualified name e.g. module-name:node-name) of the schema node.
 func (schema *SchemaNode) GetQName(rfc7951 bool) (string, bool) {
 	if schema.Module == nil {
@@ -1396,6 +1417,7 @@ func (schema *SchemaNode) GetMust() []*yang.Must {
 	return nil
 }
 
+// SplitQName splits the namespace qualified name to prefix and node name.
 func SplitQName(qname *string) (string, string) {
 	if i := strings.Index(*qname, ":"); i >= 0 {
 		return (*qname)[:i], (*qname)[i+1:]

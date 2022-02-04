@@ -213,6 +213,14 @@ func MarshalXMLIndent(node DataNode, prefix, indent string, option ...Option) ([
 }
 
 // UnmarshalXML updates the data node using an XML document.
-func UnmarshalXML(node DataNode, data []byte) error {
+func UnmarshalXML(node DataNode, data []byte, option ...Option) error {
+	for i := range option {
+		switch option[i].(type) {
+		case RepresentItself:
+			// xml node already represents itself.
+		default:
+			return fmt.Errorf("%s option not supported", option[i])
+		}
+	}
 	return xml.Unmarshal(data, node)
 }

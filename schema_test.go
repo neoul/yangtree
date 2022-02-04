@@ -1,7 +1,9 @@
 package yangtree
 
 import (
+	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -279,4 +281,93 @@ func TestYANGMetaData(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRESTCONF(t *testing.T) {
+	moduleSetNum = 0
+	yangfiles := []string{
+		"../open-restconf/modules/ietf-restconf@2017-01-26.yang",
+		"../open-restconf/modules/example/example-jukebox.yang",
+		"../open-restconf/modules/example/example-mod.yang",
+		"../open-restconf/modules/example/example-ops.yang",
+		"../open-restconf/modules/example/example-actions.yang",
+	}
+	dir := []string{"modules"}
+	excluded := []string{}
+	schema, err := Load(yangfiles, dir, excluded, YANGTreeOption{YANGLibrary2016: true})
+	if err != nil {
+		t.Fatalf("error in loading: %v", err)
+	}
+	schemaData := schema.ExtSchema["yang-api"].GetSchema("restconf").GetSchema("data")
+	if schemaData == nil {
+		log.Fatalf("restconf: unable to load restconf schema")
+	}
+	for i := range schema.Children {
+		if schema.Children[i].RPC == nil {
+			schemaData.Append(true, schema.Children[i])
+		}
+	}
+
+	root := make([]DataNode, 3)
+	filesuffix := []string{"xml", "json", "yaml"}
+	for i := range filesuffix {
+		root[i], err = New(schemaData)
+		if err != nil {
+			t.Fatalf("error in new yangtree: %v", err)
+		}
+		var file *os.File
+		file, err = os.Open("../open-restconf/testdata/jukebox." + filesuffix[i])
+		if err != nil {
+			t.Fatalf("restconf: %v", err)
+		}
+		b, err := ioutil.ReadAll(file)
+		if err != nil {
+			t.Fatalf("restconf: %v", err)
+		}
+		file.Close()
+		switch filesuffix[i] {
+		case "xml":
+			if err := UnmarshalXML(root[i], b, RepresentItself{}); err != nil {
+				t.Fatalf("restconf: %v", err)
+			}
+		case "json":
+			if err := UnmarshalJSON(root[i], b, RepresentItself{}); err != nil {
+				t.Fatalf("restconf: %v", err)
+			}
+		case "yaml":
+			if err := UnmarshalYAML(root[i], b, RepresentItself{}); err != nil {
+				t.Fatalf("restconf: %v", err)
+			}
+		}
+
+		if i > 1 {
+			if !Equal(root[i-1], root[i]) {
+				t.Errorf("unmarshalled restconf data is not equal (%s %s)", filesuffix[i-1], filesuffix[i])
+			}
+		}
+	}
+
+	nodes, _ := Find(root[0], "jukebox/library/artist")
+	group, _ := ConvertToGroup(nodes[0].Schema(), nodes)
+	if b, err := MarshalXMLIndent(group, " ", "  "); err == nil {
+		fmt.Printf(string(b))
+	}
+	if b, err := MarshalJSONIndent(group, "", " "); err == nil {
+		fmt.Printf(string(b))
+	}
+	if b, err := MarshalYAMLIndent(group, "", " "); err == nil {
+		fmt.Printf(string(b))
+	}
+	// if b, err := xml.MarshalIndent(group, "", " "); err == nil {
+	// 	fmt.Printf(string(b))
+	// }
+	// if b, err := xml.MarshalIndent(nodes[0], " ", " "); err == nil {
+	// 	fmt.Printf(string(b))
+	// }
+
+	// for _, n := range nodes {
+	// 	if b, err := MarshalXMLIndent(n, "", " ", RepresentItself{}); err == nil {
+	// 		fmt.Printf(string(b))
+	// 	}
+	// }
 }

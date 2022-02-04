@@ -356,11 +356,37 @@ func unmarshalYAML(node DataNode, schema *SchemaNode, yval interface{}) error {
 }
 
 // UnmarshalYAML updates the data node using YAML-encoded data.
-func UnmarshalYAML(node DataNode, in []byte) error {
+func UnmarshalYAML(node DataNode, in []byte, option ...Option) error {
 	var ydata interface{}
 	err := yaml.Unmarshal(in, &ydata)
 	if err != nil {
 		return err
+	}
+	var representItself bool
+	for i := range option {
+		switch option[i].(type) {
+		case RepresentItself:
+			representItself = true
+		default:
+			return fmt.Errorf("%s option not supported", option[i])
+		}
+	}
+	if representItself {
+		switch yd := ydata.(type) {
+		case map[interface{}]interface{}:
+			for k, v := range yd {
+				name := k.(string)
+				if node.Schema().IsValidQName(&name, true) {
+					return unmarshalYAML(node, node.Schema(), v)
+				}
+			}
+		case map[string]interface{}:
+			for k, v := range yd {
+				if node.Schema().IsValidQName(&k, true) {
+					return unmarshalYAML(node, node.Schema(), v)
+				}
+			}
+		}
 	}
 	return unmarshalYAML(node, node.Schema(), ydata)
 }
