@@ -30,14 +30,14 @@ func value2XMLString(schema *SchemaNode, typ *yang.YangType, value interface{}) 
 				return v, nil
 			}
 		}
-		return "", fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+		return "", fmt.Errorf("unexpected value \"%v\" for %s type", value, typ.Name)
 	case yang.Yempty:
 		return "", nil
 	case yang.Yidentityref:
 		if s, ok := value.(string); ok {
 			m, ok := schema.Identityref[s]
 			if !ok {
-				return "", fmt.Errorf("%q is not a value of %q", s, typ.Name)
+				return "", fmt.Errorf("%s is not a value of %s", s, typ.Name)
 			}
 			if m.Prefix == nil {
 				return m.Name + ":" + s, nil

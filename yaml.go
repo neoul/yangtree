@@ -40,11 +40,11 @@ func unmarshalYAMLListNode(parent DataNode, cschema *SchemaNode, kname []string,
 		if yamlHash == nil {
 			return nil
 		}
-		return fmt.Errorf("unexpected value %q (%T) for %q", yamlHash, yamlHash, cschema.Name)
+		return fmt.Errorf("unexpected value %s (%T) for %s", yamlHash, yamlHash, cschema.Name)
 	}
 
 	if cschema.IsDuplicatableList() {
-		return fmt.Errorf("non-id list %q must have the array format", cschema.Name)
+		return fmt.Errorf("non-id list %s must have the array format", cschema.Name)
 	}
 	// check existent DataNode
 	var err error
@@ -131,7 +131,7 @@ func unmarshalYAMLListableNode(parent DataNode, cschema *SchemaNode, kname []str
 				if kvalue = getValueFromYAMLHash(sequnce[i], &qname); kvalue == nil {
 					qname, _ = kcschema.GetQName(false)
 					if kvalue = getValueFromYAMLHash(sequnce[i], &qname); kvalue == nil {
-						return fmt.Errorf("not found key data node %q", kname[j])
+						return fmt.Errorf("not found key data node %s", kname[j])
 					}
 				}
 			}
@@ -192,7 +192,7 @@ func unmarshalYAMLUpdateMetadata(node DataNode, schema *SchemaNode, meta interfa
 	case nil:
 		return nil
 	default:
-		return Errorf(EAppTagYAMLParsing, "invalid metadata format for %q", node)
+		return Errorf(EAppTagYAMLParsing, "invalid metadata format for %s", node)
 	}
 	return nil
 }
@@ -238,7 +238,7 @@ func unmarshalYAMLkeyval(parent DataNode, cschema *SchemaNode, haskey bool, keys
 				return err
 			}
 		default:
-			return fmt.Errorf("unexpected value %q for %q", vv, cschema.Name)
+			return fmt.Errorf("unexpected value %s for %s", vv, cschema.Name)
 		}
 	} else {
 		var err error
@@ -288,7 +288,7 @@ func unmarshalYAML(node DataNode, schema *SchemaNode, yval interface{}) error {
 				}
 				cschema := schema.GetSchema(name)
 				if cschema == nil {
-					return fmt.Errorf("schema %q not found from %q", kstr, schema.Name)
+					return fmt.Errorf("schema %s not found from %s", kstr, schema.Name)
 				}
 				mname := "@" + cschema.Name
 				if err := unmarshalYAMLkeyval(node, cschema, haskey, &kstr, v, getValueFromYAMLHash(entry, &mname)); err != nil {
@@ -312,7 +312,7 @@ func unmarshalYAML(node DataNode, schema *SchemaNode, yval interface{}) error {
 				}
 				cschema := schema.GetSchema(name)
 				if cschema == nil {
-					return fmt.Errorf("schema %q not found from %q", k, schema.Name)
+					return fmt.Errorf("schema %s not found from %s", k, schema.Name)
 				}
 				mname := "@" + cschema.Name
 				if err := unmarshalYAMLkeyval(node, cschema, haskey, &k, v, getValueFromYAMLHash(entry, &mname)); err != nil {
@@ -330,15 +330,15 @@ func unmarshalYAML(node DataNode, schema *SchemaNode, yval interface{}) error {
 		case nil:
 			return nil
 		default:
-			return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", yval, node)
+			return Errorf(EAppTagYAMLParsing, "unexpected value %s inserted for %s", yval, node)
 		}
 	} else {
 		switch entry := yval.(type) {
 		case map[interface{}]interface{}, map[string]interface{}:
-			return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", entry, node.ID())
+			return Errorf(EAppTagYAMLParsing, "unexpected value %s inserted for %s", entry, node.ID())
 		case []interface{}:
 			if !schema.IsSingleLeafList() {
-				return Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", entry, node.ID())
+				return Errorf(EAppTagYAMLParsing, "unexpected value %s inserted for %s", entry, node.ID())
 			}
 			for i := range entry {
 				if err := node.SetValue(entry[i]); err != nil {
@@ -585,7 +585,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 		if !cynode.InternalFormat {
 			keyname, keyval := GetKeyValues(cynode.DataNode)
 			if len(keyname) != len(keyval) {
-				return i, fmt.Errorf("list %q doesn't have a id value", schema.Name)
+				return i, fmt.Errorf("list %s doesn't have a id value", schema.Name)
 			}
 			cindent := indent + indentoffset
 			for j := range keyval {
@@ -735,7 +735,7 @@ func yamlkeys(node DataNode, rfc7951s RFC7951S) ([]interface{}, error) {
 	for i := range keynames {
 		keynode := node.Get(keynames[i])
 		if keynode == nil {
-			return nil, fmt.Errorf("%q doesn't have a key node", node.ID())
+			return nil, fmt.Errorf("%s doesn't have a key node", node.ID())
 		}
 		if rfc7951s == RFC7951Disabled {
 			keyvals = append(keyvals, keynode.Value())

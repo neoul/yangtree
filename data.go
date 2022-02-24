@@ -213,13 +213,13 @@ func (branch *DataBranch) insert(child DataNode, iopt InsertOption) (DataNode, e
 			return nil, nil
 		}
 		// allow to move the child to another node.
-		// return fmt.Errorf("child node %q is already inserted to %q", child, child.Parent())
+		// return fmt.Errorf("child node %s is already inserted to %s", child, child.Parent())
 		child.Remove()
 	}
 	schema := child.Schema()
 	if !branch.schema.IsAnyData() && !branch.schema.ContainAny {
 		if branch.Schema() != schema.Parent {
-			return nil, fmt.Errorf("unable to insert %q because it is not a child of %s", child, branch)
+			return nil, fmt.Errorf("unable to insert %s because it is not a child of %s", child, branch)
 		}
 	}
 
@@ -350,7 +350,7 @@ func NewWithID(schema *SchemaNode, id string) (DataNode, error) {
 		return nil, err
 	}
 	if len(pathnode) == 0 || len(pathnode) > 1 {
-		return nil, fmt.Errorf("invalid id %q inserted", id)
+		return nil, fmt.Errorf("invalid id %s inserted", id)
 	}
 	node, err := newDataNode(schema)
 	if err != nil {
@@ -551,7 +551,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 	if len(pathnode) == 0 {
 		switch op {
 		case EditCreate:
-			return Errorf(ETagDataExists, "data node %q already exists", root.ID())
+			return Errorf(ETagDataExists, "data node %s already exists", root.ID())
 		case EditDelete, EditRemove:
 			if cb := eopt.GetCallback(); cb != nil {
 				if err := cb(op, []DataNode{root}, nil); err != nil {
@@ -603,7 +603,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 		return setValue(root, pathnode[1:], eopt, value)
 	case NodeSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("unknown parent node selected from %q", root)
+			return fmt.Errorf("unknown parent node selected from %s", root)
 		}
 		root = root.Parent()
 		return setValue(root, pathnode[1:], eopt, value)
@@ -614,7 +614,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 	case NodeSelectAllChildren:
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return fmt.Errorf("select children from non-branch node %q", root)
+			return fmt.Errorf("select children from non-branch node %s", root)
 		}
 		for i := 0; i < len(branch.children); i++ {
 			err := setValue(branch.Child(i), pathnode[1:], eopt, value)
@@ -630,7 +630,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 		}
 		branch, ok := root.(*DataBranch)
 		if !ok {
-			return fmt.Errorf("select children from non-branch node %q", root)
+			return fmt.Errorf("select children from non-branch node %s", root)
 		}
 		for i := 0; i < len(branch.children); i++ {
 			err := setValue(root.Child(i), pathnode, eopt, value)
@@ -645,7 +645,7 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 	reachToEnd := len(pathnode) == 1
 	if strings.HasPrefix(pathnode[0].Name, "@") {
 		if !reachToEnd {
-			return fmt.Errorf("longtail path for metadata %q", pathnode[0].Name)
+			return fmt.Errorf("longtail path for metadata %s", pathnode[0].Name)
 		}
 		switch op {
 		case EditDelete, EditRemove:
@@ -660,11 +660,11 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 
 	branch, ok := root.(*DataBranch)
 	if !ok {
-		return fmt.Errorf("unable to find children from %q", root)
+		return fmt.Errorf("unable to find children from %s", root)
 	}
 	cschema := root.Schema().GetSchema(pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+		return fmt.Errorf("schema %s not found from %s", pathnode[0].Name, branch.schema.Name)
 	}
 	pmap, err := pathnode[0].ToMap()
 	if err != nil {
@@ -701,13 +701,13 @@ func setValue(root DataNode, pathnode []*PathNode, eopt *EditOption, value inter
 	if len(children) == 0 {
 		switch op {
 		case EditDelete:
-			return Errorf(ETagDataMissing, "data node %q not found", id)
+			return Errorf(ETagDataMissing, "data node %s not found", id)
 		case EditRemove:
 			return nil
 		}
 	} else {
 		if reachToEnd && op == EditCreate && len(children) > 0 {
-			return Errorf(EAppTagDataNodeExists, "data node %q exits", id)
+			return Errorf(EAppTagDataNodeExists, "data node %s exits", id)
 		}
 	}
 
@@ -793,7 +793,7 @@ func SetValue(root DataNode, path string, opt *EditOption, value ...interface{})
 func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	branch, ok := root.(*DataBranch)
 	if !ok {
-		return fmt.Errorf("%q is not a branch", root)
+		return fmt.Errorf("%s is not a branch", root)
 	}
 	if len(pathnode) == 0 {
 		_, err := branch.insert(node, nil)
@@ -804,7 +804,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 		return replaceNode(root, pathnode[1:], node)
 	case NodeSelectParent:
 		if root.Parent() == nil {
-			return fmt.Errorf("unknown parent node selected from %q", root)
+			return fmt.Errorf("unknown parent node selected from %s", root)
 		}
 		root = root.Parent()
 		return replaceNode(root, pathnode[1:], node)
@@ -820,7 +820,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 
 	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
-		return fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+		return fmt.Errorf("schema %s not found from %s", pathnode[0].Name, branch.schema.Name)
 	}
 	pmap, err := pathnode[0].ToMap()
 	if err != nil {
@@ -835,7 +835,7 @@ func replaceNode(root DataNode, pathnode []*PathNode, node DataNode) error {
 	}
 	if cschema == node.Schema() {
 		if len(pathnode) > 1 {
-			return fmt.Errorf("invalid long tail path: %q", pathnode[1].Name)
+			return fmt.Errorf("invalid long tail path: %s", pathnode[1].Name)
 		}
 		err := node.UpdateByMap(pmap)
 		if err != nil {
@@ -1329,7 +1329,7 @@ func Merge(root DataNode, path string, src DataNode) error {
 		} else if len(node) == 1 {
 			return merge(node[0], src)
 		}
-		return fmt.Errorf("failed to create and merge the nodes in %q", path)
+		return fmt.Errorf("failed to create and merge the nodes in %s", path)
 	case 1:
 		return merge(node[0], src)
 	default:
@@ -1382,12 +1382,12 @@ func GetOrNew(root DataNode, path string) (node DataNode, created DataNode, err 
 	for i := range pathnode {
 		branch, ok = node.(*DataBranch)
 		if !ok {
-			err = fmt.Errorf("%q is not a branch", node)
+			err = fmt.Errorf("%s is not a branch", node)
 			break
 		}
 		cschema := branch.schema.GetSchema(pathnode[i].Name)
 		if cschema == nil {
-			err = fmt.Errorf("schema %q not found from %q", pathnode[i].Name, branch.schema.Name)
+			err = fmt.Errorf("schema %s not found from %s", pathnode[i].Name, branch.schema.Name)
 			break
 		}
 		pmap, err = pathnode[i].ToMap()

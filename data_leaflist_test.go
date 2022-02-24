@@ -60,7 +60,7 @@ func TestSingleLeafList(t *testing.T) {
 			// check the values of the single leaf-list (ordered-by system)
 			values := singleLeafList.Values()
 			if !reflect.DeepEqual(values, tt.expected) {
-				t.Errorf("invalid single leaf-list values %q", singleLeafList.Values())
+				t.Errorf("invalid single leaf-list values %s", singleLeafList.Values())
 				return
 			}
 

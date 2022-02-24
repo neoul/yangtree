@@ -118,11 +118,11 @@ func (schema *SchemaNode) Append(changeParent bool, nodes ...*SchemaNode) error 
 		return fmt.Errorf("nil schema")
 	}
 	if !schema.IsDir() {
-		return fmt.Errorf("unable to add schema child nodes to non-directory node %q", schema)
+		return fmt.Errorf("unable to add schema child nodes to non-directory node %s", schema)
 	}
 	for i := range nodes {
 		if _, ok := schema.Directory[nodes[i].Name]; ok {
-			return fmt.Errorf("there is a child schema node having the same name %q", nodes[i].Name)
+			return fmt.Errorf("there is a child schema node having the same name %s", nodes[i].Name)
 		}
 		if nodes[i].Prefix != nil {
 			schema.Directory[nodes[i].Prefix.Name+":"+nodes[i].Name] = nodes[i]
@@ -612,7 +612,7 @@ func collectExtension(module *yang.Module, option *YANGTreeOption, ext *Extensio
 					}
 				}
 				if typedef == nil {
-					return fmt.Errorf("type %q not found", substatement.NName())
+					return fmt.Errorf("type %s not found", substatement.NName())
 				}
 				extEntry.Kind = yang.LeafEntry
 				extEntry.Type = typedef.YangType
@@ -768,7 +768,7 @@ func generateSchemaTree(d, f, e []string, option ...Option) (*SchemaNode, error)
 			for _, schema := range entry.Dir {
 				if _, ok := root.Entry.Dir[schema.Name]; ok {
 					return nil, fmt.Errorf(
-						"duplicated schema %q found", entry.Name)
+						"duplicated schema %s found", entry.Name)
 				}
 				schema.Parent = root.Entry
 				root.Entry.Dir[schema.Name] = schema
@@ -894,7 +894,7 @@ func extractSchemaName(keystr *string) (string, bool, error) {
 		case '[':
 			return (*keystr)[:i], true, nil
 		default:
-			return "", false, fmt.Errorf("invalid keystr %q inserted", *keystr)
+			return "", false, fmt.Errorf("invalid keystr %s inserted", *keystr)
 		}
 	}
 	return *keystr, false, nil
@@ -921,7 +921,7 @@ func extractKeyValues(keys []string, keystr *string) ([]string, error) {
 		begin = 1
 		insideBrackets++
 	case ']', '=':
-		return nil, fmt.Errorf("key string %q starts with invalid char: ] or =", *keystr)
+		return nil, fmt.Errorf("key string %s starts with invalid char: ] or =", *keystr)
 	}
 	end++
 	// fmt.Println(keys, (*keystr))
@@ -954,11 +954,11 @@ func extractKeyValues(keys []string, keystr *string) ([]string, error) {
 			end++
 		case '=':
 			if insideBrackets <= 0 {
-				return nil, fmt.Errorf("invalid key format %q", (*keystr)[begin:end])
+				return nil, fmt.Errorf("invalid key format %s", (*keystr)[begin:end])
 			} else if insideBrackets == 1 {
 				if begin < end {
 					if keys[index] != (*keystr)[begin:end] {
-						return nil, fmt.Errorf("invalid key %q", (*keystr)[begin:end])
+						return nil, fmt.Errorf("invalid key %s", (*keystr)[begin:end])
 					}
 					index++
 					begin = end + 1
@@ -970,7 +970,7 @@ func extractKeyValues(keys []string, keystr *string) ([]string, error) {
 		}
 	}
 	if len(keys) != index {
-		return nil, fmt.Errorf("invalid key %q", (*keystr))
+		return nil, fmt.Errorf("invalid key %s", (*keystr))
 	}
 	return keyval, nil
 }
@@ -981,7 +981,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 	case yang.Ystring, yang.Ybinary:
 		v, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		if len(typ.Range) > 0 {
 			length := yang.FromInt(int64(len(v)))
@@ -994,7 +994,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 			if inrange {
 				return value, nil
 			}
-			return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+			return nil, fmt.Errorf("%s is out of the range, %v", value, typ.Range)
 		}
 
 		// Check that the value satisfies any regex patterns.
@@ -1011,19 +1011,19 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 				return nil, fmt.Errorf("pattern compile error: %v", err)
 			}
 			if !r.MatchString(v) {
-				return nil, fmt.Errorf("invalid pattern %q inserted for %q: %v", value, schema.Name, r)
+				return nil, fmt.Errorf("invalid pattern %s inserted for %s: %v", value, schema.Name, r)
 			}
 		}
 		return value, nil
 	case yang.Ybool:
 		_, ok := value.(bool)
 		if !ok {
-			return value, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return value, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		return value, nil
 	case yang.Yempty:
 		if value != nil {
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		return value, nil
 	case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yint64, yang.Yuint8, yang.Yuint16, yang.Yuint32, yang.Yuint64:
@@ -1050,7 +1050,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 		case uint64:
 			number = yang.FromUint(uint64(v))
 		default:
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		if len(typ.Range) > 0 {
 			inrange := false
@@ -1060,7 +1060,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 				}
 			}
 			if !inrange {
-				return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+				return nil, fmt.Errorf("%s is out of the range, %v", value, typ.Range)
 			}
 		}
 		if typ.Kind == yang.Yuint64 {
@@ -1092,16 +1092,16 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 	case yang.Yenum:
 		v, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		if _, ok := schema.Enum[v]; ok {
 			return value, nil
 		}
-		return nil, fmt.Errorf("enum %q not found", value)
+		return nil, fmt.Errorf("enum %s not found", value)
 	case yang.Ybits:
 		bitsStr, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		bits := strings.Split(bitsStr, " ")
 		if len(bits) > 0 {
@@ -1109,7 +1109,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 			for i := range bits {
 				v, ok := schema.Bits[bits[i]]
 				if !ok {
-					return nil, fmt.Errorf("bits %q not found", bits[i])
+					return nil, fmt.Errorf("bits %s not found", bits[i])
 				}
 				bitlist = append(bitlist, v)
 			}
@@ -1123,7 +1123,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 	case yang.Yidentityref:
 		v, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		if i := strings.Index(v, ":"); i >= 0 {
 			iref := v[i+1:]
@@ -1135,11 +1135,11 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 				return value, nil
 			}
 		}
-		return nil, fmt.Errorf("identityref %q not found", value)
+		return nil, fmt.Errorf("identityref %s not found", value)
 	case yang.Yleafref:
 		_, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		// [FIXME] Check the schema ? or data ?
 		// [FIXME] check the path refered
@@ -1152,7 +1152,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 		case float64:
 			number = yang.FromFloat(float64(v))
 		default:
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		if len(typ.Range) > 0 {
 			inrange := false
@@ -1166,7 +1166,7 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 				// return number, nil
 				return strconv.ParseFloat(number.String(), 64)
 			}
-			return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+			return nil, fmt.Errorf("%s is out of the range, %v", value, typ.Range)
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
@@ -1178,13 +1178,13 @@ func ValueToValidTypeValue(schema *SchemaNode, typ *yang.YangType, value interfa
 	case yang.YinstanceIdentifier:
 		_, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %q", value, schema)
+			return nil, fmt.Errorf("invalid value type \"%T\" inserted for %s", value, schema)
 		}
 		return value, nil
 	case yang.Ynone:
 		break
 	}
-	return nil, fmt.Errorf("invalid value %v (%T) inserted for %q", value, value, schema)
+	return nil, fmt.Errorf("invalid value %v (%T) inserted for %s", value, value, schema)
 }
 
 // ValueStringToValue() converts a string value to an yangtree value
@@ -1203,7 +1203,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 			if inrange {
 				return value, nil
 			}
-			return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+			return nil, fmt.Errorf("%s is out of the range, %v", value, typ.Range)
 		}
 
 		// Check that the value satisfies any regex patterns.
@@ -1220,7 +1220,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 				return nil, fmt.Errorf("pattern compile error: %v", err)
 			}
 			if !r.MatchString(value) {
-				return nil, fmt.Errorf("invalid pattern %q inserted for %q: %v", value, schema.Name, r)
+				return nil, fmt.Errorf("invalid pattern %s inserted for %s: %v", value, schema.Name, r)
 			}
 		}
 		return value, nil
@@ -1231,7 +1231,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 		} else if v == "false" {
 			return false, nil
 		} else {
-			return false, fmt.Errorf("%q is not boolean", value)
+			return false, fmt.Errorf("%s is not boolean", value)
 		}
 	case yang.Yempty:
 		return nil, nil
@@ -1248,7 +1248,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 				}
 			}
 			if !inrange {
-				return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+				return nil, fmt.Errorf("%s is out of the range, %v", value, typ.Range)
 			}
 		}
 		if typ.Kind == yang.Yuint64 {
@@ -1288,7 +1288,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 			for i := range bits {
 				v, ok := schema.Bits[bits[i]]
 				if !ok {
-					return nil, fmt.Errorf("bits %q not found", bits[i])
+					return nil, fmt.Errorf("bits %s not found", bits[i])
 				}
 				bitlist = append(bitlist, v)
 			}
@@ -1310,7 +1310,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 				return value, nil
 			}
 		}
-		return nil, fmt.Errorf("identityref %q not found", value)
+		return nil, fmt.Errorf("identityref %s not found", value)
 	case yang.Yleafref:
 		// [FIXME] Check the schema ? or data ?
 		// [FIXME] check the path refered
@@ -1332,7 +1332,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 				// return number, nil
 				return strconv.ParseFloat(number.String(), 64)
 			}
-			return nil, fmt.Errorf("%q is out of the range, %v", value, typ.Range)
+			return nil, fmt.Errorf("%s is out of the range, %v", value, typ.Range)
 		}
 	case yang.Yunion:
 		for i := range typ.Type {
@@ -1346,7 +1346,7 @@ func ValueStringToValue(schema *SchemaNode, typ *yang.YangType, value string) (i
 	case yang.Ynone:
 		break
 	}
-	return nil, fmt.Errorf("invalid value %q inserted for %q", value, schema.Name)
+	return nil, fmt.Errorf("invalid value %s inserted for %s", value, schema.Name)
 }
 
 // ValueToValueString() converts a golang value to the string value.
@@ -1450,7 +1450,7 @@ func (schema *SchemaNode) ValueToQValue(typ *yang.YangType, value interface{}, r
 				return v, nil
 			}
 		}
-		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+		return nil, fmt.Errorf("unexpected value \"%v\" for %s type", value, typ.Name)
 	case yang.YinstanceIdentifier:
 		// [FIXME] The leftmost (top-level) data node name is always in the
 		//   namespace-qualified form (qname).
@@ -1494,7 +1494,7 @@ func (schema *SchemaNode) ValueToJSONBytes(typ *yang.YangType, value interface{}
 				return v, nil
 			}
 		}
-		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+		return nil, fmt.Errorf("unexpected value \"%v\" for %s type", value, typ.Name)
 	case yang.YinstanceIdentifier:
 		// [FIXME] The leftmost (top-level) data node name is always in the
 		//   namespace-qualified form (qname).
@@ -1520,7 +1520,7 @@ func (schema *SchemaNode) ValueToJSONBytes(typ *yang.YangType, value interface{}
 			if s, ok := value.(string); ok {
 				m, ok := schema.Identityref[s]
 				if !ok {
-					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
+					return nil, fmt.Errorf("%s is not a value of %s", s, typ.Name)
 				}
 				return json.Marshal(m.Name + ":" + s)
 			}
@@ -1555,7 +1555,7 @@ func (schema *SchemaNode) ValueToYAMLBytes(typ *yang.YangType, value interface{}
 				return v, nil
 			}
 		}
-		return nil, fmt.Errorf("unexpected value \"%v\" for %q type", value, typ.Name)
+		return nil, fmt.Errorf("unexpected value \"%v\" for %s type", value, typ.Name)
 	case yang.YinstanceIdentifier:
 		// [FIXME] The leftmost (top-level) data node name is always in the
 		//   namespace-qualified form (qname).
@@ -1583,7 +1583,7 @@ func (schema *SchemaNode) ValueToYAMLBytes(typ *yang.YangType, value interface{}
 			if s, ok := value.(string); ok {
 				m, ok := schema.Identityref[s]
 				if !ok {
-					return nil, fmt.Errorf("%q is not a value of %q", s, typ.Name)
+					return nil, fmt.Errorf("%s is not a value of %s", s, typ.Name)
 				}
 				value = m.Name + ":" + s
 			}

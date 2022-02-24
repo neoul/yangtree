@@ -78,16 +78,16 @@ func (leaf *DataLeaf) GetOrNew(id string, insert InsertOption) (DataNode, bool, 
 }
 
 func (leaf *DataLeaf) Create(id string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("new is not supported on %q", leaf)
+	return nil, fmt.Errorf("new is not supported on %s", leaf)
 }
 
 func (leaf *DataLeaf) Update(id string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("update is not supported %q", leaf)
+	return nil, fmt.Errorf("update is not supported %s", leaf)
 }
 
 func (leaf *DataLeaf) SetValue(value ...interface{}) error {
 	if len(value) > 1 {
-		return fmt.Errorf("more than one value cannot be set to a leaf node %q", leaf)
+		return fmt.Errorf("more than one value cannot be set to a leaf node %s", leaf)
 	}
 	if leaf.parent != nil {
 		if leaf.IsLeafList() && value[0] != leaf.value {
@@ -95,7 +95,7 @@ func (leaf *DataLeaf) SetValue(value ...interface{}) error {
 		}
 		if leaf.schema.IsKey {
 			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaf)
+			// return fmt.Errorf("unable to update id node %s if used", leaf)
 			return nil
 		}
 	}
@@ -117,11 +117,11 @@ func (leaf *DataLeaf) SetValueSafe(value ...interface{}) error {
 func (leaf *DataLeaf) unsetValue() error {
 	if leaf.parent != nil {
 		if leaf.IsLeafList() {
-			return fmt.Errorf("leaf-list %q must be inserted or deleted", leaf)
+			return fmt.Errorf("leaf-list %s must be inserted or deleted", leaf)
 		}
 		if leaf.schema.IsKey {
 			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaf)
+			// return fmt.Errorf("unable to update id node %s if used", leaf)
 			return nil
 		}
 	}
@@ -144,7 +144,7 @@ func (leaf *DataLeaf) UnsetValue(value ...interface{}) error {
 
 func (leaf *DataLeaf) SetValueString(value ...string) error {
 	if len(value) > 1 {
-		return fmt.Errorf("more than one value cannot be set to a leaf node %q", leaf)
+		return fmt.Errorf("more than one value cannot be set to a leaf node %s", leaf)
 	}
 	if leaf.parent != nil {
 		if leaf.IsLeafList() && value[0] != ValueToValueString(leaf.value) {
@@ -152,7 +152,7 @@ func (leaf *DataLeaf) SetValueString(value ...string) error {
 		}
 		if leaf.schema.IsKey {
 			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaf)
+			// return fmt.Errorf("unable to update id node %s if used", leaf)
 			return nil
 		}
 	}
@@ -185,11 +185,11 @@ func (leaf *DataLeaf) Remove() error {
 }
 
 func (leaf *DataLeaf) Insert(child DataNode, insert InsertOption) (DataNode, error) {
-	return nil, fmt.Errorf("insert is not supported on %q", leaf)
+	return nil, fmt.Errorf("insert is not supported on %s", leaf)
 }
 
 func (leaf *DataLeaf) Delete(child DataNode) error {
-	return fmt.Errorf("delete is not supported on %q", leaf)
+	return fmt.Errorf("delete is not supported on %s", leaf)
 }
 
 // SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
@@ -198,7 +198,7 @@ func (leaf *DataLeaf) SetMetadata(name string, value ...interface{}) error {
 	name = strings.TrimPrefix(name, "@")
 	mschema := leaf.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("metadata schema %q not found", name)
+		return fmt.Errorf("metadata schema %s not found", name)
 	}
 	meta, err := NewWithValue(mschema, value...)
 	if err != nil {
@@ -217,7 +217,7 @@ func (leaf *DataLeaf) SetMetadataString(name string, value ...string) error {
 	name = strings.TrimPrefix(name, "@")
 	mschema := leaf.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("metadata schema %q not found", name)
+		return fmt.Errorf("metadata schema %s not found", name)
 	}
 	meta, err := NewWithValueString(mschema, value...)
 	if err != nil {
@@ -235,7 +235,7 @@ func (leaf *DataLeaf) UnsetMetadata(name string) error {
 	name = strings.TrimPrefix(name, "@")
 	// mschema := leaf.schema.MetadataSchema[name]
 	// if mschema == nil {
-	// 	return fmt.Errorf("metadata schema %q not found", name)
+	// 	return fmt.Errorf("metadata schema %s not found", name)
 	// }
 	if leaf.metadata != nil {
 		delete(leaf.metadata, name)
@@ -402,10 +402,10 @@ func (leaf *DataLeaf) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 	_, name := SplitQName(&(start.Name.Local))
 
 	if name != leaf.schema.Name {
-		return fmt.Errorf("invalid element %q inserted for %q", name, leaf.ID())
+		return fmt.Errorf("invalid element %s inserted for %s", name, leaf.ID())
 	}
 	if start.Name.Space != leaf.Schema().Module.Namespace.Name {
-		return fmt.Errorf("unknown namespace %q", start.Name.Space)
+		return fmt.Errorf("unknown namespace %s", start.Name.Space)
 	}
 
 	var value string

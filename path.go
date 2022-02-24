@@ -78,7 +78,7 @@ LOOP:
 		if index < 0 {
 			if index, err := strconv.Atoi(pathnode.Predicates[i]); err == nil {
 				if index <= 0 {
-					return nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
+					return nil, fmt.Errorf("index path predicate %s must be > 0", pathnode.Predicates[0])
 				}
 				pmap["@index"] = index - 1
 			} else if pathnode.Predicates[0] == "last()" {
@@ -100,7 +100,7 @@ LOOP:
 		name := pathnode.Predicates[i][:index]
 		value := pathnode.Predicates[i][index+1:]
 		// if cschema := schema.GetSchema(name); cschema == nil {
-		// 	return nil, fmt.Errorf("child schema %q doesn't exist", name)
+		// 	return nil, fmt.Errorf("child schema %s doesn't exist", name)
 		// }
 		if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
 			value = strings.Trim(value, "'")
@@ -117,7 +117,7 @@ LOOP:
 			}
 			// if v, exist := pmap[name]; exist {
 			// 	if v != value {
-			// 		return nil, fmt.Errorf("duplicated path predicate %q found", name)
+			// 		return nil, fmt.Errorf("duplicated path predicate %s found", name)
 			// 	}
 			// }
 			pmap[name] = value
@@ -140,7 +140,7 @@ LOOP:
 		case 1:
 			if index, err := strconv.Atoi(pathnode.Predicates[0]); err == nil {
 				if index <= 0 {
-					return nil, fmt.Errorf("index path predicate %q must be > 0", pathnode.Predicates[0])
+					return nil, fmt.Errorf("index path predicate %s must be > 0", pathnode.Predicates[0])
 				}
 				pmap["@index"] = index - 1
 			} else if pathnode.Predicates[0] == "last()" {
@@ -179,7 +179,7 @@ LOOP:
 			}
 			if v, exist := pmap[name]; exist {
 				if v != value {
-					return nil, fmt.Errorf("duplicated path predicate %q found", name)
+					return nil, fmt.Errorf("duplicated path predicate %s found", name)
 				}
 			}
 			pmap[name] = value
@@ -273,7 +273,7 @@ func ParsePath(path *string) ([]*PathNode, error) {
 		end++
 	}
 	if insideBrackets > 0 {
-		return nil, fmt.Errorf("invalid path format %q", *path)
+		return nil, fmt.Errorf("invalid path format %s", *path)
 	}
 
 	if begin < end {
@@ -311,7 +311,7 @@ func TokenizeXPathExpr(token []string, s *string, pos int) ([]string, int, error
 			isLiteral = rune((*s)[pos])
 			w.WriteByte('"')
 		case '@':
-			return nil, 0, fmt.Errorf("xml attr in %q not supported", *s)
+			return nil, 0, fmt.Errorf("xml attr in %s not supported", *s)
 		case ' ', '\t', '\n', '\r':
 			e := w.String()
 			if _, ok := opToGoExpr[e]; ok {
@@ -347,7 +347,7 @@ func TokenizeXPathExpr(token []string, s *string, pos int) ([]string, int, error
 				return nil, 0, err
 			}
 			if (*s)[pos] != ')' {
-				return nil, 0, fmt.Errorf("parenthesis not terminated in %q", *s)
+				return nil, 0, fmt.Errorf("parenthesis not terminated in %s", *s)
 			}
 		case ')':
 			if w.Len() > 0 {
@@ -358,7 +358,7 @@ func TokenizeXPathExpr(token []string, s *string, pos int) ([]string, int, error
 			return token, pos, nil
 		case '!', '<', '>':
 			if pos+1 == length {
-				return nil, 0, fmt.Errorf("invalid syntex in %q", (*s))
+				return nil, 0, fmt.Errorf("invalid syntex in %s", (*s))
 			}
 			switch (*s)[pos : pos+2] {
 			case "<=", ">=", "!=":
@@ -377,14 +377,14 @@ func TokenizeXPathExpr(token []string, s *string, pos int) ([]string, int, error
 				token = append(token, (*s)[pos:pos+2])
 				pos++
 			default:
-				return nil, 0, fmt.Errorf("invalid syntax %q", (*s))
+				return nil, 0, fmt.Errorf("invalid syntax %s", (*s))
 			}
 		default:
 			w.WriteByte((*s)[pos])
 		}
 	}
 	if isLiteral != 0 {
-		return nil, 0, fmt.Errorf("missing quotation in %q", *s)
+		return nil, 0, fmt.Errorf("missing quotation in %s", *s)
 	}
 	if w.Len() > 0 {
 		token = append(token, w.String())
@@ -406,7 +406,7 @@ func convertToGoExpr(goExpr *strings.Builder, env map[string]interface{}, token 
 				return i, err
 			}
 			if token[i] != ")" {
-				return i, fmt.Errorf("not terminated path expr: %q", strings.Join(token, ""))
+				return i, fmt.Errorf("not terminated path expr: %s", strings.Join(token, ""))
 			}
 			goExpr.WriteString(")")
 		case ")":
@@ -537,7 +537,7 @@ func findByPredicates(current []DataNode, predicates []string) ([]DataNode, erro
 			env["node"] = current[pos]
 			ok, err := gval.Evaluate(e.String(), env)
 			if err != nil {
-				return nil, fmt.Errorf("%q expr running error: %v", e.String(), err)
+				return nil, fmt.Errorf("%s expr running error: %v", e.String(), err)
 			}
 			if ok.(bool) {
 				newchildren = append(newchildren, current[pos])

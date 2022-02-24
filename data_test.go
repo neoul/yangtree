@@ -784,7 +784,7 @@ func TestEdit(t *testing.T) {
 				case EditRemove, EditDelete:
 					return
 					// if len(found) > 0 {
-					// 	t.Errorf("SetValueString(%s) error: %v", name, fmt.Errorf("deleting data node %q found", tt.path))
+					// 	t.Errorf("SetValueString(%s) error: %v", name, fmt.Errorf("deleting data node %s found", tt.path))
 					// 	return
 					// }
 				}
@@ -797,19 +797,19 @@ func TestEdit(t *testing.T) {
 					}
 					b, err := group.MarshalJSON()
 					if err != nil {
-						t.Errorf("SetValueString() error: %v", fmt.Errorf("marshalling json for %q failed: %v", tt.path, err))
+						t.Errorf("SetValueString() error: %v", fmt.Errorf("marshalling json for %s failed: %v", tt.path, err))
 						return
 					}
 					if string(b) != tt.value {
 						t.Errorf("SetValueString() error: %v", fmt.Errorf(
-							"the value %q of the editing data %q is not equal to %q",
+							"the value %s of the editing data %s is not equal to %s",
 							string(b), tt.path, tt.value))
 						return
 					}
 				case got[0].IsLeaf():
 					if tt.value != nil && got[0].ValueString() != tt.value {
 						t.Errorf("SetValueString() error: %v", fmt.Errorf(
-							"the value %q of the editing data %q is not equal to %q",
+							"the value %s of the editing data %s is not equal to %s",
 							got[0].ValueString(), tt.path, tt.value))
 						return
 					}

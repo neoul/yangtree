@@ -27,7 +27,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 		if err != nil {
 			errors = append(errors, err)
 		} else if !condition {
-			errors = append(errors, fmt.Errorf("when %q statement failed", whenstr))
+			errors = append(errors, fmt.Errorf("when %s statement failed", whenstr))
 		}
 	}
 	mustlist := node.Schema().GetMust()
@@ -42,7 +42,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 					errors = append(errors, err)
 				}
 			} else if !condition {
-				errors = append(errors, fmt.Errorf("must %q statement failed", mustXPath))
+				errors = append(errors, fmt.Errorf("must %s statement failed", mustXPath))
 			}
 		}
 	}
@@ -73,7 +73,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 				return append(errors, err)
 			}
 			if len(ref) == 0 {
-				return append(errors, fmt.Errorf("data instance not present to %q", node.Path()))
+				return append(errors, fmt.Errorf("data instance not present to %s", node.Path()))
 			}
 		case yang.Yleafref:
 			ref, err := Find(node, typ.Path)
@@ -86,7 +86,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 					return nil
 				}
 			}
-			return append(errors, fmt.Errorf("invalid leafref %q", nodeValue))
+			return append(errors, fmt.Errorf("invalid leafref %s", nodeValue))
 		default:
 		}
 	}
@@ -141,7 +141,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 // 			return err
 // 		}
 // 		if !r.MatchString(stringVal) {
-// 			return fmt.Errorf("%q does not match regular expression pattern %q for schema %s", stringVal, r, schema.Name)
+// 			return fmt.Errorf("%s does not match regular expression pattern %s for schema %s", stringVal, r, schema.Name)
 // 		}
 // 	}
 
@@ -169,7 +169,7 @@ func validateDataNode(node DataNode, typ *yang.YangType, checkAll bool) []error 
 // 			return fmt.Errorf("invalid element at index %d: %v for schema %s", i, err, schema.Name)
 // 		}
 // 		if tbl[val] {
-// 			return fmt.Errorf("duplicate string: %q for schema %s", val, schema.Name)
+// 			return fmt.Errorf("duplicate string: %s for schema %s", val, schema.Name)
 // 		}
 // 		tbl[val] = true
 // 	}

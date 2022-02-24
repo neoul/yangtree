@@ -214,12 +214,12 @@ func (branch *DataBranch) GetOrNew(id string, insert InsertOption) (DataNode, bo
 		return nil, false, err
 	}
 	if len(pathnode) == 0 || len(pathnode) > 1 {
-		return nil, false, fmt.Errorf("invalid node id %q inserted", id)
+		return nil, false, fmt.Errorf("invalid node id %s inserted", id)
 	}
 
 	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
-		return nil, false, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+		return nil, false, fmt.Errorf("schema %s not found from %s", pathnode[0].Name, branch.schema.Name)
 	}
 	pmap, err := pathnode[0].ToMap()
 	if err != nil {
@@ -261,11 +261,11 @@ func (branch *DataBranch) Create(id string, value ...string) (DataNode, error) {
 		return nil, err
 	}
 	if len(pathnode) == 0 || len(pathnode) > 1 {
-		return nil, fmt.Errorf("invalid id %q inserted", id)
+		return nil, fmt.Errorf("invalid id %s inserted", id)
 	}
 	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
-		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+		return nil, fmt.Errorf("schema %s not found from %s", pathnode[0].Name, branch.schema.Name)
 	}
 	pmap, err := pathnode[0].ToMap()
 	if err != nil {
@@ -293,11 +293,11 @@ func (branch *DataBranch) Update(id string, value ...string) (DataNode, error) {
 		return nil, err
 	}
 	if len(pathnode) == 0 || len(pathnode) > 1 {
-		return nil, fmt.Errorf("invalid id %q inserted", id)
+		return nil, fmt.Errorf("invalid id %s inserted", id)
 	}
 	cschema := branch.schema.GetSchema(pathnode[0].Name)
 	if cschema == nil {
-		return nil, fmt.Errorf("schema %q not found from %q", pathnode[0].Name, branch.schema.Name)
+		return nil, fmt.Errorf("schema %s not found from %s", pathnode[0].Name, branch.schema.Name)
 	}
 	pmap, err := pathnode[0].ToMap()
 	if err != nil {
@@ -323,7 +323,7 @@ func (branch *DataBranch) SetValue(value ...interface{}) error {
 		case map[interface{}]interface{}, map[string]interface{}, []interface{}:
 			err = unmarshalYAML(branch, branch.schema, v)
 		default:
-			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %q", branch)
+			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %s", branch)
 		}
 	}
 	return err
@@ -339,7 +339,7 @@ func (branch *DataBranch) SetValueSafe(value ...interface{}) error {
 		case map[string]interface{}:
 			err = unmarshalJSON(branch, branch.schema, v)
 		default:
-			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %q", branch)
+			return Errorf(EAppTagInvalidArg, "invalid value inserted for branch node %s", branch)
 		}
 	}
 	if err != nil {
@@ -451,7 +451,7 @@ func (branch *DataBranch) Delete(child DataNode) error {
 	// 	return fmt.Errorf("'%s' is already removed from a branch", child)
 	// }
 	if child.Schema().IsKey && branch.parent != nil {
-		// return fmt.Errorf("id node %q must not be deleted", child)
+		// return fmt.Errorf("id node %s must not be deleted", child)
 		return nil
 	}
 
@@ -466,7 +466,7 @@ func (branch *DataBranch) Delete(child DataNode) error {
 			}
 		}
 	}
-	return fmt.Errorf("%q not found on %q", child, branch)
+	return fmt.Errorf("%s not found on %s", child, branch)
 }
 
 // SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
@@ -475,7 +475,7 @@ func (branch *DataBranch) SetMetadata(name string, value ...interface{}) error {
 	name = strings.TrimPrefix(name, "@")
 	mschema := branch.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("metadata schema %q not found", name)
+		return fmt.Errorf("metadata schema %s not found", name)
 	}
 
 	meta, err := NewWithValue(mschema, value...)
@@ -495,7 +495,7 @@ func (branch *DataBranch) SetMetadataString(name string, value ...string) error 
 	name = strings.TrimPrefix(name, "@")
 	mschema := branch.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("metadata schema %q not found", name)
+		return fmt.Errorf("metadata schema %s not found", name)
 	}
 	meta, err := NewWithValueString(mschema, value...)
 	if err != nil {
@@ -513,7 +513,7 @@ func (branch *DataBranch) UnsetMetadata(name string) error {
 	name = strings.TrimPrefix(name, "@")
 	// mschema := branch.schema.MetadataSchema[name]
 	// if mschema == nil {
-	// 	return fmt.Errorf("metadata schema %q not found", name)
+	// 	return fmt.Errorf("metadata schema %s not found", name)
 	// }
 	if branch.metadata != nil {
 		delete(branch.metadata, name)
@@ -810,10 +810,10 @@ func (branch *DataBranch) MarshalXML(e *xml.Encoder, start xml.StartElement) err
 func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	_, name := SplitQName(&(start.Name.Local))
 	if name != branch.schema.Name {
-		return fmt.Errorf("invalid element %q inserted for %q", name, branch.ID())
+		return fmt.Errorf("invalid element %s inserted for %s", name, branch.ID())
 	}
 	if start.Name.Space != branch.Schema().Module.Namespace.Name {
-		return fmt.Errorf("unknown namespace %q", start.Name.Space)
+		return fmt.Errorf("unknown namespace %s", start.Name.Space)
 	}
 
 	schema := branch.schema
@@ -830,7 +830,7 @@ func (branch *DataBranch) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 			_, name := SplitQName(&(e.Name.Local))
 			cschema := schema.GetSchema(name)
 			if cschema == nil {
-				return fmt.Errorf("schema %q not found", e.Name.Local)
+				return fmt.Errorf("schema %s not found", e.Name.Local)
 			}
 			child, err := newDataNode(cschema)
 			if err != nil {

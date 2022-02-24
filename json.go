@@ -329,7 +329,7 @@ func (parent *jsonNode) marshalJSONListableNode(buffer *bytes.Buffer, node []Dat
 		}
 		keyname, keyval := GetKeyValues(jnode.DataNode)
 		if len(keyname) != len(keyval) {
-			return i, comma, fmt.Errorf("list %q doesn't have key value pairs", schema.Name)
+			return i, comma, fmt.Errorf("list %s doesn't have key value pairs", schema.Name)
 		}
 		m := nodemap
 		for x := range keyval {
@@ -397,7 +397,7 @@ func marshalJNodeTree(buffer *bytes.Buffer, jnodeTree interface{}) error {
 func unmarshalJSONListNode(parent DataNode, cschema *SchemaNode, kname []string, kval []string, object interface{}) error {
 	jobj, ok := object.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %q", object, object, cschema.Name)
+		return fmt.Errorf("unexpected json-val \"%v\" (%T) for %s", object, object, cschema.Name)
 	}
 	if len(kname) != len(kval) {
 		for k, v := range jobj {
@@ -411,7 +411,7 @@ func unmarshalJSONListNode(parent DataNode, cschema *SchemaNode, kname []string,
 		return nil
 	}
 	if cschema.IsDuplicatableList() {
-		return fmt.Errorf("non-id list %q must have the array format", cschema.Name)
+		return fmt.Errorf("non-id list %s must have the array format", cschema.Name)
 	}
 	// check existent DataNode
 	var err error
@@ -483,7 +483,7 @@ func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []str
 				kcschema := cschema.GetSchema(kname[i])
 				qname, _ := kcschema.GetQName(true)
 				if kvalue = entry[qname]; kvalue == nil {
-					return fmt.Errorf("not found key data node %q from %v", kname[i], entry)
+					return fmt.Errorf("not found key data node %s from %v", kname[i], entry)
 				}
 			}
 			idBuilder.WriteString("[")
@@ -526,7 +526,7 @@ func unmarshalJSONListableNode(parent DataNode, cschema *SchemaNode, kname []str
 // 				return unmarshalJSONMeta(node, metakey, msrc[len(msrc)-1])
 // 			}
 // 		}
-// 		return Errorf(EAppTagJSONParsing, "invalid metadata format for %q", node)
+// 		return Errorf(EAppTagJSONParsing, "invalid metadata format for %s", node)
 // 	}
 // 	for k, v := range msrc {
 // 		vstr, err := JSONValueToString(v)
@@ -570,7 +570,7 @@ func unmarshalJSONUpdateMetadata(node DataNode, schema *SchemaNode, meta interfa
 	case nil:
 		return nil
 	default:
-		return fmt.Errorf("invalid metadata format for %q", node)
+		return fmt.Errorf("invalid metadata format for %s", node)
 	}
 	return nil
 }
@@ -590,7 +590,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 				}
 				cschema := schema.GetSchema(k)
 				if cschema == nil {
-					return fmt.Errorf("schema %q not found from %q", k, schema.Name)
+					return fmt.Errorf("schema %s not found from %s", k, schema.Name)
 				}
 				switch {
 				case cschema.IsListable():
@@ -607,7 +607,7 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 							return Error(EAppTagJSONParsing, err)
 						}
 					default:
-						return Errorf(EAppTagJSONParsing, "unexpected json value %q for %q", vv, cschema.Name)
+						return Errorf(EAppTagJSONParsing, "unexpected json value %s for %s", vv, cschema.Name)
 					}
 				default:
 					var err error
@@ -644,18 +644,18 @@ func unmarshalJSON(node DataNode, schema *SchemaNode, jval interface{}) error {
 			}
 			return nil
 		default:
-			return fmt.Errorf("unexpected json value \"%v\" (%T) inserted for %q", jval, jval, node)
+			return fmt.Errorf("unexpected json value \"%v\" (%T) inserted for %s", jval, jval, node)
 		}
 	} else {
 		switch entry := jval.(type) {
 		case map[string]interface{}:
-			return Errorf(EAppTagJSONParsing, "unexpected json value %q inserted for %q", entry, node.ID())
+			return Errorf(EAppTagJSONParsing, "unexpected json value %s inserted for %s", entry, node.ID())
 		case []interface{}:
 			if len(entry) == 1 && entry[0] == nil { // empty type
 				return Error(EAppTagJSONParsing, node.UnsetValueString(""))
 			}
 			if !node.HasMultipleValues() {
-				return Errorf(EAppTagJSONParsing, "*unexpected json value %q inserted for %q", entry, node.ID())
+				return Errorf(EAppTagJSONParsing, "*unexpected json value %s inserted for %s", entry, node.ID())
 			}
 			for i := range entry {
 				valstr, err := JSONValueToString(entry[i])

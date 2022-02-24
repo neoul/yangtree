@@ -49,7 +49,7 @@ func TestType(t *testing.T) {
 		t.Fatalf("error in creating a bits node: %v", err)
 	}
 	if err := node.SetValue("zero three"); err == nil {
-		t.Fatalf(`it must be failed due to the bits %q`, "three")
+		t.Fatalf(`it must be failed due to the bits %s`, "three")
 	}
 	if node.ValueString() != "zero one two" {
 		t.Fatal("unexpected bits set")

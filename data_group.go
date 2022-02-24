@@ -80,7 +80,7 @@ func NewGroupWithValue(schema *SchemaNode, value ...interface{}) (*DataNodeGroup
 					}
 				}
 			default:
-				return nil, Errorf(EAppTagYAMLParsing, "unexpected value %q inserted for %q", value[i], schema)
+				return nil, Errorf(EAppTagYAMLParsing, "unexpected value %s inserted for %s", value[i], schema)
 			}
 		}
 		return &DataNodeGroup{
@@ -123,7 +123,7 @@ func NewGroupWithValueString(schema *SchemaNode, value ...string) (*DataNodeGrou
 				}
 				array, ok := jval.([]interface{})
 				if !ok {
-					return nil, fmt.Errorf("invalid value inserted for %q", schema.Name)
+					return nil, fmt.Errorf("invalid value inserted for %s", schema.Name)
 				}
 				if err := unmarshalJSONListableNode(collector, schema, schema.Keyname, array, nil); err != nil {
 					return nil, err
@@ -157,7 +157,7 @@ func NewGroupWithValueString(schema *SchemaNode, value ...string) (*DataNodeGrou
 			switch jdata := jval.(type) {
 			case map[string]interface{}:
 				if schema.IsDuplicatableList() {
-					return nil, fmt.Errorf("non-key list %q must have the array format of RFC7951", schema.Name)
+					return nil, fmt.Errorf("non-key list %s must have the array format of RFC7951", schema.Name)
 				}
 				kname := schema.Keyname
 				kval := make([]string, 0, len(kname))
@@ -169,7 +169,7 @@ func NewGroupWithValueString(schema *SchemaNode, value ...string) (*DataNodeGrou
 					return nil, err
 				}
 			default:
-				return nil, fmt.Errorf("invalid value inserted for %q", schema.Name)
+				return nil, fmt.Errorf("invalid value inserted for %s", schema.Name)
 			}
 		}
 		return &DataNodeGroup{

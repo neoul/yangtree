@@ -195,7 +195,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 		}
 		top, err = NewWithValueString(rootschema.GetSchema("yang-library"))
 		if err != nil {
-			return fmt.Errorf(`yanglib: %q not found`, "yang-library")
+			return fmt.Errorf(`yanglib: %s not found`, "yang-library")
 		}
 		var mods []*yang.Module
 		for _, m := range modulemap {
@@ -228,7 +228,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 					moduleSetName, listname, name, revision), nil,
 					fmt.Sprintf(`{"namespace":%q}`, namespace))
 				if err != nil {
-					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
+					return fmt.Errorf("yanglib: unable to add module %s: %v", name, err)
 				}
 			} else {
 				err := SetValueString(top, fmt.Sprintf(
@@ -236,7 +236,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 					moduleSetName, listname, name, revision), nil,
 					fmt.Sprintf(`{"namespace":%q}`, namespace))
 				if err != nil {
-					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
+					return fmt.Errorf("yanglib: unable to add module %s: %v", name, err)
 				}
 				// feature
 				for i := range m.Feature {
@@ -246,7 +246,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 					if n, err := Find(top, p); err == nil && len(n) == 0 {
 						err = SetValueString(top, p, nil, m.Feature[i].Name)
 						if err != nil {
-							return fmt.Errorf("yanglib: unable to add feature %q: %v", m.Feature[i].Name, err)
+							return fmt.Errorf("yanglib: unable to add feature %s: %v", m.Feature[i].Name, err)
 						}
 					}
 				}
@@ -254,14 +254,14 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 				for i := range m.Deviation {
 					pathnode, err := ParsePath(&m.Deviation[i].Name)
 					if err != nil || len(pathnode) == 0 {
-						return fmt.Errorf("yanglib: can not find target node %q to deviate", m.Deviation[i].Name)
+						return fmt.Errorf("yanglib: can not find target node %s to deviate", m.Deviation[i].Name)
 					}
 					prefix := pathnode[len(pathnode)-1].Prefix
 					target := yang.FindModuleByPrefix(m, prefix)
 					if target == nil {
 						target = modulemap[prefix]
 						if target == nil {
-							return fmt.Errorf("yanglib: deviation schema %q not found", m.Deviation[i].Name)
+							return fmt.Errorf("yanglib: deviation schema %s not found", m.Deviation[i].Name)
 						}
 					}
 					p := fmt.Sprintf("module-set[name=%s]/%s[name=%s][revision=%s]/deviation[.=%s]",
@@ -269,7 +269,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 					if n, err := Find(top, p); err == nil && len(n) == 0 {
 						err = SetValueString(top, p, nil, name)
 						if err != nil {
-							return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+							return fmt.Errorf("yanglib: unable to add deviation module to %s: %v", name, err)
 						}
 					}
 				}
@@ -284,7 +284,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 						"module-set[name=%s]/%s[name=%s]/submodule[name=%s][revision=%s]",
 						moduleSetName, listname, name, subname, subrevision), nil, "")
 					if err != nil {
-						return fmt.Errorf("yanglib: unable to add submodule %q: %v", name, err)
+						return fmt.Errorf("yanglib: unable to add submodule %s: %v", name, err)
 					}
 				}
 			}
@@ -303,7 +303,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 	case "2016-06-21":
 		top, err = NewWithValueString(rootschema.GetSchema("modules-state"))
 		if err != nil {
-			return fmt.Errorf(`yanglib: %q not found`, "modules-state")
+			return fmt.Errorf(`yanglib: %s not found`, "modules-state")
 		}
 		for _, m := range modulemap {
 			name, revision, namespace := m.Name, m.Current(), ""
@@ -315,7 +315,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 				err := SetValueString(top, fmt.Sprintf("module[name=%s][revision=%s]", name, revision), nil,
 					fmt.Sprintf(`{"namespace":%q,"conformance-type":%q}`, namespace, getConformanceType(m, excluded)))
 				if err != nil {
-					return fmt.Errorf("yanglib: unable to add module %q: %v", name, err)
+					return fmt.Errorf("yanglib: unable to add module %s: %v", name, err)
 				}
 			}
 			// feature
@@ -324,7 +324,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 				if n, err := Find(top, p); err == nil && len(n) == 0 {
 					err = SetValueString(top, p, nil, m.Feature[i].Name)
 					if err != nil {
-						return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+						return fmt.Errorf("yanglib: unable to add deviation module to %s: %v", name, err)
 					}
 				}
 			}
@@ -332,20 +332,20 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 			for i := range m.Deviation {
 				pathnode, err := ParsePath(&m.Deviation[i].Name)
 				if err != nil || len(pathnode) == 0 {
-					return fmt.Errorf("yanglib: can not find target node %q to deviate", m.Deviation[i].Name)
+					return fmt.Errorf("yanglib: can not find target node %s to deviate", m.Deviation[i].Name)
 				}
 				prefix := pathnode[len(pathnode)-1].Prefix
 				target := yang.FindModuleByPrefix(m, prefix)
 				if target == nil {
 					target = modulemap[prefix]
 					if target == nil {
-						return fmt.Errorf("yanglib: deviation schema %q not found", m.Deviation[i].Name)
+						return fmt.Errorf("yanglib: deviation schema %s not found", m.Deviation[i].Name)
 					}
 				}
 				err = SetValueString(top, fmt.Sprintf("module[name=%s][revision=%s]/deviation[name=%s][revision=%s]",
 					target.Name, target.Current(), name, revision), nil, "")
 				if err != nil {
-					return fmt.Errorf("yanglib: unable to add deviation module to %q: %v", name, err)
+					return fmt.Errorf("yanglib: unable to add deviation module to %s: %v", name, err)
 				}
 			}
 			// submodule
@@ -356,7 +356,7 @@ func loadYanglibrary(rootschema *SchemaNode, excluded []string) error {
 					err := SetValueString(top, fmt.Sprintf("module[name=%s][revision=%s]/submodule[name=%s][revision=%s]",
 						name, revision, subname, subrevision), nil, "")
 					if err != nil {
-						return fmt.Errorf("yanglib: unable to add submodule %q: %v", name, err)
+						return fmt.Errorf("yanglib: unable to add submodule %s: %v", name, err)
 					}
 				}
 			}

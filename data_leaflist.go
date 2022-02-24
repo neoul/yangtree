@@ -85,22 +85,22 @@ func (leaflist *DataLeafList) GetOrNew(id string, insert InsertOption) (DataNode
 }
 
 func (leaflist *DataLeafList) Create(id string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("new is not supported on %q", leaflist)
+	return nil, fmt.Errorf("new is not supported on %s", leaflist)
 }
 
 func (leaflist *DataLeafList) Update(id string, value ...string) (DataNode, error) {
-	return nil, fmt.Errorf("update is not supported %q", leaflist)
+	return nil, fmt.Errorf("update is not supported %s", leaflist)
 }
 
 func (leaflist *DataLeafList) setValueString(safe bool, value []string) error {
 	if leaflist.parent != nil {
 		// leaflist allows the set operation
 		// if leaflist.IsLeafList() {
-		// 	return fmt.Errorf("leaflist-list %q must be inserted or deleted", leaflist)
+		// 	return fmt.Errorf("leaflist-list %s must be inserted or deleted", leaflist)
 		// }
 		if leaflist.schema.IsKey {
 			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaflist)
+			// return fmt.Errorf("unable to update id node %s if used", leaflist)
 			return nil
 		}
 	}
@@ -150,11 +150,11 @@ func (leaflist *DataLeafList) setValue(safe bool, value []interface{}) error {
 	if leaflist.parent != nil {
 		// leaflist allows the set operation
 		// if leaflist.IsLeafList() {
-		// 	return fmt.Errorf("leaflist-list %q must be inserted or deleted", leaflist)
+		// 	return fmt.Errorf("leaflist-list %s must be inserted or deleted", leaflist)
 		// }
 		if leaflist.schema.IsKey {
 			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaflist)
+			// return fmt.Errorf("unable to update id node %s if used", leaflist)
 			return nil
 		}
 	}
@@ -212,7 +212,7 @@ func (leaflist *DataLeafList) UnsetValue(value ...interface{}) error {
 	if leaflist.parent != nil {
 		if leaflist.schema.IsKey {
 			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaflist)
+			// return fmt.Errorf("unable to update id node %s if used", leaflist)
 			return nil
 		}
 	}
@@ -242,7 +242,7 @@ func (leaflist *DataLeafList) UnsetValueString(value ...string) error {
 	if leaflist.parent != nil {
 		if leaflist.schema.IsKey {
 			// ignore id update
-			// return fmt.Errorf("unable to update id node %q if used", leaflist)
+			// return fmt.Errorf("unable to update id node %s if used", leaflist)
 			return nil
 		}
 	}
@@ -270,11 +270,11 @@ func (leaflist *DataLeafList) Remove() error {
 }
 
 func (leaflist *DataLeafList) Insert(child DataNode, insert InsertOption) (DataNode, error) {
-	return nil, fmt.Errorf("insert is not supported on %q", leaflist)
+	return nil, fmt.Errorf("insert is not supported on %s", leaflist)
 }
 
 func (leaflist *DataLeafList) Delete(child DataNode) error {
-	return fmt.Errorf("delete is not supported on %q", leaflist)
+	return fmt.Errorf("delete is not supported on %s", leaflist)
 }
 
 // SetMetadata() sets a metadata. for example, the following last-modified is set to the node as a metadata.
@@ -283,7 +283,7 @@ func (leaflist *DataLeafList) SetMetadata(name string, value ...interface{}) err
 	name = strings.TrimPrefix(name, "@")
 	mschema := leaflist.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("metadata schema %q not found", name)
+		return fmt.Errorf("metadata schema %s not found", name)
 	}
 	meta, err := NewWithValue(mschema, value...)
 	if err != nil {
@@ -302,7 +302,7 @@ func (leaflist *DataLeafList) SetMetadataString(name string, value ...string) er
 	name = strings.TrimPrefix(name, "@")
 	mschema := leaflist.schema.MetadataSchema[name]
 	if mschema == nil {
-		return fmt.Errorf("metadata schema %q not found", name)
+		return fmt.Errorf("metadata schema %s not found", name)
 	}
 	meta, err := NewWithValueString(mschema, value...)
 	if err != nil {
@@ -472,10 +472,10 @@ func (leaflist *DataLeafList) UnmarshalXML(d *xml.Decoder, start xml.StartElemen
 	_, name := SplitQName(&(start.Name.Local))
 
 	if name != leaflist.schema.Name {
-		return fmt.Errorf("invalid element %q inserted for %q", name, leaflist.ID())
+		return fmt.Errorf("invalid element %s inserted for %s", name, leaflist.ID())
 	}
 	if start.Name.Space != leaflist.Schema().Module.Namespace.Name {
-		return fmt.Errorf("unknown namespace %q", start.Name.Space)
+		return fmt.Errorf("unknown namespace %s", start.Name.Space)
 	}
 	var value string
 	d.DecodeElement(&value, &start)
