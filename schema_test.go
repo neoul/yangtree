@@ -1,7 +1,6 @@
 package yangtree
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -346,28 +345,28 @@ func TestRESTCONF(t *testing.T) {
 			}
 		}
 	}
-
-	nodes, _ := Find(root[0], "jukebox/library/artist")
-	group, _ := ConvertToGroup(nodes[0].Schema(), nodes)
-	if b, err := MarshalXMLIndent(group, " ", "  "); err == nil {
-		fmt.Printf(string(b))
-	}
-	if b, err := MarshalJSONIndent(group, "", " "); err == nil {
-		fmt.Printf(string(b))
-	}
-	if b, err := MarshalYAMLIndent(group, "", " "); err == nil {
-		fmt.Printf(string(b))
-	}
+	// [FIXME]
+	// nodes, _ := Find(root[0], "jukebox/library/artist")
+	// group, _ := ConvertToGroup(nodes[0].Schema(), nodes)
+	// if b, err := MarshalXMLIndent(group, " ", "  "); err == nil {
+	// 	fmt.Println(string(b))
+	// }
+	// if b, err := MarshalJSONIndent(group, "", " "); err == nil {
+	// 	fmt.Println(string(b))
+	// }
+	// if b, err := MarshalYAMLIndent(group, "", " "); err == nil {
+	// 	fmt.Println(string(b))
+	// }
 	// if b, err := xml.MarshalIndent(group, "", " "); err == nil {
-	// 	fmt.Printf(string(b))
+	// 	fmt.Println(string(b))
 	// }
 	// if b, err := xml.MarshalIndent(nodes[0], " ", " "); err == nil {
-	// 	fmt.Printf(string(b))
+	// 	fmt.Println(string(b))
 	// }
 
 	// for _, n := range nodes {
 	// 	if b, err := MarshalXMLIndent(n, "", " ", RepresentItself{}); err == nil {
-	// 		fmt.Printf(string(b))
+	// 		fmt.Println(string(b))
 	// 	}
 	// }
 }

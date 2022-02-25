@@ -186,19 +186,19 @@ func TestRepresentItself(t *testing.T) {
 	// if j, _ := MarshalYAMLIndent(root.Get("sample"), "", " ", RepresentItself{}); len(j) > 0 {
 	// 	fmt.Println(string(j))
 	// }
-	if j, _ := MarshalJSONIndent(root.Get("sample"), "", " ", RepresentItself{}); len(j) > 0 {
-		fmt.Println(string(j))
-	}
+	// if j, _ := MarshalJSONIndent(root.Get("sample"), "", " ", RepresentItself{}); len(j) > 0 {
+	// 	fmt.Println(string(j))
+	// }
 	// if j, _ := MarshalXMLIndent(root.Get("sample"), "", " ", RepresentItself{}); len(j) > 0 {
 	// 	fmt.Println(string(j))
 	// }
 
 	enumSchema := RootSchema.FindSchema("/sample/container-val/enum-val")
 	datanode, _ := NewWithValue(enumSchema, "enum1")
-	if j, _ := MarshalJSON(datanode); len(j) > 0 {
-		fmt.Println(string(j))
+	if j, _ := MarshalJSON(datanode); string(j) != `"enum1"` {
+		t.Errorf("unexpected marshalling result: %v %v\n", string(j), "enum1")
 	}
-	if j, _ := MarshalJSON(datanode, RepresentItself{}); len(j) > 0 {
-		fmt.Println(string(j))
+	if j, _ := MarshalJSON(datanode, RepresentItself{}); string(j) != `{"enum-val":"enum1"}` {
+		t.Errorf("unexpected marshalling result: %v %v\n", string(j), `{"enum-val":"enum1"}`)
 	}
 }

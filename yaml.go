@@ -439,7 +439,7 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 		mynode := *ynode
 		for _, mdata := range m {
 			mynode.DataNode = mdata
-			if err = mynode.marshalYAML(buffer, indent+indentoffset, unindent, true); err != nil {
+			if err = mynode.marshalYAML(buffer, indent+indentoffset, unindent, true, false); err != nil {
 				return err
 			}
 			if mynode.IsLeafNode() {
@@ -462,7 +462,7 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 				buffer.WriteString("- ")
 				for _, mdata := range m {
 					mynode.DataNode = mdata
-					if err = mynode.marshalYAML(buffer, indent+indentoffset+2, true, true); err != nil {
+					if err = mynode.marshalYAML(buffer, indent+indentoffset+2, true, true, false); err != nil {
 						return err
 					}
 					if mynode.IsLeafNode() {
@@ -473,7 +473,7 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 		} else {
 			for _, mdata := range m {
 				mynode.DataNode = mdata
-				if err = mynode.marshalYAML(buffer, indent+1, unindent, true); err != nil {
+				if err = mynode.marshalYAML(buffer, indent+1, unindent, true, false); err != nil {
 					return err
 				}
 				if mynode.IsLeafNode() {
@@ -487,7 +487,7 @@ func (ynode *yamlNode) marshalYAMLMetadata(buffer *bytes.Buffer, indent int, uni
 }
 
 func (ynode *yamlNode) marshalYAMChildListableNodes(
-	buffer *bytes.Buffer, node []DataNode, i int, indent int, unindent bool, printName bool) (int, error) {
+	buffer *bytes.Buffer, node []DataNode, i int, indent int, unindent bool, skipRoot bool) (int, error) {
 	indentoffset := 0
 	schema := node[i].Schema()
 	cynode := *ynode          // copy options
@@ -511,7 +511,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 		}
 	}
 	if cynode.RFC7951S != RFC7951Disabled || schema.IsDuplicatableList() || schema.IsLeafList() {
-		if printName {
+		if !skipRoot {
 			if indent >= 0 {
 				cynode.WriteIndent(buffer, indent, unindent)
 				buffer.WriteString(cynode.getQname())
@@ -534,7 +534,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 					buffer.WriteString(strings.Repeat(" ", l-2))
 				}
 			}
-			err := cynode.marshalYAML(buffer, cindent+2, true, false)
+			err := cynode.marshalYAML(buffer, cindent+2, true, false, false)
 			if err != nil {
 				return i, err
 			}
@@ -568,7 +568,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 	}
 	var lastKeyval []string
 	if !cynode.InternalFormat {
-		if printName {
+		if !skipRoot {
 			if indent >= 0 {
 				unindent = cynode.WriteIndent(buffer, indent, unindent)
 				buffer.WriteString(cynode.getQname())
@@ -598,13 +598,13 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 					buffer.WriteString(":\n")
 				}
 			}
-			err := cynode.marshalYAML(buffer, cindent+len(keyval), false, false)
+			err := cynode.marshalYAML(buffer, cindent+len(keyval), false, false, false)
 			if err != nil {
 				return i, err
 			}
 			lastKeyval = keyval
 		} else { // InternalFormat
-			err := cynode.marshalYAML(buffer, indent+indentoffset, unindent, true)
+			err := cynode.marshalYAML(buffer, indent+indentoffset, unindent, true, false)
 			if err != nil {
 				return i, err
 			}
@@ -613,7 +613,7 @@ func (ynode *yamlNode) marshalYAMChildListableNodes(
 	return i, nil
 }
 
-func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, unindent, printName bool) error {
+func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, unindent, printName, skipRoot bool) error {
 	var indentoffset int
 	if printName {
 		if indent >= 0 {
@@ -639,7 +639,7 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, unindent, p
 		for i := 0; i < len(children); {
 			if children[i].IsListableNode() { // for list and multiple leaf-list nodes
 				var err error
-				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent+indentoffset, unindent, true)
+				i, err = ynode.marshalYAMChildListableNodes(buffer, children, i, indent+indentoffset, unindent, skipRoot)
 				if err != nil {
 					return Error(EAppTagYAMLEmitting, err)
 				}
@@ -654,7 +654,7 @@ func (ynode *yamlNode) marshalYAML(buffer *bytes.Buffer, indent int, unindent, p
 				continue
 			}
 			cynode.DataNode = children[i]
-			if err := cynode.marshalYAML(buffer, indent+indentoffset, unindent, true); err != nil {
+			if err := cynode.marshalYAML(buffer, indent+indentoffset, unindent, true, false); err != nil {
 				return Error(EAppTagYAMLEmitting, err)
 			}
 			if unindent {
@@ -720,7 +720,9 @@ func (yamlnode *yamlNode) WriteIndent(buffer *bytes.Buffer, indent int, unindent
 	if unindent {
 		return false
 	}
-	buffer.WriteString(yamlnode.PrefixStr)
+	if indent >= 0 {
+		buffer.WriteString(yamlnode.PrefixStr)
+	}
 	for i := 0; i < indent; i++ {
 		buffer.WriteString(yamlnode.IndentStr)
 	}
@@ -1025,12 +1027,16 @@ func MarshalYAML(node DataNode, option ...Option) ([]byte, error) {
 			ynode.printMeta = true
 		}
 	}
+	skipRoot := false
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
+		skipRoot = true
+	}
+	if _, ok := node.(*DataNodeGroup); ok {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName, skipRoot); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName, skipRoot); err != nil {
 			return nil, err
 		}
 	}
@@ -1061,12 +1067,16 @@ func MarshalYAMLIndent(node DataNode, prefix, indent string, option ...Option) (
 			ynode.printMeta = true
 		}
 	}
+	skipRoot := false
 	if _, ok := node.(*DataNodeGroup); ok {
-		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
+		skipRoot = true
+	}
+	if _, ok := node.(*DataNodeGroup); ok {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName, skipRoot); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := ynode.marshalYAML(buffer, 0, false, printNodeName); err != nil {
+		if err := ynode.marshalYAML(buffer, 0, false, printNodeName, skipRoot); err != nil {
 			return nil, err
 		}
 	}

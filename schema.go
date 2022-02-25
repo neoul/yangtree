@@ -280,7 +280,7 @@ func walkDir(path, ext string) ([]string, error) {
 	return fs, nil
 }
 
-func findYangFiles(files []string) ([]string, error) {
+func FindYangFiles(files []string) ([]string, error) {
 	yfiles := make([]string, 0, len(files))
 	for _, file := range files {
 		fi, err := os.Stat(file)
@@ -814,7 +814,7 @@ func Load(file, dir, excluded []string, option ...Option) (*SchemaNode, error) {
 		// }
 		yang.AddPath(expanded...)
 	}
-	yfiles, err := findYangFiles(file)
+	yfiles, err := FindYangFiles(file)
 	if err != nil {
 		return nil, err
 	}

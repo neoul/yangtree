@@ -130,7 +130,7 @@ func (jnode *jsonNode) marshalJSONMetadata(buffer *bytes.Buffer, comma bool) (bo
 
 func (jnode *jsonNode) marshalJSON(buffer *bytes.Buffer, comma, printName, skipRoot bool) (bool, error) {
 	var err error
-	if !skipRoot && printName {
+	if printName {
 		if comma {
 			buffer.WriteString(",")
 		}
@@ -703,7 +703,6 @@ func MarshalJSON(node DataNode, option ...Option) ([]byte, error) {
 		skipRoot = true
 	}
 	if representItself {
-		skipRoot = false
 		buffer.WriteString(`{`)
 	}
 	_, err := jnode.marshalJSON(&buffer, false, representItself, skipRoot)
@@ -742,7 +741,6 @@ func MarshalJSONIndent(node DataNode, prefix, indent string, option ...Option) (
 		skipRoot = true
 	}
 	if representItself {
-		skipRoot = false
 		buffer.WriteString(`{`)
 	}
 	_, err := jnode.marshalJSON(&buffer, false, representItself, skipRoot)

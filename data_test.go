@@ -940,6 +940,8 @@ non-key-list:
 	y, _ := MarshalYAML(any)
 	if !strings.Contains(anystr, string(y)) {
 		t.Errorf("any has different values: %v", string(y))
+		fmt.Println(string(y))
+		fmt.Println(anystr)
 	}
 
 	for _, node := range nodes {
