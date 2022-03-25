@@ -43,10 +43,7 @@ func (leaf *DataLeaf) Parent() DataNode {
 }
 func (leaf *DataLeaf) Children() []DataNode { return nil }
 func (leaf *DataLeaf) String() string {
-	if leaf.schema.IsLeaf() {
-		return leaf.schema.Name
-	}
-	return leaf.schema.Name + `[.=` + ValueToValueString(leaf.value) + `]`
+	return leaf.schema.Name
 }
 
 func (leaf *DataLeaf) Path() string {

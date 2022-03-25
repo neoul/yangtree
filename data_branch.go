@@ -102,10 +102,7 @@ func (branch *DataBranch) PathTo(descendant DataNode) string {
 }
 
 func (branch *DataBranch) String() string {
-	if branch == nil {
-		return ""
-	}
-	return branch.ID()
+	return branch.schema.Name
 }
 
 // copyDataNodeList clones the src nodes.

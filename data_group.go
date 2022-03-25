@@ -239,7 +239,7 @@ func (group *DataNodeGroup) Children() []DataNode {
 	}
 	return nil
 }
-func (group *DataNodeGroup) String() string                    { return "group" + group.schema.Name }
+func (group *DataNodeGroup) String() string                    { return "group." + group.schema.Name }
 func (group *DataNodeGroup) Path() string                      { return "" }
 func (group *DataNodeGroup) PathTo(descendant DataNode) string { return "" }
 func (group *DataNodeGroup) Value() interface{}                { return group.Values() }
