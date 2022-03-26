@@ -122,3 +122,11 @@ func (metadata Metadata) IsOption() {}
 type RepresentItself struct{}
 
 func (f RepresentItself) IsOption() {}
+
+// ReadCallback is a callback executed upon reading or marshaling the data of the node.
+//	readList := []string{}
+//	SetValue(root, "/sample/str-val", nil, func(cur DataNode) interface{} {
+//		readList = append(readList, cur.String())
+//		return nil
+//	})
+type ReadCallback func(cur DataNode) interface{}

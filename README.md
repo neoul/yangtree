@@ -12,24 +12,176 @@ yangtree is a Go utilities that can be used to:
 
 ## Usage
 
-### Loading YANG files
 
 ```go
-   // Load shema from YANG files.
-   // Load() will load all YANG files from testdata/sample directory.
-	RootSchema, err := yanagtree.Load([]string{"testdata/sample"}, nil, nil, YANGTreeOption{LeafListValueAsKey: true})
+	// Load shema from YANG files.
+	// Load() will load all YANG files from testdata/sample directory.
+	rootschema, err := yangtree.Load([]string{"../../testdata/sample"}, nil, nil)
 	if err != nil {
-		t.Fatal(err)
+		log.Fatalln(err)
 	}
 
-   // Create a data node from the root schema
-   // New()
-   RootData, err := New(RootSchema)
+	// Create a data node from the root schema
+	// New() creates new data node from the schema node.
+	rootdata, err := yangtree.New(rootschema)
 	if err != nil {
-		t.Fatal(err)
+		log.Fatalln(err)
 	}
+
+	// Update data tree using simple XPaths and data.
+	yangtree.SetValueString(rootdata, "/sample/str-val", nil, "hello yangtree!")
+	yangtree.SetValueString(rootdata, "/sample/single-key-list[list-key=A]/country-code", nil, "KR")
+	yangtree.SetValueString(rootdata, "/sample/single-key-list[list-key=A]/decimal-range", nil, "10.1")
+	yangtree.SetValueString(rootdata, "/sample/single-key-list[list-key=A]/empty", nil)
+	yangtree.SetValueString(rootdata, "/sample/single-key-list[list-key=A]/uint32-range", nil, "200")
+	yangtree.SetValueString(rootdata, "/sample/single-key-list[list-key=A]/uint64-node", nil, "0987654321")
+
+	yangtree.SetValue(rootdata, "sample/multiple-key-list[integer=1][str=first]", nil,
+		map[interface{}]interface{}{"integer": 1, "str": "first"})
+	yangtree.SetValue(rootdata, "sample/single-key-list", nil,
+		[]interface{}{
+			map[interface{}]interface{}{
+				"country-code":  "KR",
+				"decimal-range": 1.01,
+				"empty-node":    nil,
+				"list-key":      "B",
+				"uint32-range":  100,
+				"uint64-node":   1234567890},
+		})
+
+	// rootdata.Create("sample")
+
+	// Print the data tree using RFC7951 (JSON_IETF)
+	b, err := yangtree.MarshalJSONIndent(rootdata, "", " ", yangtree.RFC7951Format{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
+
+  // {
+  //  "sample:sample": {
+  //   "multiple-key-list": [
+  //    {
+  //     "integer": 1,
+  //     "str": "first"
+  //    }
+  //   ],
+  //   "single-key-list": [
+  //    {
+  //     "country-code": "KR",
+  //     "list-key": "A",
+  //     "uint32-range": 200
+  //    },
+  //    {
+  //     "country-code": "KR",
+  //     "decimal-range": 1.01,
+  //     "empty-node": [
+  //      null
+  //     ],
+  //     "list-key": "B",
+  //     "uint32-range": 100,
+  //     "uint64-node": "1234567890"
+  //    }
+  //   ],
+  //   "str-val": "hello yangtree!"
+  //  }
+  // }
+
+
+	// Print the data tree using JSON
+	b, err = yangtree.MarshalJSONIndent(rootdata, "", " ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
+
+  // {
+  //  "sample": {
+  //   "multiple-key-list": {
+  //    "first": {
+  //     "1": {
+  //      "integer": 1,
+  //      "str": "first"
+  //     }
+  //    }
+  //   },
+  //   "single-key-list": {
+  //    "A": {
+  //     "country-code": "KR",
+  //     "list-key": "A",
+  //     "uint32-range": 200
+  //    },
+  //    "B": {
+  //     "country-code": "KR",
+  //     "decimal-range": 1.01,
+  //     "empty-node": null,
+  //     "list-key": "B",
+  //     "uint32-range": 100,
+  //     "uint64-node": 1234567890
+  //    }
+  //   },
+  //   "str-val": "hello yangtree!"
+  //  }
+  // }
+
+	// Print the data tree using YAML
+	b, err = yangtree.MarshalYAMLIndent(rootdata, "", " ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
+
+  // sample:
+  //  multiple-key-list:
+  //   first:
+  //    1:
+  //     integer: 1
+  //     str: first
+  //  single-key-list:
+  //   A:
+  //    country-code: KR
+  //    list-key: A
+  //    uint32-range: 200
+  //   B:
+  //    country-code: KR
+  //    decimal-range: 1.01
+  //    empty-node: 
+  //    list-key: B
+  //    uint32-range: 100
+  //    uint64-node: 1234567890
+  //  str-val: hello yangtree!
+
+
+	// Print the data tree using XML
+	b, err = yangtree.MarshalXMLIndent(rootdata, "", " ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(b))
+
+  // <root xmlns="https://github.com/neoul/yangtree">
+  //  <sample xmlns="urn:network">
+  //   <multiple-key-list>
+  //    <integer>1</integer>
+  //    <str>first</str>
+  //   </multiple-key-list>
+  //   <single-key-list>
+  //    <country-code>KR</country-code>
+  //    <list-key>A</list-key>
+  //    <uint32-range>200</uint32-range>
+  //   </single-key-list>
+  //   <single-key-list>
+  //    <country-code>KR</country-code>
+  //    <decimal-range>1.01</decimal-range>
+  //    <empty-node></empty-node>
+  //    <list-key>B</list-key>
+  //    <uint32-range>100</uint32-range>
+  //    <uint64-node>1234567890</uint64-node>
+  //   </single-key-list>
+  //   <str-val>hello yangtree!</str-val>
+  //  </sample>
+  // </root>
 ```
-
 
 ## Sorting by data node key
 

@@ -960,3 +960,45 @@ non-key-list:
 	// y, _ = MarshalYAML(collector)
 	// fmt.Println(string(y))
 }
+
+func TestReadCallback(t *testing.T) {
+	RootSchema, err := Load([]string{"testdata/sample"}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open("testdata/json/sample.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jbyte, err := ioutil.ReadAll(f)
+	if err != nil {
+		t.Fatalf("err in file read: %v", err)
+	}
+	f.Close()
+
+	root, err := NewWithValueString(RootSchema, string(jbyte))
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, _ := MarshalJSON(root)
+	t.Log(string(j))
+
+	readList := []string{}
+	SetValue(root, "/sample/str-val", nil, func(cur DataNode) interface{} {
+		t.Logf("ReadCallback for %s", cur.String())
+		readList = append(readList, cur.String())
+		return nil
+	})
+	SetValue(root, "/sample/container-val/a", nil, func(cur DataNode) interface{} {
+		t.Logf("ReadCallback for %s", cur.String())
+		readList = append(readList, cur.String())
+		return nil
+	})
+
+	y, _ := MarshalYAML(root)
+	t.Log(string(y))
+	t.Log(readList)
+	if len(readList) != 2 {
+		t.Fatal("readcallbak operation is failed")
+	}
+}

@@ -154,14 +154,14 @@ func (xnode *xmlNode) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 		}
 		return e.EncodeToken(xml.Token(xml.EndElement{Name: xml.Name{Local: schema.Name}}))
 	case *DataLeafList:
-		for i := range node.value {
-			if err := e.EncodeElement(ValueToValueString(node.value[i]), start); err != nil {
+		for _, v := range node.Values() {
+			if err := e.EncodeElement(ValueToValueString(v), start); err != nil {
 				return err
 			}
 		}
 		return nil
 	case *DataLeaf:
-		vstr, err := value2XMLString(schema, schema.Type, node.value)
+		vstr, err := value2XMLString(schema, schema.Type, node.Value())
 		if err != nil {
 			return err
 		}

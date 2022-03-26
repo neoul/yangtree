@@ -61,7 +61,7 @@ func DiffUpdated(node1, node2 DataNode, disDupCmp bool) ([]DataNode, []DataNode)
 		return created, replaced
 	case *DataLeaf:
 		d2 := node2.(*DataLeaf)
-		if cmp.Equal(d1.value, d2.value) {
+		if cmp.Equal(d1.Value(), d2.Value()) {
 			return nil, nil
 		}
 		return nil, []DataNode{d2}

@@ -60,19 +60,40 @@ func (leaflist *DataLeafList) PathTo(descendant DataNode) string {
 	return ""
 }
 
-func (leaflist *DataLeafList) Value() interface{}    { return leaflist.value }
-func (leaflist *DataLeafList) Values() []interface{} { return leaflist.value }
+func (leaflist *DataLeafList) Value() interface{} {
+	if len(leaflist.value) > 0 {
+		if c, ok := leaflist.value[0].(func(cur DataNode) interface{}); ok {
+			return c(leaflist)
+		}
+	}
+	return leaflist.value
+}
+
+func (leaflist *DataLeafList) Values() []interface{} {
+	if len(leaflist.value) > 0 {
+		if c, ok := leaflist.value[0].(func(cur DataNode) interface{}); ok {
+			v := c(leaflist)
+			if vv, ok := v.([]interface{}); ok {
+				return vv
+			}
+			return []interface{}{v}
+		}
+	}
+	return leaflist.value
+}
+
+// FIXME - Incomplete conversion to string
 func (leaflist *DataLeafList) ValueString() string {
+	if len(leaflist.value) > 0 {
+		if c, ok := leaflist.value[0].(func(cur DataNode) interface{}); ok {
+			return ValueToValueString(c(leaflist))
+		}
+	}
 	return ValueToValueString(leaflist.value)
 }
 
 func (leaflist *DataLeafList) HasValueString(value string) bool {
-	for i := range leaflist.value {
-		if v := ValueToValueString(leaflist.value[i]); v == value {
-			return true
-		}
-	}
-	return false
+	return leaflist.ValueString() == value
 }
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
@@ -89,6 +110,7 @@ func (leaflist *DataLeafList) Update(id string, value ...string) (DataNode, erro
 	return nil, fmt.Errorf("update is not supported %s", leaflist)
 }
 
+// recover the node values if safe is set.
 func (leaflist *DataLeafList) setValueString(safe bool, value []string) error {
 	if leaflist.parent != nil {
 		// leaflist allows the set operation
@@ -155,6 +177,12 @@ func (leaflist *DataLeafList) setValue(safe bool, value []interface{}) error {
 			return nil
 		}
 	}
+	if len(value) == 1 {
+		if c, ok := value[0].(func(cur DataNode) interface{}); ok {
+			leaflist.value = []interface{}{c}
+			return nil
+		}
+	}
 	var backup []interface{}
 	if safe && len(leaflist.value) > 0 {
 		backup = make([]interface{}, len(leaflist.value))
@@ -210,6 +238,13 @@ func (leaflist *DataLeafList) UnsetValue(value ...interface{}) error {
 		if leaflist.schema.IsKey {
 			// ignore id update
 			// return fmt.Errorf("unable to update id node %s if used", leaflist)
+			return nil
+		}
+	}
+	// FIXME - Should the readcallback be removed?
+	if len(leaflist.value) == 1 {
+		if _, ok := leaflist.value[0].(func(cur DataNode) interface{}); ok {
+			leaflist.value = nil
 			return nil
 		}
 	}
@@ -358,7 +393,7 @@ func (leaflist *DataLeafList) Index(id string) int {
 }
 
 func (leaflist *DataLeafList) Len() int {
-	return len(leaflist.value)
+	return len(leaflist.Values())
 }
 
 func (leaflist *DataLeafList) Name() string {
@@ -457,8 +492,8 @@ func (leaflist *DataLeafList) MarshalXML(e *xml.Encoder, start xml.StartElement)
 	// if err := e.EncodeToken(xml.Comment(leaflist.ID())); err != nil {
 	// 	return err
 	// }
-	for i := range leaflist.value {
-		if err := e.EncodeElement(ValueToValueString(leaflist.value[i]), start); err != nil {
+	for _, v := range leaflist.Values() {
+		if err := e.EncodeElement(ValueToValueString(v), start); err != nil {
 			return err
 		}
 	}

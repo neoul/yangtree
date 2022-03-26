@@ -60,12 +60,32 @@ func (leaf *DataLeaf) PathTo(descendant DataNode) string {
 	return ""
 }
 
-func (leaf *DataLeaf) Value() interface{}    { return leaf.value }
-func (leaf *DataLeaf) Values() []interface{} { return []interface{}{leaf.value} }
-func (leaf *DataLeaf) ValueString() string   { return ValueToValueString(leaf.value) }
+func (leaf *DataLeaf) Value() interface{} {
+	if c, ok := leaf.value.(func(cur DataNode) interface{}); ok {
+		return c(leaf)
+	}
+	return leaf.value
+}
+
+func (leaf *DataLeaf) Values() []interface{} {
+	if c, ok := leaf.value.(func(cur DataNode) interface{}); ok {
+		if v := c(leaf); v != nil {
+			return []interface{}{v}
+		}
+		return nil
+	}
+	return []interface{}{leaf.value}
+}
+
+func (leaf *DataLeaf) ValueString() string {
+	if c, ok := leaf.value.(func(cur DataNode) interface{}); ok {
+		return ValueToValueString(c(leaf))
+	}
+	return ValueToValueString(leaf.value)
+}
+
 func (leaf *DataLeaf) HasValueString(value string) bool {
-	v := ValueToValueString(leaf.value)
-	return v == value
+	return leaf.ValueString() == value
 }
 
 // GetOrNew() gets or creates a node having the id and returns the found or created node
@@ -87,7 +107,7 @@ func (leaf *DataLeaf) SetValue(value ...interface{}) error {
 		return fmt.Errorf("more than one value cannot be set to a leaf node %s", leaf)
 	}
 	if leaf.parent != nil {
-		if leaf.IsLeafList() && value[0] != leaf.value {
+		if leaf.IsLeafList() && value[0] != leaf.Value() {
 			return fmt.Errorf("value update is not supported for multiple leaf-list")
 		}
 		if leaf.schema.IsKey {
@@ -98,6 +118,18 @@ func (leaf *DataLeaf) SetValue(value ...interface{}) error {
 	}
 
 	for i := range value {
+		if c, ok := value[i].(func(cur DataNode) interface{}); ok {
+			// ReadCallback doesn't support the type validation.
+			// It must be checked by ReadCallback.
+			if leaf.schema.IsKey {
+				return fmt.Errorf("unable to set readcallback to key leaf node")
+			}
+			if leaf.schema.IsLeafList() {
+				return fmt.Errorf("unable to set readcallback to multiple leaflist node")
+			}
+			leaf.value = c
+			break
+		}
 		v, err := ValueToValidTypeValue(leaf.schema, leaf.schema.Type, value[i])
 		if err != nil {
 			return err
@@ -144,7 +176,7 @@ func (leaf *DataLeaf) SetValueString(value ...string) error {
 		return fmt.Errorf("more than one value cannot be set to a leaf node %s", leaf)
 	}
 	if leaf.parent != nil {
-		if leaf.IsLeafList() && value[0] != ValueToValueString(leaf.value) {
+		if leaf.IsLeafList() && !leaf.HasValueString(value[0]) {
 			return fmt.Errorf("value update is not supported for multiple leaf-list")
 		}
 		if leaf.schema.IsKey {
@@ -280,7 +312,7 @@ func (leaf *DataLeaf) Len() int {
 	if leaf.schema.Type.Kind == yang.Yempty {
 		return 1
 	}
-	if leaf.value == nil {
+	if leaf.Value() == nil {
 		return 0
 	}
 	return 1
@@ -302,7 +334,7 @@ func (leaf *DataLeaf) ID() string {
 		return leaf.schema.Name
 	}
 	// leaf-list id format: LEAF[.=VALUE]
-	return leaf.schema.Name + `[.=` + ValueToValueString(leaf.value) + `]`
+	return leaf.schema.Name + `[.=` + leaf.ValueString() + `]`
 }
 
 // CreateByMap() updates the data node using pmap (path predicate map) and string values.
@@ -385,7 +417,7 @@ func (leaf *DataLeaf) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	// if err := e.EncodeToken(xml.Comment(leaf.ID())); err != nil {
 	// 	return err
 	// }
-	vstr, err := value2XMLString(leaf.schema, leaf.schema.Type, leaf.value)
+	vstr, err := value2XMLString(leaf.schema, leaf.schema.Type, leaf.Value())
 	if err != nil {
 		return err
 	}
